@@ -94,6 +94,29 @@ def practice_fuel_kg(
     return start_kg - burn_per_lap * (life - life.min())
 
 
+def practice_fuel_correction_s(
+    run_lap: pd.Series | np.ndarray,
+    burn_kg_per_lap: float,
+    s_per_kg: float = MASS_SENSITIVITY_S_PER_KG,
+) -> np.ndarray:
+    """Seconds to ADD back to a practice lap to remove the fuel-burn benefit.
+
+    Burning fuel makes the car faster, so later laps in a run are quicker for a
+    reason that has nothing to do with the tyre. Adding the effect back leaves
+    the tyre's contribution.
+
+    The sign is the thing to get right: this returns a POSITIVE and growing
+    number, so a later lap is corrected upwards.
+
+    Args:
+        run_lap: 1-based position within the run.
+        burn_kg_per_lap: fuel consumed per lap during the run.
+        s_per_kg: lap-time sensitivity to mass.
+    """
+    laps_into_run = np.asarray(run_lap, dtype=float) - 1.0
+    return laps_into_run * burn_kg_per_lap * s_per_kg
+
+
 def fuel_effect_seconds(
     fuel_kg: np.ndarray, s_per_kg: float = MASS_SENSITIVITY_S_PER_KG
 ) -> np.ndarray:

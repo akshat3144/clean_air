@@ -37,7 +37,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from .scoring import crps_normal, crps_student_t, rmse_seconds
+from .scoring import crps_normal, crps_student_t, rmse_seconds, rolling_origin_folds
 
 #: Laps of recent history used to extrapolate the field's mean pace. Long enough
 #: to be stable, short enough to track a safety car or a rain shower.
@@ -67,12 +67,17 @@ class BenchmarkResult:
 
 
 def _folds(stint_last_laps: list[int]) -> list[tuple[int, int]]:
-    """Their scheme: (train_up_to, test_lap) pairs, in global lap numbers."""
-    out = []
-    for s_i in stint_last_laps:
-        start = int(np.ceil(TRAIN_FRACTION * s_i))
-        out.extend((k, k + 1) for k in range(start, s_i))
-    return out
+    """Their scheme: (train_up_to, test_lap) pairs, in global lap numbers.
+
+    Delegates to ``scoring.rolling_origin_folds`` so there is a single
+    definition of the scheme. There used to be two implementations here, and the
+    one with a test was not the one producing our published number.
+    """
+    return [
+        (k, k + 1)
+        for s_i in stint_last_laps
+        for k, _ in rolling_origin_folds(s_i, TRAIN_FRACTION)
+    ]
 
 
 def _extrapolate(series: pd.Series, target_lap: int, window: int = TREND_WINDOW) -> float:

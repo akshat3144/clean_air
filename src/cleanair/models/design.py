@@ -43,6 +43,7 @@ import numpy as np
 import pandas as pd
 
 from ..config import COMPOUND_ALLOCATION_2026, MASS_SENSITIVITY_S_PER_KG
+from ..data.fuel import practice_fuel_correction_s
 from ..data.traffic import add_gap_ahead
 
 log = logging.getLogger(__name__)
@@ -217,9 +218,9 @@ def practice_design(
     """
     df = df[df["session"] != "R"].copy()
 
-    laps_into_run = df["run_lap"] - 1
-    df["fuel_burned_kg"] = laps_into_run * burn_kg_per_lap
-    df["y_fuel_corrected"] = df["LapTimeSeconds"] + df["fuel_burned_kg"] * s_per_kg
+    correction = practice_fuel_correction_s(df["run_lap"], burn_kg_per_lap, s_per_kg)
+    df["fuel_burned_kg"] = (df["run_lap"] - 1) * burn_kg_per_lap
+    df["y_fuel_corrected"] = df["LapTimeSeconds"] + correction
 
     df["tyre_life_sq"] = df["TyreLife"] ** 2
     run = df.groupby("run_id")

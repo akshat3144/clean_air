@@ -27,12 +27,40 @@ logging.getLogger("fastf1").setLevel(logging.ERROR)
 SESSIONS = ("FP1", "FP2", "FP3", "R")
 
 
+def _conventional_events(season: int) -> list[str]:
+    """Conventional weekends for a season, from the schedule.
+
+    Sprint weekends run only FP1 before Sprint Qualifying, so they carry no
+    race-simulation long runs and are excluded.
+    """
+    import fastf1
+
+    from cleanair.data.cache import enable_cache
+
+    enable_cache()
+    sched = fastf1.get_event_schedule(season, include_testing=False)
+    return sched[sched["EventFormat"] == "conventional"]["EventName"].tolist()
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--events", nargs="*", default=list(CONVENTIONAL_2026))
+    ap.add_argument("--events", nargs="*", default=None)
     ap.add_argument("--sessions", nargs="*", default=list(SESSIONS))
     ap.add_argument("--season", type=int, default=SEASON)
+    ap.add_argument("--out", default=None, help="parquet filename; defaults per season")
     args = ap.parse_args()
+
+    # 2026 keeps writing laps.parquet so nothing downstream changes. Earlier
+    # seasons go to their own file: their tyre construction differs, so their
+    # degradation rates must never be pooled with 2026's by accident.
+    if args.events is None:
+        args.events = (
+            list(CONVENTIONAL_2026)
+            if args.season == SEASON
+            else _conventional_events(args.season)
+        )
+    out_name = args.out or ("laps.parquet" if args.season == SEASON
+                            else f"laps_{args.season}.parquet")
 
     frames, rows = [], []
     for event in args.events:
@@ -60,7 +88,7 @@ def main() -> None:
     df = tag_long_runs(pd.concat(frames, ignore_index=True))
 
     PROCESSED.mkdir(parents=True, exist_ok=True)
-    out = PROCESSED / "laps.parquet"
+    out = PROCESSED / out_name
     df.to_parquet(out, index=False)
 
     print(f"\nwrote {out}  ({len(df):,} clean laps)")
