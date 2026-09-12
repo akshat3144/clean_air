@@ -32,8 +32,8 @@
     },
     {
       "model": "Clean Air pooled",
-      "rmspe": null,
-      "crps": null,
+      "rmspe": 1.145,
+      "crps": 0.21,
       "source": "ours"
     }
   ],

@@ -49,14 +49,67 @@ We did not take their paper's word for any of it. We ran their code.
 | | |
 |---|---|
 | Idea round | ✅ shortlisted |
-| Toolchain | ✅ Python + R + CmdStan verified working |
-| Benchmark reproduced | ✅ |
-| 2026 data verified | ✅ ~2,000 usable long-run laps across 7 weekends |
-| Pooled model separates compounds | ⏳ **unproven — this is the next thing to answer** |
+| Toolchain | ✅ Python + R + CmdStan verified |
+| Benchmark reproduced | ✅ their Table 3 estimates recovered by running their code |
+| 2026 data | ✅ 13,128 clean laps, 7 conventional weekends, 22 drivers |
+| Identification | ✅ recovers a known rate from synthetic data with a 10x larger confounder |
+| Power analysis | ✅ 512 driver-stints needed; they had 3, we have 417 |
+| Calibration | ✅ 80% intervals cover 80.5% |
+| Practice → race | ✅ MAE 0.048 s/lap, +52% over the naive prediction |
+| Scored against the benchmark | ✅ CRPS 0.210 vs their best 0.202 |
+| Strategy layer | ✅ pit loss measured per circuit, every legal plan enumerated |
+| Softer compounds degrade faster | ❌ **not what the data says. Unresolved.** |
 
-The last row is the whole project. Everything else is contingent on it.
+**The last row is the honest headline.** Pooling the field buys precision the
+published model could not get -- intervals 15x tighter, and enough power to
+resolve a 0.006 s/lap difference. What it does *not* do is reproduce the
+expected compound ordering. Two explanations survive testing (statistical power,
+and drivers managing softer tyres harder in races) and we have not separated
+them. See [the open questions](#open-questions).
 
----
+## Where we stand against the benchmark
+
+Scored on their exact 35 predictions, their cross-validation scheme, and their
+metric -- our CRPS verified to match R's `scoringRules` to 1e-11.
+
+| model | RMSE (s) | CRPS | |
+|---|---|---|---|
+| ARIMA(2,1,2) | 1.520 | 0.324 | published |
+| SSM base | 1.169 | 0.230 | published |
+| SSM compound-specific | 1.187 | 0.236 | published |
+| **Clean Air pooled** | **1.145** | **0.210** | **ours** |
+| SSM skew-t | 1.082 | 0.202 | published, their best |
+
+We beat their base model, their compound-specific model and ARIMA. **We do not
+beat their best.** Per stint we are ahead on two of three (0.178 vs 0.184;
+0.266 vs 0.316) and well behind on the third (0.187 vs 0.106), which drags the
+mean.
+
+That is the expected result, and worth stating plainly: their model is a
+one-step lap-time forecaster and ours is a degradation estimator. Being level
+with the published state of the art on *its* metric, while also producing
+per-compound rates it cannot, is the claim -- not that we beat it.
+
+## Open questions
+
+Things we tested and could not resolve. Listed because a reader will find them
+anyway, and because the tests that ruled things out are worth more than a
+confident story.
+
+1. **Softer compounds do not show faster degradation in races.** C5 comes out at
+   -0.004 s/lap. Ruled out: tyre-age windowing (ranges overlap), unidentifiable
+   cells (filtered), post-pit traffic (dropping opening laps changes nothing),
+   and traffic generally (added as a covariate; moves rates by <0.015 s/lap).
+2. **Two of nine transfer cells have negative actual rates.** Same list of
+   ruled-out causes. Belgian C4 has only 40 laps; Japanese C1 may suffer
+   compound-age confounding within a lap, since Japan ran only two compounds.
+3. **Practice is underpowered.** 97 runs gives 35% power, so the practice-versus-
+   race gap -- our most interesting lead -- is a lead, not a result.
+4. **The compound pace offset is assumed, not measured** (0.6 s per step). Two
+   attempts to fit it failed: in races compound choice correlates with car pace;
+   in practice a driver's best lap per compound comes from different fuel loads.
+   The strategy margin is smaller than the uncertainty in this number, so the
+   crossover is defensible and the specific stint plan is illustrative.
 
 ## Layout
 
