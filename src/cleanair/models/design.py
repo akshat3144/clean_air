@@ -44,6 +44,7 @@ import pandas as pd
 
 from ..config import MASS_SENSITIVITY_S_PER_KG
 from ..data.fuel import practice_fuel_correction_s
+from ..data.session_weight import weight_for
 from ..data.traffic import add_gap_ahead
 
 log = logging.getLogger(__name__)
@@ -238,6 +239,13 @@ def practice_design(
     df["y"] = df["y_fuel_corrected"] - run["y_fuel_corrected"].transform("mean")
     df["tl"] = df["TyreLife"] - run["TyreLife"].transform("mean")
     df["tl2"] = df["tyre_life_sq"] - run["tyre_life_sq"].transform("mean")
+
+    # How much this lap counts. FP1, FP2 and FP3 were pooled equally until
+    # now, which quietly let FP1 -- whose measured degradation correlates 0.05
+    # with the race, against FP2's 0.84 -- pull the forecast around. The
+    # centring above is untouched: a weight changes how much a run informs the
+    # slope, not what the slope is measured against.
+    df["w"] = df["session"].map(weight_for).astype(float)
     return df
 
 
