@@ -61,7 +61,7 @@ import fastf1
 import numpy as np
 import pandas as pd
 
-from cleanair.config import ARTIFACTS, PROCESSED
+from cleanair.config import ARTIFACTS, PROCESSED, PUBLISHED_RACE_LAPS
 from cleanair.data.cache import load_session
 from cleanair.data.schedule import rounds
 from cleanair.strategy.pitloss import estimate
@@ -147,18 +147,33 @@ def main() -> None:
             if not past:
                 continue
             dist = race_distance(season, past)
-            if dist:
-                distances.append(dist)
             try:
                 s = load_session(past, "R", season, telemetry=False, weather=False)
                 pl = estimate(s.laps, past)
             except Exception:  # noqa: BLE001 -- a circuit we have never raced is normal
-                pl = None
+                s, pl = None, None
+
+            # Distance from the SESSION when the parquet has none.
+            #
+            # The processed per-season files hold conventional weekends only,
+            # so every sprint venue -- China, Sao Paulo, Qatar -- had a pit
+            # loss and no race distance, and the console asked a human to type
+            # a lap count we had already downloaded. The race session is
+            # loaded here anyway for the pit loss, so this costs no extra
+            # network.
+            if not dist and s is not None:
+                try:
+                    dist = int(s.laps["LapNumber"].max())
+                except Exception:  # noqa: BLE001
+                    dist = None
+            if dist:
+                distances.append(dist)
             if pl:
                 losses.append(round(pl.seconds, 2))
                 seen.append(season)
 
-        if not losses and not distances:
+        published = PUBLISHED_RACE_LAPS.get(event)
+        if not losses and not distances and published is None:
             print(f"  {event:28s} no history  ({wanted[event] or 'unknown location'})")
             continue
 
@@ -172,6 +187,15 @@ def main() -> None:
             # circuit's distance.
             row["race_laps"] = int(max(distances))
             row["race_laps_seen"] = sorted(set(distances))
+            row["race_laps_source"] = "measured"
+        elif published is not None:
+            # A circuit we have never raced still has a published distance --
+            # the FIA fixes it and it is on the circuit page before anyone
+            # drives. Having no history is not the same as the number being
+            # unknown, and making someone type it suggested otherwise.
+            # History wins wherever we have it; this only fills a genuine gap.
+            row["race_laps"] = int(published)
+            row["race_laps_source"] = "published"
         out[event] = row
 
         pit = f"{row['pit_loss_s']:.1f}s" if losses else "  -  "

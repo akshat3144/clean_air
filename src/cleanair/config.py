@@ -162,6 +162,46 @@ MASS_SENSITIVITY_RANGE = (0.030, 0.035)
 NON_GREEN_CODES = ("4", "5", "6", "7")
 GREEN = "1"
 
+#: Race distance for circuits we have never raced, in laps.
+#:
+#: A published fact, not an estimate. The FIA fixes race distance and it is on
+#: the circuit page before anyone drives; we simply have no HISTORY for a new
+#: track, which is a different thing from the number being unknown. Without
+#: this a new circuit forces someone to type a number that was never in doubt.
+#:
+#: Only circuits absent from circuits.json belong here, and each carries its
+#: source. History wins wherever we have it -- a measured distance beats a
+#: transcribed one.
+PUBLISHED_RACE_LAPS: dict[str, int] = {
+    # Madring, Madrid. 308.399 km over a 5.414 km lap.
+    # https://www.formula1.com/en/racing/2026/spain/circuit
+    "Spanish Grand Prix": 57,
+}
+
+#: Pit-loss figures quoted publicly for circuits we cannot measure.
+#:
+#: DELIBERATELY NOT USED AS DATA. These are other people's simulation output,
+#: not measurements, and the difference matters: we measure pit loss from 163
+#: green-flag stops where we have races, and nobody has driven Madrid's pit
+#: lane in anger. Pirelli's own chief engineer and a paddock journalist give
+#: 24s and 25s for the same lane, which is the size of the disagreement.
+#:
+#: Offered to the operator as a labelled starting point, with its source named,
+#: so that typing a number is informed rather than blind. It becomes an input
+#: only if a human accepts it.
+PUBLISHED_PIT_LOSS_HINTS: dict[str, dict] = {
+    "Spanish Grand Prix": {
+        "seconds": 24.0,
+        "source": "Pirelli chief engineer Simone Berra, pre-event",
+        "kind": "simulation estimate",
+        "note": (
+            "A 562 m pit lane at the regulation 80 km/h is about 25s of "
+            "speed-limited transit alone, so a net loss near 24s is plausible "
+            "-- but no car has raced here and nothing has been measured."
+        ),
+    },
+}
+
 #: Minimum consecutive clean green laps in a stint to count as a "long run".
 MIN_LONG_RUN_LAPS = 5
 
