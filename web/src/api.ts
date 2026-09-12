@@ -229,6 +229,59 @@ export interface ForecastCompound {
   optimal_stint: number;
   excluded: boolean;
   overridden: boolean;
+  /** "measured" means this weekend put that tyre on a race simulation.
+   *  "stand-in" means nobody did, and the rate was borrowed from other
+   *  circuits and rescaled by this one's severity. The screen MUST NOT draw
+   *  the two the same way. */
+  source?: "measured" | "stand-in";
+  /** Race-simulation runs and laps behind a measured rate. Zero on stand-ins. */
+  n_runs?: number;
+  n_laps?: number;
+  /** How harsh this circuit is against the rest of the calendar, on the
+   *  compounds it did run. Only set on stand-ins, which are scaled by it. */
+  severity?: number | null;
+}
+
+/** One (session, compound) cell, before the sessions are blended. */
+export interface SessionCell {
+  session: string;
+  compound: string;
+  label: string | null;
+  rate: number;
+  se: number | null;
+  n_runs: number;
+  n_laps: number;
+  weight: number;
+  /** Under three runs. Shown, but never leaned on. */
+  thin: boolean;
+}
+
+export interface SessionBreakdown {
+  session: string;
+  has_run: boolean;
+  weight: number;
+  /** Signed clock-hours from this session's start to the race start. */
+  hours_to_race: number | null;
+  n_cells: number;
+  n_race_sim_runs: number;
+  n_race_sim_laps: number;
+  cells: SessionCell[];
+}
+
+/** How each practice session scored against the races that have run. */
+export interface SessionSkill {
+  n_cells: number;
+  correlation: number | null;
+  factor: number | null;
+  mae: number | null;
+}
+
+export interface PracticeSessions {
+  event: string;
+  sessions: SessionBreakdown[];
+  weights: Record<string, number>;
+  weight_evidence: Record<string, SessionSkill>;
+  allocation: Record<string, string> | null;
 }
 
 export interface ForecastResult {
@@ -273,6 +326,13 @@ export interface PollerState {
 
 export const getUpcoming = (limit = 3, signal?: AbortSignal) =>
   get<UpcomingRound[]>(`/upcoming?limit=${limit}`, "upcoming", signal);
+
+export const getPracticeSessions = (event: string, signal?: AbortSignal) =>
+  get<PracticeSessions>(
+    `/practice-sessions?event=${encodeURIComponent(event)}`,
+    "practice sessions",
+    signal,
+  );
 
 export const getPoller = (signal?: AbortSignal) =>
   get<PollerState>("/poller", "poller", signal);

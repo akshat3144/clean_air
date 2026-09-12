@@ -8,6 +8,7 @@ import {
   type ForecastResult,
   type UpcomingRound,
 } from "./api";
+import { PracticeSessionsPanel } from "./PracticeSessionsPanel";
 import { COMPOUND_COLOR, type Compound } from "./types/artifacts";
 import { Animated, Panel, Pill, Row, Skeleton, StintAllocation } from "./ui";
 
@@ -782,6 +783,18 @@ function Forecast({ rnd }: { rnd: UpcomingRound }) {
               >
                 {c.rate.toFixed(4)}
               </span>
+              {c.source === "stand-in" && (
+                <span
+                  className="rounded border border-signal-warn/40 bg-signal-warn/10 px-1.5 py-0.5 text-micro font-medium uppercase tracking-[0.08em] text-signal-warn"
+                  title={
+                    "Nobody ran this compound on a race simulation this weekend. " +
+                    "The rate is this compound's across the rest of the calendar, scaled by " +
+                    `how harsh this circuit is (${c.severity ?? "?"}x) on the tyres that did run.`
+                  }
+                >
+                  stand-in
+                </span>
+              )}
               <span className="num ml-auto text-tiny text-fg-dim">
                 {c.excluded ? "unusable" : `${c.optimal_stint} laps`}
               </span>
@@ -793,7 +806,25 @@ function Forecast({ rnd }: { rnd: UpcomingRound }) {
           compound with a non-positive forecast rate is excluded — an optimiser handed a tyre
           that never wears will run it to the flag.
         </p>
+        {res.compounds.some((c) => c.source === "stand-in") && (
+          // Never let a borrowed number sit in the same column as a measured
+          // one without saying so. Madrid nominated a HARD that nobody put on
+          // a long run in any of the three sessions; the choice is between a
+          // labelled stand-in and refusing to answer at all.
+          <p className="mt-2 text-tiny leading-relaxed text-signal-warn">
+            {res.compounds
+              .filter((c) => c.source === "stand-in")
+              .map((c) => c.label ?? c.compound)
+              .join(" and ")}{" "}
+            {res.compounds.filter((c) => c.source === "stand-in").length === 1 ? "was" : "were"}{" "}
+            never run on a race simulation this weekend. Those rates are borrowed from other
+            circuits and scaled by this one's severity, with a wider band to match. They are
+            estimates, not measurements.
+          </p>
+        )}
       </Panel>
+
+      <PracticeSessionsPanel event={res.event} />
     </div>
   );
 }
