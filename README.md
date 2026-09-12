@@ -343,6 +343,15 @@ wrong your inputs can be before that call changes.
 | **Tyre Curves**  | The measurement itself                                       |
 | **Method**       | Why should I believe any of it?                              |
 
+The brief asks the dashboard for **trend, pattern and prediction.** Each has a
+screen of its own:
+
+| Asked for | Where it lives | What you see |
+| --- | --- | --- |
+| **Trend** | Tyre Curves | Lap time lost against tyre age, per compound, with the 95% band — plus the +5/+10/+15 lap table |
+| **Pattern** | Track Record | Every car's race drawn as its real stints, coloured by compound and sized by the laps it actually ran, against the call we made |
+| **Prediction** | Next Race · Strategy | The stop count, the stint lengths, the pit lap, and how wrong your inputs can be before the call changes |
+
 ### Next Race — the race that has not happened yet
 
 A race becomes answerable in stages, and the screen shows the stage honestly:
