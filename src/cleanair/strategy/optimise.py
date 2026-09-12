@@ -145,12 +145,28 @@ def enumerate_plans(
             continue
 
         # combinations_with_replacement gives the multisets; permuting each one
-        # then covers ordering, because stint order matters as soon as
-        # degradation is non-linear (a worn tyre early is not the same as late).
+        # then assigns compounds to slots. Two things here are easy to get wrong.
+        #
+        # First, sequence does not affect total_time. Every stint starts at age
+        # zero, so the total is a sum over unordered (compound, laps) pairs --
+        # across the 1.47M plans at Barcelona, not one pairing's orderings
+        # disagree by more than 1e-12. The permutation loop survives anyway
+        # because _splits is not permutation-closed once step > 1: it walks the
+        # first stint along a lattice and lets the last absorb the remainder, so
+        # permuting the compounds reaches pairings permuting the laps cannot.
+        # Dropping it changes the step=2 optimum, which is the coarse grid the
+        # console answers with while you drag.
+        #
+        # Second, sorted(). Set iteration follows the hash seed, and the best
+        # plan is routinely an exact tie -- six ways at Barcelona. Unsorted, the
+        # same data recommended "C2 x23 -> C3 x19 -> C2 x24" on one boot and
+        # "C3 x19 -> C2 x23 -> C2 x24" on the next. The sequence we print is
+        # therefore a stable convention, not a claim: the model ranks which
+        # compound runs which stint length, and is indifferent to their order.
         for combo in combinations_with_replacement(available, n_stints):
             if len(set(combo)) < MIN_DISTINCT_COMPOUNDS:
                 continue
-            for perm in set(permutations(combo)):
+            for perm in sorted(set(permutations(combo))):
                 for stints in _splits(race_laps, n_stints, min_stint, step):
                     tyre_time = sum(
                         stint_time(laps, rates[c], offsets[c], curvature.get(c, 0.0))

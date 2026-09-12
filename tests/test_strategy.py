@@ -7,6 +7,8 @@ tests exist because that happened.
 
 from __future__ import annotations
 
+import os
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -147,6 +149,55 @@ def test_plans_come_back_sorted():
     plans = enumerate_plans(60, RATES, OFFSETS, 22.0, step=5)
     times = [p.total_time for p in plans]
     assert times == sorted(times)
+
+
+# --- the recommendation must not depend on the hash seed --------------------
+
+
+def test_stint_order_never_changes_the_total():
+    """Every stint starts on a fresh tyre, so the total is a sum over unordered
+    (compound, laps) pairs. This is why the best plan is so often a tie, and it
+    is the reason the sequence we print is a convention rather than a call."""
+    plans = enumerate_plans(60, RATES, OFFSETS, 22.0, step=5)
+    by_pairing: dict[tuple, list[float]] = {}
+    for pl in plans:
+        key = tuple(sorted(zip(pl.compounds, pl.stints, strict=True)))
+        by_pairing.setdefault(key, []).append(pl.total_time)
+
+    disagreeing = {k: v for k, v in by_pairing.items() if max(v) - min(v) > 1e-12}
+    assert not disagreeing, f"{len(disagreeing)} pairings scored differently by order"
+    # Not vacuous: some pairing really did show up in more than one order.
+    assert any(len(v) > 1 for v in by_pairing.values())
+
+
+def test_the_best_plan_is_the_same_under_a_different_hash_seed():
+    """The bug this pins.
+
+    `permutations` was iterated through a bare set, so the winner among tied
+    plans followed PYTHONHASHSEED. The same data recommended starting on C2 in
+    one process and on C3 in the next -- opposite calls, presented with equal
+    confidence. Subprocesses because the seed is fixed at interpreter start.
+    """
+    import json
+    import subprocess
+    import sys
+
+    script = (
+        "import json;from cleanair.strategy.optimise import enumerate_plans;"
+        f"p=enumerate_plans(60,{RATES!r},{OFFSETS!r},22.0,step=5)[0];"
+        "print(json.dumps([p.compounds,p.stints]))"
+    )
+    seen = set()
+    for seed in ("0", "1", "12345"):
+        out = subprocess.run(
+            [sys.executable, "-c", script],
+            capture_output=True,
+            text=True,
+            check=True,
+            env={**os.environ, "PYTHONHASHSEED": seed},
+        )
+        seen.add(json.dumps(json.loads(out.stdout)))
+    assert len(seen) == 1, f"three hash seeds gave {len(seen)} different plans: {seen}"
 
 
 # --- pit loss ---------------------------------------------------------------
