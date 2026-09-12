@@ -79,6 +79,11 @@ def main() -> None:
     out_name = args.out or ("laps.parquet" if args.season == SEASON
                             else f"laps_{args.season}.parquet")
 
+    #: Sessions we deliberately did not ask for because they have not run yet.
+    #: Kept apart from `failures` because they are not one: a session in the
+    #: future is a fact about the calendar, not about the download.
+    pending: dict[str, list[str]] = {}
+
     def sessions_for(event: str) -> list[str]:
         """What to request for one event.
 
@@ -87,9 +92,20 @@ def main() -> None:
         Requesting a session a weekend does not have logs a failure, which sets
         `complete: false`, which makes the completeness guard reject the event.
         """
-        if args.sessions is not None:
-            return list(args.sessions)
         rnd = find(event, args.season)
+        if args.sessions is not None:
+            # An explicit --sessions still may not ask for a session that has
+            # not happened yet. It used to, and that is a quiet way to lose a
+            # season: asking Madrid for FP3 three hours before FP3 ran logged
+            # one failure, wrote `complete: false`, and dropped all of 2026 out
+            # of the compound-management analysis -- 98 cells to 84, five
+            # seasons to four, with nothing on screen to say so.
+            if rnd is None:
+                return list(args.sessions)
+            ready = [c for c in args.sessions if (s := rnd.session(c)) and s.has_run()]
+            if later := [c for c in args.sessions if c not in ready]:
+                pending[event] = later
+            return ready
         if rnd is None:
             return list(SESSIONS)
         # sessions_to_pull, NOT cacheable_sessions: the first is what has
@@ -110,6 +126,8 @@ def main() -> None:
         names = ", ".join(e.replace(" Grand Prix", "") for e in skipped[:6])
         more = " ..." if len(skipped) > 6 else ""
         print(f"  .. {len(skipped)} event(s) not run yet, skipped: {names}{more}", flush=True)
+    for ev, later in sorted(pending.items()):
+        print(f"  .. {ev}: {', '.join(later)} not run yet, skipped", flush=True)
     frames, rows = [], []
     for event in args.events:
         for ses in requested[event]:
@@ -191,6 +209,10 @@ def main() -> None:
         "events_loaded": sorted(df["event"].unique().tolist()),
         "complete": not rows,
         "failures": rows,
+        # Not a failure and deliberately not part of `complete`: these are
+        # sessions the calendar says have not started. Recorded so a later run
+        # can tell "we have not pulled it" from "it does not exist".
+        "sessions_pending": {k: sorted(v) for k, v in sorted(pending.items())},
         # What the MERGED file now holds, per event. `complete` above describes
         # this pull; this describes the artifact on disk, which after a merge
         # are different questions.
