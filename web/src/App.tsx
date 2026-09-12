@@ -14,7 +14,7 @@ import { COMPOUND_COLOR, width } from "./types/artifacts";
 type ViewId = "curves" | "validation" | "evidence" | "strategy";
 
 const VIEWS: { id: ViewId; label: string; hint: string }[] = [
-  { id: "curves", label: "Degradation", hint: "Clean tyre curves from practice" },
+  { id: "curves", label: "Degradation", hint: "Clean tyre curves by physical compound" },
   { id: "validation", label: "Validation", hint: "Predicted vs actual race pace" },
   { id: "evidence", label: "Evidence", hint: "Deconfounding, benchmark, calibration, power" },
   { id: "strategy", label: "Strategy", hint: "Stint length and stop count" },
@@ -109,11 +109,25 @@ export default function App() {
               ))}
               <div className="panel p-4">
                 <div className="label">Fuel effect</div>
-                <div className="readout mt-1">
-                  {degradation.fuel_coefficient?.mean.toFixed(4) ?? "—"}
-                  <span className="ml-1 text-xs text-fg-faint">s/kg</span>
-                </div>
-                <div className="num mt-1 text-micro text-fg-faint">physics 0.030–0.035</div>
+                {degradation.fuel_coefficient ? (
+                  <>
+                    <div className="readout mt-1">
+                      {degradation.fuel_coefficient.mean.toFixed(4)}
+                      <span className="ml-1 text-xs text-fg-faint">s/kg</span>
+                    </div>
+                    <div className="num mt-1 text-micro text-fg-faint">physics 0.030–0.035</div>
+                  </>
+                ) : (
+                  <>
+                    {/* Not a missing value. In races fuel is identical across
+                        cars on a given lap, so the design removes it whether or
+                        not we know it — we cannot get it wrong. */}
+                    <div className="mt-1 text-sm text-signal-good">absorbed by design</div>
+                    <div className="mt-1 text-micro leading-snug text-fg-faint">
+                      fuel is the same for every car on a lap, so it cancels — no estimate needed
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
