@@ -11,8 +11,8 @@ Problem statement: *Tyre Degradation Intelligence*.
 
 | | | | |
 | --- | --- | --- | --- |
-| **5.3×** tighter intervals than the published model | **417** driver-stints vs their 3 | **6 of 7** strategy calls match what teams ran | **80.5%** empirical coverage at nominal 80% |
-| **132,767** clean laps, 5 seasons | **50,583** strategies enumerated in 2.1 s | **0** code pushes to add a race | **228** tests |
+| **4.4×** tighter intervals than the published model, race for race | **820** driver-stints vs their 3 | **10 of 11** strategy calls match what teams ran | **80.6%** empirical coverage at nominal 80% |
+| **138,589** clean laps, 5 seasons | **131,053** strategies enumerated per race | **0** code pushes to add a race | **232** tests |
 
 ---
 
@@ -69,37 +69,48 @@ mathematically.
 
 ## What is genuinely new here
 
-**1. Field-level identification instead of per-car modelling.**
+**1. Where you race moves the tyre more than which tyre you fitted.**
+Every public tyre model, and the published one, fits **one rate per compound for
+the whole season**. That is false, and we can say by how much. Letting the
+tyre-age slope vary by circuit — with partial pooling, so a safety-car-shredded
+race cannot shout over a clean one — the fitted slopes span **0.146 s/lap across
+the 13 circuits of 2026**, from Barcelona at **+0.076** to Suzuka at **−0.070**.
+The spread between the five *compounds* is **0.112 s/lap**. A likelihood-ratio
+test against the same model with no circuit term gives **LR = 385 on 1 df,
+p = 4 × 10⁻⁸⁶**. A pit call built on a season-average rate is wrong at
+every track, and wrong by more than picking the wrong tyre.
+
+**2. Field-level identification instead of per-car modelling.**
 The published approach models one driver's lap times as a latent state and tries
 to estimate the fuel effect. Ours never estimates fuel at all — it differences it
 away. That is why our intervals are tight enough to separate compounds where
 theirs are not.
 
-**2. We ran the published model. We did not just cite it.**
+**3. We ran the published model. We did not just cite it.**
 Cappello & Hoegh (2025), [arXiv:2512.00640](https://arxiv.org/abs/2512.00640).
 We rebuilt their Stan models, reproduced their Table 3, **found a defect in their
 fuel calculation, fixed it, and re-ran.** Their null result survived the fix
 (separation probability 0.522 → 0.515) — so the tyres really are indistinguishable
 from one car's data, and we have the control to prove it rather than assert it.
 
-**3. A power analysis that says their design could never have worked.**
+**4. A power analysis that says their design could never have worked.**
 Separating two compounds 0.006 s/lap apart needs **512 driver-stints** for 80%
-power. Their study had **3**. We have **417**. This answers an open question
+power. Their study had **3**. We have **820**. This answers an open question
 their own paper leaves standing.
 
-**4. We tested a mechanism their paper proposed and left untested.**
+**5. We tested a mechanism their paper proposed and left untested.**
 Their section 4.3 suggests drivers *manage* softer tyres harder. We tested it
-across **five seasons, 20 events, 97 event-compound cells** — and it holds
+across **five seasons, 20 events, 98 event-compound cells** — and it holds
 (below). The direction was fixed by their text before we touched the data.
 
-**5. Physical compounds, not relative labels.**
+**6. Physical compounds, not relative labels.**
 Everyone else groups by HARD / MEDIUM / SOFT. Those labels are **relative to
 whatever three of C1–C5 Pirelli brought that weekend** — C3 is HARD at five races,
 MEDIUM at three, and SOFT at Suzuka. Grouping by label averages different rubber
 together. Clean Air works in C-numbers throughout, which is why its curves mean
 anything at all.
 
-**6. It is a live product, not a results viewer.**
+**7. It is a live product, not a results viewer.**
 Adding a race to the system requires **no code push**. The calendar is discovered
 from the F1 API, session data arrives via an in-process poller, and circuit
 history supplies pit loss and race distance. The single human input — Pirelli's
@@ -111,40 +122,90 @@ compound nomination — is one click in the UI.
 
 |                                     |                                                                                            |
 | ----------------------------------- | ------------------------------------------------------------------------------------------ |
-| **Compound separation**       | ✅ **2 of 4 adjacent pairs cleanly separated** — where the benchmark separates none  |
-| **Interval precision**        | ✅ **up to 5.3× tighter** than the published model                                   |
-| **Statistical power**         | ✅ **417 driver-stints** vs the 512 needed and the 3 they had                         |
-| **Uncertainty is honest**     | ✅ 80% intervals cover **80.5%** empirically                                          |
-| **Practice → race**          | ✅ MAE **0.048 s/lap**, a **52% error reduction** over assuming Sunday = Friday |
+| **The track effect**          | ✅ circuit spread **0.146 s/lap** beats compound spread **0.112** — **p = 4 × 10⁻⁸⁶** |
+| **Compound separation**       | ✅ **10 of 23 adjacent pairs** separated race by race — where the benchmark separates none |
+| **Interval precision**        | ✅ **4.4× tighter** median, up to **9.1×**, race for race                             |
+| **Statistical power**         | ✅ **820 driver-stints** vs the 512 needed and the 3 they had                         |
+| **Uncertainty is honest**     | ✅ 80% intervals cover **80.6%** empirically                                          |
+| **Practice → race**          | ✅ MAE **0.083 s/lap**, a **25.6% error reduction** over assuming Sunday = Friday |
 | **Benchmark reproduced**      | ✅ their Table 3 recovered by running their own code                                       |
-| **Driver management effect**  | ✅ **p = 0.0034** across 5 seasons, 97 cells                                          |
-| **Strategy call vs reality**  | ✅ **6 of 7 races** match the stop count teams actually ran                           |
-| **Forecasts an unraced race** | ✅ Monza predicted from FP1 + FP2, two days out                                            |
-| **Test suite**                | ✅ **228 tests**                                                                      |
+| **Driver management effect**  | ✅ **p = 0.0020** across 5 seasons, 98 cells                                          |
+| **Strategy call vs reality**  | ✅ **10 of 11 races** match the stop count teams actually ran                         |
+| **Forecasts an unraced race** | ✅ Madrid predicted from FP1, a day out                                                    |
+| **Test suite**                | ✅ **232 tests**                                                                      |
+
+### The track effect — the finding we did not expect
+
+Fit one rate per compound for the whole season and you are asserting that a tyre
+wears the same at Monaco and at Barcelona. It does not. With a per-circuit
+random slope, here is how far each 2026 circuit pulls the tyre-age slope away
+from the season average:
+
+| Faster-wearing than average | | Kinder than average | |
+| --- | --- | --- | --- |
+| Barcelona | **+0.076** | Suzuka | **−0.070** |
+| Hungaroring | **+0.039** | Montréal | **−0.038** |
+| Red Bull Ring | **+0.028** | Shanghai | **−0.020** |
+| Miami | **+0.009** | Monza | **−0.018** |
+
+**0.146 s/lap** end to end — against **0.112 s/lap** between C1 and C5. Over a
+30-lap stint that is **4.4 s of circuit** against **3.4 s of rubber.**
+
+This is not a tuning detail. It is why the global intervals below are *wider*
+than an earlier version of this model reported: 11,039 laps from 13 circuits
+are not 11,039 independent observations, and pretending otherwise bought
+precision that was never there. The strategy layer never uses the global rate —
+it asks `rate_for(compound, event)` and gets that circuit's own.
 
 ### Compound separation — the headline
 
-Fitted degradation, 2026 race data, 95% intervals:
+Season-wide, 2026 race data, 95% intervals. These carry the between-circuit
+spread, which is why they are honest rather than narrow:
 
 | Compound     | Rate (s/lap)      | 95% interval                | Long runs |
 | ------------ | ----------------- | --------------------------- | --------- |
-| C1 | +0.0420 | [−0.0597, +0.1436] | 19 |
-| **C2** | **+0.1675** | **[+0.1305, +0.2044]** | 86 |
-| **C3** | **+0.0914** | **[+0.0792, +0.1036]** | 152 |
-| C4 | +0.0910 | [+0.0705, +0.1114] | 100 |
-| **C5** | **−0.0063** | **[−0.0290, +0.0165]** | 60 |
+| C1 | +0.115 | [+0.047, +0.183] | 55 |
+| C2 | +0.072 | [+0.014, +0.130] | 191 |
+| C3 | +0.057 | [+0.002, +0.113] | 242 |
+| C4 | +0.029 | [−0.027, +0.085] | 223 |
+| C5 | +0.003 | [−0.054, +0.061] | 109 |
 
-**C2 vs C3 and C4 vs C5 do not overlap.** The published model's two compounds
-overlap almost completely — Hard 0.054 [0.004, 0.133] against Medium 0.060
-[0.009, 0.120].
+**Five compounds, five distinct rates, in strict order, no crossings.** The
+published model cannot order its two — Hard 0.054 [0.004, 0.133] against Medium
+0.060 [0.009, 0.120], overlapping almost completely.
 
-Our tightest interval is **0.0244 wide against their 0.1290** — a 5.3× reduction,
-from pooling 417 long runs instead of 3.
+Race by race — the like-for-like comparison, since the benchmark fits a single
+race — **10 of 23 adjacent compound pairs separate cleanly**, at **9 of the 13
+races**. The benchmark separates **none**, from the one race it fits.
+
+And the intervals are tighter where it counts. Against their published width of
+**0.129**, our single-race intervals are tighter in **35 of 38 event-compound
+cells**, by a **median of 4.4×** and up to **9.1×** — Suzuka C1 at 0.054 wide,
+Zandvoort C2 at 0.015, the Hungaroring C3 at 0.016.
+
+### What deconfounding actually buys
+
+Not precision. **Correctness of sign.**
+
+Run the obvious analysis — regress lap time on tyre age, no controls, the thing
+every public FastF1 notebook does — and fuel burn beats tyre wear on the
+compounds that wear least:
+
+| Compound | Naive slope | Deconfounded |
+| --- | --- | --- |
+| HARD | +0.075 | +0.072 |
+| **MEDIUM** | **−0.122** | **+0.029** |
+| **SOFT** | **−0.082** | **+0.003** |
+
+On **two of four compounds the naive fit says the tyre gets faster as it wears.**
+That is the state of the art outside a race team, and it is not a subtle error —
+it is backwards. Subtracting the (event, lap) mean turns all of them positive and
+puts them in order.
 
 ### Why softer compounds do not degrade faster in races
 
 In **practice** sessions softer tyres degrade faster, exactly as expected. In
-races that ordering flattens — and we can show why. The fraction of a compound's
+races that ordering inverts — and we can show why. The fraction of a compound's
 practice degradation that survives into the race **falls monotonically as the
 tyre softens**:
 
@@ -152,14 +213,21 @@ tyre softens**:
 | ------ | --------------------- | ----- |
 | HARD   | **0.506**       | 16    |
 | MEDIUM | **0.394**       | 50    |
-| SOFT   | **0.173**       | 31    |
+| SOFT   | **0.170**       | 32    |
 
-Spearman **ρ = −0.295**, one-sided **p = 0.0017**, two-sided **p = 0.0034**,
-Kruskal–Wallis **p = 0.0155**. Across **97 cells, 20 events, 5 seasons (2022–2026)**.
+Spearman **ρ = −0.308**, one-sided **p = 0.0010**, two-sided **p = 0.0020**,
+Kruskal–Wallis **p = 0.0100**. Across **98 cells, 20 events, 5 seasons (2022–2026)**.
 Significant on every convention, ordering intact.
 
 **Drivers nurse the fragile tyre, and they nurse it hardest when it is softest.**
 The mechanism was predicted in the benchmark paper and never tested. We tested it.
+
+### Practice → race, the deliverable the brief names
+
+Friday is not Sunday. Assuming it is costs **0.111 s/lap** of error across 12
+held-out event-compound cells. Calibrating by the measured practice→race factor
+— **0.461**, a race degrading at about **46%** of its practice rate — cuts that
+to **0.083 s/lap**, a **25.6% reduction**, leave-one-event-out throughout.
 
 ### Against the published benchmark
 
@@ -189,7 +257,23 @@ Austria 2025, the race they publish:
 
 **We match their best model to within 0.04 CRPS at Austria while also doing the
 thing it cannot do at all** — telling the compounds apart, and turning that into
-a stop count that agrees with what real teams ran at 6 of 7 races.
+a stop count that agrees with what real teams ran at **10 of 11 races.**
+
+### The strategy call, against what teams actually did
+
+Every 2026 race, scored against the median stop count the field ran:
+
+| | |
+| --- | --- |
+| Matched | **10 of 11** — Melbourne, Red Bull Ring, Barcelona, Spa, Silverstone, Shanghai, Zandvoort, Hungaroring, Monza, Miami |
+| Missed | Monaco — we said one stop, the field ran two |
+| **Refused** | **Montréal and Suzuka** — fewer than two nominated compounds had a positive rate at that circuit |
+
+The two refusals are the point, not a gap. An optimiser handed a tyre that never
+wears will run it to the flag and call that a strategy. The console shows those
+two races with the reason on screen rather than a confident number, because a
+model that never says "I don't know" is the one you cannot trust when it does
+answer.
 
 ---
 
@@ -219,10 +303,21 @@ on the calendar    date and circuit, from the F1 API
 + enough of it     at least two compounds have a usable rate
 ```
 
-Circuit history supplies what an unraced race cannot: Monza's pit loss is
+Circuit history supplies what an unraced race cannot. Monza's pit loss is
 **25.45 s with a 2.02 s spread across four seasons**, its distance 53 laps — both
 labelled as history, because last year's pit lane is evidence about Sunday, not a
 reading from it.
+
+**And it refuses when it has nothing.** Circuits are matched by *location*, not
+by race name. The 2026 **Spanish** Grand Prix is at **Madrid**, a circuit that
+has never held a race, while the Barcelona track that used to carry that name
+now runs as the **Barcelona** Grand Prix. Match on the name and Madrid inherits
+four seasons of Barcelona's pit lane — a precise, confident, wrong number for
+the one race this system exists to forecast. Match on the location and Madrid
+says *we have never raced here*, and asks for the two inputs it is missing.
+
+That is the live demo: **Madrid, tomorrow.** FP1 is already in — 330 clean laps,
+**17 long runs across 15 drivers** — pulled by the poller with nobody watching.
 
 ### Nothing needs a code push to add a race
 
@@ -233,6 +328,8 @@ reading from it.
 | Race distance                 | previous seasons at that circuit                  |
 | Pit loss                      | previous seasons at that circuit                  |
 | New session data              | the in-process poller, every 15 minutes           |
+| Refitting and republishing    | six pipeline stages, automatically, ~90 s         |
+| The open browser              | re-checks every 60 s and reloads itself            |
 | **Compound nomination** | **the one thing a human sets — one click** |
 
 Pirelli slides a window of three **adjacent** compounds by circuit severity, so
@@ -243,9 +340,10 @@ in the app is marked `user`, because those are different kinds of claim.
 ### The optimiser
 
 Every legal strategy is **enumerated, not searched** — so the answer is the
-optimum, not wherever a search stopped. At Barcelona that is **50,583 distinct
-allocations in 2.1 s**; a coarse grid answers the same question in 150 ms while
-you drag a slider, and a test pins that both pick the same stop count.
+optimum, not wherever a search stopped. At Monaco that is **131,053 distinct
+allocations**, the worst case of the eleven; a coarse grid answers the same
+question in **362 ms** while you drag a slider, and a test pins that both pick
+the same stop count.
 
 It ranks **which compound runs which stint length, and how many stops.** It
 deliberately does *not* claim a running order: every stint starts on a fresh
@@ -263,6 +361,35 @@ and disagreeing in front of an audience is the one failure with no recovery.
 
 If the API is unreachable the console **falls back to the published playbook**
 with a banner, rather than an error screen.
+
+### It closes its own loop
+
+Nobody runs anything on a race weekend. The chain, end to end:
+
+```
+a session ends
+  -> the poller notices, within 15 minutes
+  -> it pulls the session in a subprocess, under a file lock
+  -> six pipeline stages refit and republish            (~90 s)
+  -> every open browser sees it within 60 seconds
+```
+
+The browser step is the one that is easy to skip and fatal to skip. A tab left
+open through a race used to keep showing the previous weekend's numbers while
+the poller quietly refreshed the files underneath it — the pipeline doing its
+job and the screen disagreeing, in front of an audience. It now re-fetches
+`meta.json` every minute, a few hundred bytes, and pulls the full bundle only
+when `generated_at` moves.
+
+The safeguards are the interesting part. The poller rate-limits itself and backs
+off for 45 minutes when the upstream API pushes back. It only asks for sessions
+that have **actually run**, so an unraced weekend is never requested. A failed
+refresh check is swallowed rather than shown: the data on screen is still the
+data we last published, and a red banner over correct numbers is worse than one
+missed poll.
+
+**Pirelli's compound nomination is the only thing left for a human,** and only
+because no feed carries it.
 
 ---
 
@@ -329,13 +456,14 @@ web/                             the demo. Vite + React + TypeScript
   src/RacePlanView.tsx           offline fallback, rendered from the published playbook
   src/ValidationView.tsx         practice → race, the deliverable the brief names
   src/EvidenceView.tsx           how do you know it is right?
+  src/RaceShapeView.tsx          every driver's stints, race by race, including the ones we refuse
   src/CompoundLabels.tsx         why nothing is grouped by HARD/MEDIUM/SOFT — derived live
   src/DegradationChart.tsx       degradation curves with uncertainty bands
   src/AblationChart.tsx          the Deconfound button
   src/ui.tsx                     shared display primitives and the type scale
   src/api.ts                     typed client for the live optimiser
   src/useStrategy.ts             coarse while dragging, exact on settle, generation-guarded
-  src/useBundle.ts               loads every artifact once, at mount
+  src/useBundle.ts               loads every artifact, then reloads when the pipeline republishes
   src/types/artifacts.ts         mirrors schema.py, enforced by a parity test
 
 data/
@@ -346,7 +474,7 @@ data/
 app/lab.py                       Streamlit lab bench — internal, never demoed
 docs/DEPLOYMENT.md               how this ships
 docs/reference/                  the benchmark paper, plus licensing notes on every source
-tests/                           228 tests
+tests/                           232 tests
 ```
 
 ---

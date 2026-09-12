@@ -24,11 +24,20 @@ precomputed playbook with a banner explaining why the controls are gone. Next
 Race says plainly that it needs the service, because the calendar itself comes
 from there.
 
+**Left open, it keeps itself current.** The artifacts used to load once at
+mount, so a tab open through a race session showed the previous numbers while
+the poller refreshed the files underneath it. `useBundle.ts` now re-fetches
+`meta.json` every 60 seconds with `cache: "no-store"` — a probe of a few hundred
+bytes — and reloads the whole bundle only when `generated_at` changes. A failed
+probe is swallowed: the numbers on screen are still the last ones we published,
+and an error banner over correct data is worse than a missed poll.
+
 ## Two sources of data, and the line between them
 
 | source | what | why |
 |---|---|---|
 | `public/data/*.json` | degradation curves, calibration, power, benchmark, management, playbook | the same numbers every time; there are no inputs to vary |
+| `public/data/meta.json` | when the pipeline last republished | polled every 60s, so an open tab never shows last weekend's numbers |
 | `GET /api/upcoming` | the calendar, per-round readiness, circuit history | discovered from the F1 API, so a new race needs no code change |
 | `GET`/`PUT`/`DELETE /api/allocation` | Pirelli's compound nomination | the one fact no feed carries; set and cleared from the app |
 | `POST /api/forecast` | Sunday's plan from Friday practice | a race that has not happened has no measured inputs |
@@ -48,6 +57,8 @@ disagreeing during a demo is the one failure with no recovery.
 | `ConsoleView.tsx` | the strategy console |
 | `CompoundLabels.tsx` | why nothing is grouped by hard/medium/soft — derived from the live nominations, never written down |
 | `useStrategy.ts` | request policy: coarse while dragging, exact on settle |
+| `useBundle.ts` | loads the artifacts, then reloads them when `meta.json` says the pipeline republished |
+| `RaceShapeView.tsx` | every driver's stints, race by race — including the races we refuse to call |
 | `api.ts` | typed client; surfaces the API's own error messages |
 | `ui.tsx` | shared primitives and the type scale |
 | `types/artifacts.ts` | mirrors `cleanair/artifacts/schema.py`, enforced by a parity test |
@@ -73,10 +84,10 @@ padding so the circular mask iOS and Android apply does not clip the outer bars.
 
 ### Why two requests per change
 
-The exact enumeration runs to 50,583 allocations at Barcelona, the worst of the
-seven, and takes 2.1s cold. The coarse grid answers the same event in 152ms and
-picks the same stop count everywhere, which is pinned by a test rather than
-assumed.
+The exact enumeration runs to 131,053 allocations at Monaco, the worst of the
+eleven, and takes seconds. The coarse grid (`step: 3`) answers the same event in
+362ms, and 29-250ms everywhere else, and picks the same stop count, which is
+pinned by a test rather than assumed.
 
 Those are counts of allocations, not running orders. The optimiser keeps one
 plan per allocation: every stint starts on a fresh tyre, so resequencing cannot
