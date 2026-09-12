@@ -42,7 +42,7 @@ import logging
 import numpy as np
 import pandas as pd
 
-from ..config import COMPOUND_ALLOCATION_2026, MASS_SENSITIVITY_S_PER_KG
+from ..config import MASS_SENSITIVITY_S_PER_KG
 from ..data.fuel import practice_fuel_correction_s
 from ..data.traffic import add_gap_ahead
 
@@ -81,13 +81,24 @@ def add_physical_compound(df: pd.DataFrame) -> pd.DataFrame:
     """Map each lap's HARD/MEDIUM/SOFT label to its actual C1-C5 compound.
 
     The labels are relative to each weekend's nomination, so grouping by them
-    pools physically different rubber. See config.COMPOUND_ALLOCATION_2026.
+    pools physically different rubber. C3 is the HARD tyre at Monza, Monaco,
+    Melbourne, Hungary and Austria; the MEDIUM at Barcelona, Spa and Madrid; and
+    the SOFT at Suzuka. Same rubber, three different names.
+
+    Reads the ALLOCATION STORE rather than the config constant. That matters:
+    the store is what the API writes when somebody nominates a new race in the
+    app, and a model still reading the constant would simply not see that race
+    -- the front end and the fit would disagree, silently, about which tyre a
+    lap was run on.
 
     Laps at events with no known allocation get NaN and should be dropped.
     """
+    from ..data.allocation import all_allocations
+
+    table = {e: a.compounds for e, a in all_allocations().items()}
     df = df.copy()
     df["C"] = [
-        COMPOUND_ALLOCATION_2026.get(e, {}).get(c)
+        table.get(e, {}).get(c)
         for e, c in zip(df["event"], df["Compound"], strict=True)
     ]
     return df

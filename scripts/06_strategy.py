@@ -19,7 +19,8 @@ import pandas as pd
 
 from cleanair.artifacts import schema
 from cleanair.artifacts.schema import Interval, StrategyArtifact, StrategyPlan
-from cleanair.config import COMPOUND_ALLOCATION_2026, PROCESSED
+from cleanair.config import PROCESSED
+from cleanair.data.allocation import compounds_for
 from cleanair.models.design import prepare
 from cleanair.models.mixed import fit_degradation
 from cleanair.strategy.optimise import (
@@ -71,7 +72,7 @@ def main() -> None:
     # A strategy can only use the three compounds Pirelli nominated for THIS
     # weekend. Without this the optimiser happily proposed C1 and C2 at Hungary,
     # where the allocation was C3/C4/C5 -- tyres that were never at the circuit.
-    nominated = set(COMPOUND_ALLOCATION_2026.get(args.event, {}).values())
+    nominated = set(compounds_for(args.event).values())
     if not nominated:
         raise SystemExit(f"no compound allocation known for {args.event!r}")
 

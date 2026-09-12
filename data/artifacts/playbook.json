@@ -57,13 +57,13 @@
         {
           "n_stops": 2,
           "compounds": [
-            "C4",
             "C3",
+            "C4",
             "C4"
           ],
           "stint_lengths": [
-            26,
             5,
+            26,
             27
           ],
           "total_time": 34.54,
@@ -72,16 +72,16 @@
         {
           "n_stops": 3,
           "compounds": [
-            "C3",
             "C4",
             "C4",
-            "C4"
+            "C4",
+            "C3"
           ],
           "stint_lengths": [
-            5,
             17,
             18,
-            18
+            18,
+            5
           ],
           "total_time": 50.75,
           "delta_s": 21.54
@@ -144,13 +144,13 @@
         {
           "n_stops": 2,
           "compounds": [
-            "C4",
             "C3",
+            "C4",
             "C4"
           ],
           "stint_lengths": [
-            33,
             5,
+            33,
             33
           ],
           "total_time": 36.29,
@@ -172,16 +172,16 @@
         {
           "n_stops": 3,
           "compounds": [
-            "C3",
             "C4",
             "C4",
-            "C4"
+            "C4",
+            "C3"
           ],
           "stint_lengths": [
-            5,
             22,
             22,
-            22
+            22,
+            5
           ],
           "total_time": 48.27,
           "delta_s": 11.98
@@ -257,13 +257,13 @@
         {
           "n_stops": 2,
           "compounds": [
-            "C4",
             "C3",
+            "C4",
             "C4"
           ],
           "stint_lengths": [
-            28,
             5,
+            28,
             28
           ],
           "total_time": 3.53,
@@ -272,16 +272,16 @@
         {
           "n_stops": 3,
           "compounds": [
-            "C3",
             "C4",
             "C4",
-            "C4"
+            "C4",
+            "C3"
           ],
           "stint_lengths": [
-            5,
             18,
             19,
-            19
+            19,
+            5
           ],
           "total_time": 21.54,
           "delta_s": 24.25
@@ -357,13 +357,13 @@
         {
           "n_stops": 2,
           "compounds": [
-            "C4",
             "C3",
+            "C4",
             "C4"
           ],
           "stint_lengths": [
-            19,
             5,
+            19,
             20
           ],
           "total_time": 8.0,
@@ -372,16 +372,16 @@
         {
           "n_stops": 3,
           "compounds": [
-            "C3",
             "C4",
             "C4",
-            "C4"
+            "C4",
+            "C3"
           ],
           "stint_lengths": [
-            5,
             13,
             13,
-            13
+            13,
+            5
           ],
           "total_time": 27.44,
           "delta_s": 32.12
@@ -443,13 +443,13 @@
         {
           "n_stops": 2,
           "compounds": [
-            "C4",
             "C3",
+            "C4",
             "C4"
           ],
           "stint_lengths": [
-            32,
             5,
+            32,
             33
           ],
           "total_time": 36.6,
@@ -471,16 +471,16 @@
         {
           "n_stops": 3,
           "compounds": [
-            "C3",
             "C4",
             "C4",
-            "C4"
+            "C4",
+            "C3"
           ],
           "stint_lengths": [
-            5,
             21,
             22,
-            22
+            22,
+            5
           ],
           "total_time": 49.19,
           "delta_s": 12.59
@@ -543,12 +543,12 @@
         {
           "n_stops": 1,
           "compounds": [
-            "C3",
-            "C2"
+            "C2",
+            "C3"
           ],
           "stint_lengths": [
-            33,
-            20
+            20,
+            33
           ],
           "total_time": 16.22,
           "delta_s": 0.0
@@ -556,13 +556,13 @@
         {
           "n_stops": 2,
           "compounds": [
-            "C3",
             "C2",
+            "C3",
             "C3"
           ],
           "stint_lengths": [
-            22,
             9,
+            22,
             22
           ],
           "total_time": 20.89,
@@ -641,13 +641,13 @@
         {
           "n_stops": 2,
           "compounds": [
-            "C4",
             "C3",
+            "C4",
             "C4"
           ],
           "stint_lengths": [
-            35,
             7,
+            35,
             36
           ],
           "total_time": 39.81,
@@ -669,16 +669,16 @@
         {
           "n_stops": 3,
           "compounds": [
-            "C3",
             "C4",
             "C4",
-            "C4"
+            "C4",
+            "C3"
           ],
           "stint_lengths": [
-            5,
             24,
             24,
-            25
+            25,
+            5
           ],
           "total_time": 50.16,
           "delta_s": 10.35

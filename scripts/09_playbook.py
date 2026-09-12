@@ -44,7 +44,8 @@ from cleanair.artifacts.schema import (
     PlaybookEvent,
     PlaybookPlan,
 )
-from cleanair.config import COMPOUND_ALLOCATION_2026, PROCESSED
+from cleanair.config import PROCESSED
+from cleanair.data.allocation import compounds_for
 from cleanair.models.design import prepare
 from cleanair.models.mixed import fit_degradation
 from cleanair.strategy.optimise import (
@@ -111,7 +112,7 @@ def build_event(
         return None
     race_laps = int(ev["LapNumber"].max())
 
-    allocation = COMPOUND_ALLOCATION_2026.get(event, {})
+    allocation = compounds_for(event)
     if not allocation:
         return None
     label_of = {c: lab for lab, c in allocation.items()}

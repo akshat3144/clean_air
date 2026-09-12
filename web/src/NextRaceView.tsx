@@ -1,4 +1,3 @@
-import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import {
   ApiError,
@@ -9,7 +8,7 @@ import {
   type UpcomingRound,
 } from "./api";
 import { COMPOUND_COLOR, type Compound } from "./types/artifacts";
-import { Animated, EASE, Panel, Pill, Row, Skeleton } from "./ui";
+import { Animated, Panel, Pill, Row, Skeleton } from "./ui";
 
 /**
  * The race that has not happened yet.
@@ -96,8 +95,9 @@ export function NextRaceView() {
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
         <div className="space-y-5">
-          <AllocationEditor rnd={rnd} onSaved={reload} />
+          <Nomination rnd={rnd} onSaved={reload} />
           <CircuitHistory rnd={rnd} />
+          <WhyCNumbers rounds={rounds} />
         </div>
         <Forecast rnd={rnd} />
       </div>
@@ -174,37 +174,69 @@ function RoundHeader({ rnd }: { rnd: UpcomingRound }) {
 }
 
 /**
- * The one fact no feed carries.
+ * Pirelli brings three ADJACENT compounds and slides the window by circuit
+ * severity. Every 2026 nomination we have verified is one of exactly three
+ * windows, and their own language is "the middle trio" and "the softest trio".
  *
- * The timing data reports HARD / MEDIUM / SOFT, which are relative to whatever
- * three of C1-C5 Pirelli brought. Nothing in the session or event metadata
- * carries the mapping -- it is a press release. So it is three dropdowns here,
- * which is what makes adding a race a UI action rather than a code change.
+ * So this is three buttons, not three dropdowns. The dropdown version offered
+ * 125 combinations of which 122 are impossible, which is a worse control and a
+ * worse description of how the sport works.
+ *
+ * `custom` stays, because adjacency is a strong pattern rather than a rule and
+ * asserting it as a law would be overreach.
  */
-function AllocationEditor({ rnd, onSaved }: { rnd: UpcomingRound; onSaved: () => void }) {
-  const LABELS = ["HARD", "MEDIUM", "SOFT"] as const;
-  const CS = ["C1", "C2", "C3", "C4", "C5"];
+const WINDOWS = [
+  {
+    key: "hardest",
+    compounds: ["C1", "C2", "C3"],
+    name: "hardest trio",
+    when: "punishing surface — Suzuka",
+  },
+  {
+    key: "middle",
+    compounds: ["C2", "C3", "C4"],
+    name: "middle trio",
+    when: "high-energy corners — Spa, Barcelona",
+  },
+  {
+    key: "softest",
+    compounds: ["C3", "C4", "C5"],
+    name: "softest trio",
+    when: "slow or smooth — Monaco, Monza",
+  },
+] as const;
+
+const LABELS = ["HARD", "MEDIUM", "SOFT"] as const;
+const CS = ["C1", "C2", "C3", "C4", "C5"];
+
+function windowOf(a: Record<string, string> | null): string | null {
+  if (!a) return null;
+  const trio = LABELS.map((l) => a[l]).join("");
+  return WINDOWS.find((w) => w.compounds.join("") === trio)?.key ?? null;
+}
+
+function Nomination({ rnd, onSaved }: { rnd: UpcomingRound; onSaved: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [custom, setCustom] = useState(false);
   const [draft, setDraft] = useState<Record<string, string>>(
-    rnd.allocation ?? { HARD: "C2", MEDIUM: "C3", SOFT: "C4" },
+    rnd.allocation ?? { HARD: "C3", MEDIUM: "C4", SOFT: "C5" },
   );
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    setDraft(rnd.allocation ?? { HARD: "C2", MEDIUM: "C3", SOFT: "C4" });
+    setDraft(rnd.allocation ?? { HARD: "C3", MEDIUM: "C4", SOFT: "C5" });
+    setEditing(false);
+    setCustom(false);
     setErr(null);
-    setSaved(false);
   }, [rnd.event, rnd.allocation]);
 
-  const dirty = JSON.stringify(draft) !== JSON.stringify(rnd.allocation ?? {});
-
-  const save = async () => {
+  const save = async (compounds: Record<string, string>) => {
     setSaving(true);
     setErr(null);
     try {
-      await putAllocation(rnd.event, draft);
-      setSaved(true);
+      await putAllocation(rnd.event, compounds);
+      setEditing(false);
       onSaved();
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : "could not save");
@@ -212,6 +244,9 @@ function AllocationEditor({ rnd, onSaved }: { rnd: UpcomingRound; onSaved: () =>
       setSaving(false);
     }
   };
+
+  const current = windowOf(rnd.allocation);
+  const showPicker = editing || !rnd.allocation;
 
   return (
     <Panel
@@ -222,62 +257,177 @@ function AllocationEditor({ rnd, onSaved }: { rnd: UpcomingRound; onSaved: () =>
         ) : rnd.allocation ? (
           <Pill tone="neutral">from pirelli</Pill>
         ) : (
-          <Pill tone="warn">not set</Pill>
+          <Pill tone="warn">not announced</Pill>
         )
       }
     >
-      <p className="mb-3 text-tiny leading-relaxed text-fg-faint">
-        The timing feed only says HARD, MEDIUM and SOFT — and those are relative to
-        whichever three compounds were brought. Pirelli publishes the mapping and no feed
-        carries it, so it is set here.
-      </p>
-
-      <div className="space-y-2">
-        {LABELS.map((lab) => (
-          <div key={lab} className="flex items-center gap-3">
-            <span className="label w-16">{lab}</span>
-            <select
-              value={draft[lab] ?? ""}
-              onChange={(e) => setDraft((d) => ({ ...d, [lab]: e.target.value }))}
-              className="num flex-1 rounded-md border border-ink-600 bg-ink-950 px-2.5 py-1.5 text-base text-fg focus:border-brand focus:outline-none"
+      {/* SET: read it, do not edit it. A strategist reads this; the form is
+          admin and only appears when there is nothing to read. */}
+      {rnd.allocation && !showPicker && (
+        <>
+          <div className="flex items-center gap-2">
+            {LABELS.map((lab) => (
+              <div key={lab} className="flex-1 text-center">
+                <div
+                  className="num rounded-md py-2 text-base font-bold text-ink-950"
+                  style={{
+                    backgroundColor: COMPOUND_COLOR[rnd.allocation![lab] as Compound],
+                  }}
+                >
+                  {rnd.allocation![lab]}
+                </div>
+                <div className="label mt-1">{lab}</div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 flex items-center justify-between">
+            <span className="text-tiny text-fg-dim">
+              {WINDOWS.find((w) => w.key === current)?.name ?? "custom nomination"}
+            </span>
+            <button
+              onClick={() => setEditing(true)}
+              className="text-tiny text-fg-faint underline decoration-dotted hover:text-fg"
             >
-              {CS.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
+              change
+            </button>
+          </div>
+        </>
+      )}
+
+      {showPicker && (
+        <>
+          <p className="mb-3 text-tiny leading-relaxed text-fg-faint">
+            Pirelli brings three adjacent compounds, sliding the window by how hard the
+            circuit is on tyres. No feed carries the mapping — it is a press release — so it
+            is set here.
+          </p>
+
+          {!custom ? (
+            <div className="space-y-2">
+              {WINDOWS.map((w) => {
+                const active = w.key === current;
+                return (
+                  <button
+                    key={w.key}
+                    disabled={saving}
+                    onClick={() =>
+                      save({
+                        HARD: w.compounds[0],
+                        MEDIUM: w.compounds[1],
+                        SOFT: w.compounds[2],
+                      })
+                    }
+                    className={`w-full rounded-md border px-3 py-2.5 text-left transition-colors disabled:opacity-50 ${
+                      active
+                        ? "border-brand bg-brand/10"
+                        : "border-ink-600 hover:border-ink-500 hover:bg-ink-700/40"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      {w.compounds.map((c) => (
+                        <span
+                          key={c}
+                          className="num rounded px-2 py-0.5 text-micro font-bold text-ink-950"
+                          style={{ backgroundColor: COMPOUND_COLOR[c as Compound] }}
+                        >
+                          {c}
+                        </span>
+                      ))}
+                      <span className="ml-auto text-tiny font-medium text-fg">{w.name}</span>
+                    </div>
+                    <div className="mt-1 text-micro text-fg-faint">{w.when}</div>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {LABELS.map((lab) => (
+                <div key={lab} className="flex items-center gap-3">
+                  <span className="label w-16">{lab}</span>
+                  <select
+                    value={draft[lab] ?? ""}
+                    onChange={(e) => setDraft((d) => ({ ...d, [lab]: e.target.value }))}
+                    className="num flex-1 rounded-md border border-ink-600 bg-ink-950 px-2.5 py-1.5 text-base text-fg focus:border-brand focus:outline-none"
+                  >
+                    {CS.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               ))}
-            </select>
-            <span
-              className="h-5 w-5 shrink-0 rounded"
-              style={{ backgroundColor: COMPOUND_COLOR[(draft[lab] ?? "C3") as Compound] }}
-            />
+              <button
+                onClick={() => save(draft)}
+                disabled={saving}
+                className="w-full rounded-md border border-brand bg-brand/15 px-3 py-2 text-tiny font-medium text-fg hover:bg-brand/25 disabled:opacity-50"
+              >
+                {saving ? "saving…" : "save nomination"}
+              </button>
+            </div>
+          )}
+
+          <div className="mt-3 flex items-center justify-between text-micro">
+            <button
+              onClick={() => setCustom((v) => !v)}
+              className="text-fg-faint underline decoration-dotted hover:text-fg"
+            >
+              {custom ? "back to the three windows" : "custom nomination"}
+            </button>
+            {rnd.allocation && (
+              <button
+                onClick={() => setEditing(false)}
+                className="text-fg-faint underline decoration-dotted hover:text-fg"
+              >
+                cancel
+              </button>
+            )}
+          </div>
+          {err && <p className="mt-2 text-tiny text-signal-bad">{err}</p>}
+        </>
+      )}
+    </Panel>
+  );
+}
+
+/**
+ * The same rubber, called three different things.
+ *
+ * This is the project's whole argument in one table, and it was sitting in the
+ * data unshown. C3 appears in every window, so it is HARD at five races, MEDIUM
+ * at three and SOFT at Suzuka -- which is why grouping laps by the label pools
+ * different tyres and splits identical ones.
+ */
+function WhyCNumbers({ rounds }: { rounds: UpcomingRound[] }) {
+  void rounds;
+  const c3 = [
+    { label: "HARD", at: "Melbourne, Austria, Hungary, Monza, Monaco" },
+    { label: "MEDIUM", at: "Barcelona, Spa, Madrid" },
+    { label: "SOFT", at: "Suzuka" },
+  ];
+  return (
+    <Panel title="why we never group by hard / medium / soft">
+      <p className="text-tiny leading-relaxed text-fg-dim">
+        The labels are relative to whatever three compounds were brought. Take{" "}
+        <span className="num rounded bg-compound-medium px-1.5 py-0.5 font-bold text-ink-950">
+          C3
+        </span>{" "}
+        — one physical tyre, across the 2026 races we hold:
+      </p>
+      <div className="mt-3 space-y-2">
+        {c3.map((r) => (
+          <div key={r.label} className="flex gap-3 text-tiny">
+            <span className="label w-16 shrink-0">{r.label}</span>
+            <span className="text-fg-dim">at {r.at}</span>
           </div>
         ))}
       </div>
-
-      <AnimatePresence>
-        {(dirty || err) && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.18, ease: EASE }}
-            className="overflow-hidden"
-          >
-            <button
-              onClick={save}
-              disabled={saving}
-              className="mt-3 w-full rounded-md border border-brand bg-brand/15 px-3 py-2 text-tiny font-medium text-fg transition-colors hover:bg-brand/25 disabled:opacity-50"
-            >
-              {saving ? "saving…" : "save nomination"}
-            </button>
-            {err && <p className="mt-2 text-tiny text-signal-bad">{err}</p>}
-          </motion.div>
-        )}
-      </AnimatePresence>
-      {saved && !dirty && (
-        <p className="mt-2 text-tiny text-signal-good">saved — the forecast will use it</p>
-      )}
+      <p className="mt-3 text-tiny leading-relaxed text-fg-faint">
+        Group by the label and you pool Monza&apos;s C3 with Suzuka&apos;s C5 while splitting
+        C3 from itself. That is how a public tyre analysis ends up reporting that hard tyres
+        wear faster than softs — and it is why everything here keys on C1–C5.
+      </p>
     </Panel>
   );
 }

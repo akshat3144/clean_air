@@ -47,8 +47,8 @@ import warnings
 
 import pandas as pd
 
-from cleanair.config import CONVENTIONAL_2026
 from cleanair.data.cache import load_session
+from cleanair.data.schedule import event_names
 from cleanair.strategy.pitloss import estimate, loss_by_status
 
 warnings.filterwarnings("ignore")
@@ -67,7 +67,7 @@ def main() -> None:
     args = ap.parse_args()
 
     frames, green_lib = [], []
-    for event in CONVENTIONAL_2026:
+    for event in event_names(args.season):
         try:
             s = load_session(event, "R", args.season, telemetry=False, weather=False)
         except Exception as exc:  # noqa: BLE001 -- one bad session must not stop the batch

@@ -19,9 +19,10 @@ from datetime import UTC, datetime
 
 import pandas as pd
 
-from cleanair.config import CONVENTIONAL_2026, PROCESSED, SEASON
+from cleanair.config import PROCESSED, SEASON
 from cleanair.data.cache import load_session
 from cleanair.data.laps import clean_laps, summarise, tag_long_runs
+from cleanair.data.schedule import event_names
 
 logging.basicConfig(level=logging.WARNING, format="%(message)s")
 logging.getLogger("fastf1").setLevel(logging.ERROR)
@@ -57,7 +58,7 @@ def main() -> None:
     # degradation rates must never be pooled with 2026's by accident.
     if args.events is None:
         args.events = (
-            list(CONVENTIONAL_2026)
+            event_names(args.season)
             if args.season == SEASON
             else _conventional_events(args.season)
         )
