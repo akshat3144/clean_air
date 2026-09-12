@@ -85,12 +85,46 @@ def main() -> None:
         print("\nnothing loaded")
         return
 
-    # Tag long runs once, across everything. Doing it per session made run_id
-    # restart at 0 for each one, so ids collided after concatenation.
-    df = tag_long_runs(pd.concat(frames, ignore_index=True))
+    fresh = pd.concat(frames, ignore_index=True)
 
     PROCESSED.mkdir(parents=True, exist_ok=True)
     out = PROCESSED / out_name
+
+    # MERGE, never replace.
+    #
+    # This used to write only what it had just pulled, which was fine while the
+    # only caller asked for a whole season. It is catastrophic the moment
+    # anything asks for one event: the poller fetching Monza on Friday would
+    # have replaced seven complete events with one, and the failure looks like a
+    # successful pull.
+    #
+    # Sessions we just fetched replace their previous copies; everything else is
+    # kept. A pull that partially fails therefore degrades to "we still have
+    # what we had", which is the right direction to fail in.
+    if out.exists():
+        try:
+            existing = pd.read_parquet(out)
+            pulled = set(zip(fresh["event"], fresh["session"], strict=True))
+            keep = existing[
+                ~pd.Series(
+                    list(zip(existing["event"], existing["session"], strict=True)),
+                    index=existing.index,
+                ).isin(pulled)
+            ]
+            if not keep.empty:
+                print(
+                    f"\nmerging with {len(keep):,} existing laps "
+                    f"across {keep['event'].nunique()} event(s)"
+                )
+                fresh = pd.concat([keep, fresh], ignore_index=True)
+        except Exception as exc:  # noqa: BLE001 -- a corrupt old file must not block a good pull
+            print(f"\ncould not read existing {out.name} ({type(exc).__name__}); writing fresh")
+
+    # Tag long runs once, across everything. Doing it per session made run_id
+    # restart at 0 for each one, so ids collided after concatenation. Re-tagging
+    # the merged frame is safe because run_id is a readable composite key rather
+    # than a per-call code.
+    df = tag_long_runs(fresh)
     df.to_parquet(out, index=False)
 
     # A season that half-downloaded looks exactly like a complete one on disk:
@@ -110,6 +144,13 @@ def main() -> None:
         "events_loaded": sorted(df["event"].unique().tolist()),
         "complete": not rows,
         "failures": rows,
+        # What the MERGED file now holds, per event. `complete` above describes
+        # this pull; this describes the artifact on disk, which after a merge
+        # are different questions.
+        "sessions_by_event": {
+            str(ev): sorted(g["session"].unique().tolist())
+            for ev, g in df.groupby("event", sort=True)
+        },
     }
     man = out.with_name(f"{out.stem}.manifest.json")
     man.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")

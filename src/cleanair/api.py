@@ -35,10 +35,13 @@ when you let go of the mouse would be a bug an audience would see.
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import logging
+import os
 import warnings
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import lru_cache
 
 import pandas as pd
@@ -46,7 +49,10 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from .config import ARTIFACTS, COMPOUND_ALLOCATION_2026, PROCESSED
+from . import poller
+from .config import ARTIFACTS, PROCESSED, SEASON
+from .data import allocation as alloc
+from .data import schedule as sched
 from .models.design import prepare
 from .models.mixed import fit_degradation
 from .strategy.optimise import best_per_stop_count, crossover, enumerate_plans, optimal_stint
@@ -118,6 +124,13 @@ class State:
     pit_loss: dict[str, float]
     n_green_stops: dict[str, int]
     race_laps: dict[str, int]
+    #: Every event in the dataset, from ANY session. Distinct from race_laps,
+    #: which only knows events that have actually raced -- an upcoming race with
+    #: Friday practice is in the dataset and has no race laps, and checking the
+    #: wrong one reports "not pulled yet" for data we are already holding.
+    events_in_dataset: set[str] = field(default_factory=set)
+    #: Practice long runs, for forecasting a race that has not happened.
+    practice: pd.DataFrame | None = None
 
 
 @lru_cache(maxsize=1)
@@ -145,8 +158,14 @@ def _load() -> State:
     import json
 
     laps = pd.read_parquet(PROCESSED / "laps.parquet")
+    all_events = set(laps["event"].unique())
     race = prepare(laps, "race")
     fit = fit_degradation(race, quadratic=False, context="race")
+
+    try:
+        practice = prepare(laps, "practice")
+    except Exception:  # noqa: BLE001 -- a dataset with no practice is still usable
+        practice = None
 
     pit_loss: dict[str, float] = {}
     n_stops: dict[str, int] = {}
@@ -161,14 +180,43 @@ def _load() -> State:
     race_laps = {
         str(ev): int(g["LapNumber"].max()) for ev, g in race.groupby("event", sort=True)
     }
-    return State(race=race, fit=fit, pit_loss=pit_loss, n_green_stops=n_stops, race_laps=race_laps)
+    return State(
+        race=race,
+        fit=fit,
+        pit_loss=pit_loss,
+        n_green_stops=n_stops,
+        race_laps=race_laps,
+        events_in_dataset=all_events,
+        practice=practice,
+    )
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     st = _state()
     log.info("loaded %d events, %d laps", len(st.race_laps), len(st.race))
-    yield
+
+    # The poller lives in this process. See cleanair/poller.py for why that is
+    # the right call here rather than a separate service: the recurring work is
+    # a network wait plus a tenth of a second of arithmetic.
+    #
+    # Off by default so a developer running the API does not silently start
+    # pulling sessions; the deployment turns it on.
+    task = None
+    if os.environ.get("CLEANAIR_POLL", "").lower() in ("1", "true", "yes"):
+        poller.clear_stale_lock()
+        task = asyncio.create_task(poller.run(SEASON))
+    else:
+        poller.STATE.enabled = False
+        log.info("poller disabled (set CLEANAIR_POLL=1 to enable)")
+
+    try:
+        yield
+    finally:
+        if task:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
 
 
 app = FastAPI(
@@ -181,8 +229,6 @@ app = FastAPI(
 # Vite on 5173 locally, Vercel in production. Origins are read from the
 # environment rather than hardcoded so the deployed app does not need a rebuild
 # to move.
-import os  # noqa: E402  (kept next to the thing that needs it)
-
 _origins = os.environ.get(
     "CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
 ).split(",")
@@ -329,7 +375,7 @@ class WhatIfResponse(BaseModel):
 
 def _rates_for(st: State, event: str, overrides: dict[str, float] | None):
     """Fitted degradation for this weekend's nominated tyres, with overrides."""
-    allocation = COMPOUND_ALLOCATION_2026.get(event, {})
+    allocation = alloc.compounds_for(event)
     if not allocation:
         raise HTTPException(404, f"no compound allocation known for {event!r}")
     label_of = {c: lab for lab, c in allocation.items()}
@@ -415,7 +461,7 @@ def events() -> list[dict]:
     st = state()
     out = []
     for ev in sorted(st.race_laps):
-        allocation = COMPOUND_ALLOCATION_2026.get(ev, {})
+        allocation = alloc.compounds_for(ev)
         out.append(
             {
                 "event": ev,
@@ -614,3 +660,140 @@ def whatif(req: WhatIfRequest) -> WhatIfResponse:
         options=options,
         compute_ms=int((time.perf_counter() - t0) * 1000),
     )
+
+
+# ---------------------------------------------------------------------------
+# the race that has not happened yet
+# ---------------------------------------------------------------------------
+
+
+@lru_cache(maxsize=1)
+def _circuits() -> dict:
+    """Per-circuit pit loss and distance from previous seasons.
+
+    Written by scripts/11_circuits.py. Absent is a normal state -- it just means
+    an upcoming race has to be told its pit loss rather than reminded of it.
+    """
+    import json
+
+    path = ARTIFACTS / "circuits.json"
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+@app.get("/poller")
+def poller_status() -> dict:
+    """What the background poller is doing. Read-only."""
+    from dataclasses import asdict
+
+    return asdict(poller.STATE)
+
+
+@app.get("/allocation")
+def get_allocation() -> list[dict]:
+    """Pirelli's compound nomination per event -- the one fact no API carries."""
+    from dataclasses import asdict
+
+    return [asdict(a) for a in sorted(alloc.all_allocations().values(), key=lambda x: x.event)]
+
+
+class AllocationIn(BaseModel):
+    #: Label -> C number, e.g. {"HARD": "C3", "MEDIUM": "C4", "SOFT": "C5"}.
+    compounds: dict[str, str]
+    season: int = SEASON
+
+
+@app.put("/allocation/{event}")
+def put_allocation(event: str, body: AllocationIn) -> dict:
+    """Record a nomination for an event.
+
+    This is what makes adding a race three dropdowns rather than a code change.
+    Validation rejects duplicates and an inverted hard-to-soft ordering, because
+    a typo here surfaces three screens later as a backwards degradation curve.
+    """
+    from dataclasses import asdict
+
+    try:
+        a = alloc.set_allocation(event, body.compounds, season=body.season, source="user")
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    _state.cache_clear()  # the fit keys on nominated compounds
+    return asdict(a)
+
+
+@app.get("/upcoming")
+def upcoming(limit: int = 3) -> list[dict]:
+    """Races that have not run yet, and how much we can already say.
+
+    The point of the product. A race becomes answerable in stages:
+
+        on the calendar        we know the date and the circuit
+        + nominated            Pirelli announced the compounds
+        + practice run         we have long runs, so we can forecast
+        + raced                we can score ourselves
+
+    Each field says which stage it came from, so a forecast built on Friday
+    practice is never displayed as if it were a measured race.
+    """
+    st = state()
+    circuits = _circuits()
+    out = []
+
+    for rnd in sched.next_rounds(SEASON, limit=limit):
+        compounds = alloc.compounds_for(rnd.event)
+        practice_run = rnd.long_run_sessions_run()
+        have_practice = rnd.event in st.events_in_dataset
+
+        hist = circuits.get(rnd.event, {})
+        row = {
+            "round_number": rnd.round_number,
+            "event": rnd.event,
+            "location": rnd.location,
+            "country": rnd.country,
+            "date_utc": rnd.date_utc.isoformat(),
+            "sessions": [
+                {"code": s.code, "starts_utc": s.starts_utc.isoformat(), "has_run": s.has_run()}
+                for s in rnd.sessions
+            ],
+            "practice_sessions_run": practice_run,
+            "allocation": compounds or None,
+            "allocation_source": (a.source if (a := alloc.get(rnd.event)) else None),
+            # From previous seasons at this circuit. Explicitly labelled, since
+            # last year's pit lane is evidence and not a measurement of this
+            # weekend.
+            "history": {
+                "pit_loss_s": hist.get("pit_loss_s"),
+                "pit_loss_spread_s": hist.get("pit_loss_spread_s"),
+                "race_laps": hist.get("race_laps"),
+                "seasons": hist.get("seasons", []),
+            }
+            if hist
+            else None,
+            "ready_to_forecast": bool(compounds) and bool(practice_run) and have_practice,
+            "blocked_by": _blocked_by(compounds, practice_run, have_practice, hist),
+        }
+        out.append(row)
+    return out
+
+
+def _blocked_by(compounds, practice_run, have_practice, hist) -> list[str]:
+    """Plain reasons a race cannot be answered yet.
+
+    Written as sentences rather than flags because this is what the screen shows
+    when it has nothing else, and "ready_to_forecast: false" tells a user
+    nothing they can act on.
+    """
+    reasons = []
+    if not compounds:
+        reasons.append("Pirelli's compound nomination has not been entered for this weekend")
+    if not practice_run:
+        reasons.append("no practice session has finished yet")
+    elif not have_practice:
+        reasons.append("practice has run but has not been pulled into the dataset yet")
+    if not hist or hist.get("pit_loss_s") is None:
+        reasons.append("no pit-loss history for this circuit, so it must be supplied")
+    return reasons
