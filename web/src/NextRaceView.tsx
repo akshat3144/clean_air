@@ -9,6 +9,7 @@ import {
   type PitLossHint,
   type UpcomingRound,
 } from "./api";
+import { DegradationHorizon } from "./DegradationHorizon";
 import { PracticeSessionsPanel } from "./PracticeSessionsPanel";
 import { COMPOUND_COLOR, type Compound } from "./types/artifacts";
 import { Animated, Panel, Pill, Row, Skeleton, StintAllocation } from "./ui";
@@ -531,12 +532,11 @@ function SupplyInputs({
   // compound table, rather than in place of the entire screen.
   return (
     <>
-      <p className="text-base leading-relaxed text-fg-dim">
-        We have never raced here, so there is no{" "}
+      <p className="text-base text-fg-dim">
+        Never raced here, so there is no{" "}
         {wantPit && wantLaps ? "pit loss or race distance" : wantPit ? "pit loss" : "race distance"}{" "}
-        to carry forward. Supply {wantPit && wantLaps ? "them" : "it"} and the plan is
-        computed live. The tyre numbers below are measured from this weekend and do not
-        depend on {wantPit && wantLaps ? "either" : "it"}.
+        to carry forward. The tyre numbers below do not depend on{" "}
+        {wantPit && wantLaps ? "either" : "it"}.
       </p>
 
       {/* A quoted figure, with who produced it and what kind of number it is.
@@ -545,11 +545,10 @@ function SupplyInputs({
           knowingly or not at all. */}
       {hint && (
         <div className="mt-3 rounded border border-signal-warn/30 bg-signal-warn/5 p-3">
-          <p className="text-tiny leading-relaxed text-fg-dim">
-            <span className="num text-fg">{hint.seconds.toFixed(1)}s</span> is quoted for
-            this circuit by <span className="text-fg">{hint.source}</span> — a{" "}
-            <span className="text-signal-warn">{hint.kind}</span>, not a measurement.{" "}
-            {hint.note}
+          <p className="text-tiny leading-relaxed text-fg-dim" title={hint.note}>
+            <span className="num text-fg">{hint.seconds.toFixed(1)}s</span> is quoted by{" "}
+            <span className="text-fg">{hint.source}</span> — a{" "}
+            <span className="text-signal-warn">{hint.kind}</span>, not a measurement.
           </p>
           <button
             type="button"
@@ -609,12 +608,10 @@ function SupplyInputs({
         </button>
       </div>
 
-      <p className="mt-4 text-tiny leading-relaxed text-fg-faint">
-        Left blank deliberately &mdash; a default here would be a made-up measurement. For
-        scale, the circuits we hold history for run{" "}
-        <span className="num text-fg-dim">19.0&ndash;29.2s</span> of pit loss (median{" "}
-        <span className="num text-fg-dim">23.0</span>). Whatever you enter is an assumption
-        you are making, not something we measured, and the plan changes when you change it.
+      <p className="mt-3 text-tiny text-fg-faint">
+        Blank on purpose — a default would be a made-up measurement. Elsewhere we measure{" "}
+        <span className="num text-fg-dim">19.0&ndash;29.2s</span>, median{" "}
+        <span className="num text-fg-dim">23.0</span>.
       </p>
     </>
   );
@@ -631,7 +628,12 @@ function Forecast({ rnd }: { rnd: UpcomingRound }) {
   // No `supplied` flag any more. Whether the plan is still waiting is the
   // SERVER's answer (`needs_inputs`), not a local guess -- one source of truth,
   // and it cannot drift out of step with what the response actually contains.
-  const needsInputs = rnd.history === null;
+  // No local guess about what is missing. `rnd.history === null` was that
+  // guess, and it went stale the moment Madrid gained a published race
+  // distance: history stopped being null, so the typed pit loss silently
+  // stopped being sent and "compute the plan" did nothing at all. The server
+  // says what it still needs, in `res.needs_inputs`, and the boxes only render
+  // for what it asks for -- so an empty box is simply a field we omit.
 
   const run = useCallback(
     (signal?: AbortSignal) => {
@@ -645,10 +647,8 @@ function Forecast({ rnd }: { rnd: UpcomingRound }) {
       // automatic call for a new circuit came back 422 and the screen printed
       // the raw pydantic error where the plan goes. An untouched box is an
       // absent field, not a zero.
-      if (needsInputs) {
-        if (pit !== "") body.pit_loss_s = Number(pit);
-        if (laps !== "") body.race_laps = Number(laps);
-      }
+      if (pit !== "") body.pit_loss_s = Number(pit);
+      if (laps !== "") body.race_laps = Number(laps);
       postForecast(body, signal)
         .then(setRes)
         .catch((e) => {
@@ -657,7 +657,7 @@ function Forecast({ rnd }: { rnd: UpcomingRound }) {
         })
         .finally(() => setLoading(false));
     },
-    [rnd.event, needsInputs, pit, laps],
+    [rnd.event, pit, laps],
   );
 
   useEffect(() => {
@@ -809,82 +809,57 @@ function Forecast({ rnd }: { rnd: UpcomingRound }) {
           />
         </dl>
 
-        <p className="mt-4 text-tiny leading-relaxed text-fg-faint">
-          A race degrades at about{" "}
+        <p className="mt-3 text-tiny text-fg-faint">
+          A race runs at about{" "}
           <span className="num text-fg-dim">
             {(res.practice_to_race_factor * 100).toFixed(0)}%
           </span>{" "}
-          of its practice rate — drivers nurse a tyre in a race and push it in practice. That
-          correction is learned from events that have already raced, never from this one.
+          of its practice rate — drivers nurse a tyre on Sunday. Learned from other events,
+          never this one.
         </p>
       </Panel>
 
-      <Panel title="what practice says" meta="s/lap">
-        <div className="space-y-3">
-          {res.compounds.map((c) => (
-            <div key={c.compound} className="flex items-baseline gap-3">
-              <span
-                className="num w-9 rounded px-1.5 py-0.5 text-center text-micro font-bold text-ink-950"
-                style={{ backgroundColor: COMPOUND_COLOR[c.compound as Compound] }}
-              >
-                {c.compound}
-              </span>
-              <span className="label w-14">{c.label}</span>
-              <span className="num text-tiny text-fg-dim">
-                {c.practice_rate.toFixed(4)}
-              </span>
-              <span className="text-fg-faint">→</span>
-              <span
-                className={`num text-lg font-medium ${
-                  c.excluded ? "text-fg-faint line-through" : "text-fg"
-                }`}
-              >
-                {c.rate.toFixed(4)}
-              </span>
-              {c.source === "stand-in" && (
-                <span
-                  className="rounded border border-signal-warn/40 bg-signal-warn/10 px-1.5 py-0.5 text-micro font-medium uppercase tracking-[0.08em] text-signal-warn"
-                  title={
-                    "Nobody ran this compound on a race simulation this weekend. " +
-                    "The rate is this compound's across the rest of the calendar, scaled by " +
-                    `how harsh this circuit is (${c.severity ?? "?"}x) on the tyres that did run.`
-                  }
-                >
-                  stand-in
-                </span>
-              )}
-              <span className="num ml-auto text-tiny text-fg-dim">
-                {/* Best stint needs the pit loss, so it is genuinely unknown
-                    until one is supplied. "0 laps" reads as a measurement of
-                    zero, which is the one thing it is not. */}
-                {c.excluded
-                  ? "unusable"
-                  : res.pit_loss_s === null
-                    ? "needs pit loss"
-                    : `${c.optimal_stint} laps`}
-              </span>
-            </div>
-          ))}
-        </div>
-        <p className="mt-4 text-tiny leading-relaxed text-fg-faint">
-          Left is what the tyre did in practice; right is what it should do in the race. A
-          compound with a non-positive forecast rate is excluded — an optimiser handed a tyre
-          that never wears will run it to the flag.
-        </p>
+      <Panel title="what the tyre costs you" meta="seconds lost">
+        {/* A rate of 0.087 s/lap is the right number in the wrong unit. Nobody
+            calls a stop off a slope; they call it off "ten more laps on this
+            set costs you nine tenths". Same fitted number, stated in what is
+            actually being decided. */}
+        <DegradationHorizon
+          rows={res.compounds}
+          note="Seconds slower than the same tyre fresh, 95% band beneath. A compound that never wears is left out — an optimiser would run it to the flag."
+        />
+
+        <dl className="mt-4 grid gap-x-6 gap-y-1.5 border-t border-ink-600/40 pt-3 sm:grid-cols-2">
+          {res.compounds
+            .filter((c) => !c.excluded)
+            .map((c) => (
+              <Row
+                key={c.compound}
+                label={c.label ?? c.compound}
+                value={
+                  res.pit_loss_s === null ? "needs pit loss" : `${c.optimal_stint} laps`
+                }
+                note={
+                  c.source === "stand-in"
+                    ? `estimated · ${c.practice_rate.toFixed(3)} in practice`
+                    : `${c.n_runs} runs · ${c.practice_rate.toFixed(3)} in practice`
+                }
+              />
+            ))}
+        </dl>
+
         {res.compounds.some((c) => c.source === "stand-in") && (
           // Never let a borrowed number sit in the same column as a measured
           // one without saying so. Madrid nominated a HARD that nobody put on
           // a long run in any of the three sessions; the choice is between a
           // labelled stand-in and refusing to answer at all.
-          <p className="mt-2 text-tiny leading-relaxed text-signal-warn">
+          <p className="mt-3 text-tiny text-signal-warn">
             {res.compounds
               .filter((c) => c.source === "stand-in")
               .map((c) => c.label ?? c.compound)
               .join(" and ")}{" "}
-            {res.compounds.filter((c) => c.source === "stand-in").length === 1 ? "was" : "were"}{" "}
-            never run on a race simulation this weekend. Those rates are borrowed from other
-            circuits and scaled by this one's severity, with a wider band to match. They are
-            estimates, not measurements.
+            never ran a race simulation here — borrowed from other circuits and rescaled,
+            with a wider band to match.
           </p>
         )}
       </Panel>
