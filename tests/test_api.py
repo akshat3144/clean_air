@@ -406,3 +406,65 @@ def test_strategy_uses_the_circuit_rate_not_the_season_average(client):
     assert any(
         rate(hungary, c) != rate(italy, c) for c in shared
     ), "two circuits report identical degradation, which is the season average leaking through"
+
+
+# ---------------------------------------------------------------------------
+# the practice-session breakdown
+# ---------------------------------------------------------------------------
+
+
+def test_practice_sessions_reports_all_three(client):
+    r = client.get("/practice-sessions", params={"event": EVENT}).json()
+    assert [s["session"] for s in r["sessions"]] == ["FP1", "FP2", "FP3"]
+    assert r["weights"]["FP2"] > r["weights"]["FP1"]
+
+
+def test_practice_sessions_ships_the_evidence_for_its_weights(client):
+    """A weight a strategist cannot interrogate is a weight they will not use.
+    The correlation that justifies FP2 travels with the response."""
+    r = client.get("/practice-sessions", params={"event": EVENT}).json()
+    ev = r["weight_evidence"]
+    assert ev["FP2"]["correlation"] > ev["FP1"]["correlation"]
+
+
+def test_a_sprint_weekend_says_its_sessions_do_not_exist(client):
+    """Three different nothings, and calling them all "no data" lies about two.
+
+    Silverstone 2026 is a sprint weekend: one practice session, no FP2, no FP3.
+    Reporting those as "not run yet" sends someone looking for a session that
+    is never coming.
+    """
+    r = client.get("/practice-sessions", params={"event": "British Grand Prix"}).json()
+    assert r["sprint_weekend"] is True
+    by_code = {s["session"]: s for s in r["sessions"]}
+    assert by_code["FP1"]["exists"] is True
+    assert by_code["FP2"]["exists"] is False
+    assert by_code["FP3"]["exists"] is False
+
+
+def test_a_conventional_weekend_has_all_three_sessions(client):
+    r = client.get("/practice-sessions", params={"event": EVENT}).json()
+    assert r["sprint_weekend"] is False
+    assert all(s["exists"] for s in r["sessions"])
+
+
+def test_practice_sessions_carries_the_race_actual_where_it_has_run(client):
+    """Friday against Sunday on one screen -- the post-race comparison the
+    brief asks for."""
+    r = client.get("/practice-sessions", params={"event": EVENT}).json()
+    assert r["race_actual"], "a raced event should report what the race measured"
+    assert all("rate" in a and "compound" in a for a in r["race_actual"])
+
+
+def test_practice_sessions_thin_cells_are_flagged_not_hidden(client):
+    """Two runs of a soft carry a standard error wider than any rate on the
+    calendar. Worth showing; not worth trusting. Only the flag says which."""
+    r = client.get("/practice-sessions", params={"event": EVENT}).json()
+    cells = [c for s in r["sessions"] for c in s["cells"]]
+    assert cells, "the fixture event should have practice cells"
+    assert all(c["thin"] == (c["n_runs"] < 3) for c in cells)
+
+
+def test_practice_sessions_404s_for_an_event_with_no_practice(client):
+    r = client.get("/practice-sessions", params={"event": "Nowhere Grand Prix"})
+    assert r.status_code == 404

@@ -968,9 +968,16 @@ def practice_sessions(event: str) -> dict:
     sessions = []
     for code in ("FP1", "FP2", "FP3"):
         cells = [r for r in rows if r["session"] == code]
+        # Three different nothings, and a screen that calls them all "no data"
+        # is lying about two of them. A sprint weekend HAS no FP2 or FP3 --
+        # Silverstone 2026 runs one practice session and that is the format,
+        # not a gap in our pull. Saying "not run yet" about a session that will
+        # never exist sends someone looking for it.
+        exists = rnd is None or rnd.session(code) is not None
         sessions.append(
             {
                 "session": code,
+                "exists": exists,
                 "has_run": code in ran,
                 "weight": session_weight.weight_for(code),
                 "hours_to_race": gaps.get(code),
@@ -981,9 +988,33 @@ def practice_sessions(event: str) -> dict:
             }
         )
 
+    # What the race actually did, where it has been run. This is the whole
+    # practice-to-race claim put on one screen: Friday said X, Sunday did Y.
+    # Reported separately from the cells so nothing can mistake a measured race
+    # rate for a practice one.
+    race_actual: list[dict] = []
+    if st.race is not None and not st.race.empty:
+        from .validation.transfer import MIN_AGE_SPREAD_LAPS, cell_rates
+
+        got = cell_rates(
+            st.race[st.race["event"] == event], min_age_spread=MIN_AGE_SPREAD_LAPS
+        )
+        for _, r in got.iterrows():
+            race_actual.append(
+                {
+                    "compound": str(r["C"]),
+                    "label": label_of.get(str(r["C"])),
+                    "rate": round(float(r["rate"]), 5),
+                    "n_runs": int(r["n_runs"]),
+                    "n_laps": int(r["n_laps"]),
+                }
+            )
+
     return {
         "event": event,
         "sessions": sessions,
+        "race_actual": race_actual,
+        "sprint_weekend": bool(rnd and not rnd.is_conventional),
         "weights": session_weight.weights(),
         # The measurement that sets the weights, so the screen can show why
         # rather than asserting it. Correlation of each session's measured
