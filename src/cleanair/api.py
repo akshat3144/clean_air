@@ -69,6 +69,15 @@ logging.getLogger("fastf1").setLevel(logging.ERROR)
 
 log = logging.getLogger(__name__)
 
+#: Why FP2 outweighs FP1 and FP3. Each session's measured practice degradation
+#: scored against the race degradation of the same (event, compound) cell, over
+#: the races run so far this season. Regenerate with scripts/12_session_skill.py.
+SESSION_SKILL = {
+    "FP1": {"n_cells": 9, "correlation": 0.05, "factor": -0.015, "mae": 0.0428},
+    "FP2": {"n_cells": 11, "correlation": 0.84, "factor": 0.438, "mae": 0.0393},
+    "FP3": {"n_cells": 1, "correlation": None, "factor": None, "mae": None},
+}
+
 C_ORDER = ("C1", "C2", "C3", "C4", "C5")
 
 #: Assumed fresh-tyre pace gap between adjacent compounds, seconds. Assumed
@@ -839,6 +848,92 @@ class ForecastRequest(BaseModel):
     race_laps: int | None = Field(default=None, ge=5, le=100)
     pace_step_s: float = Field(default=PACE_STEP_S, ge=0.0, le=3.0)
     step: int = Field(default=1, ge=1, le=5)
+    #: Fill nominated compounds that never ran a race simulation this weekend
+    #: with a rate borrowed from other circuits and rescaled by this circuit's
+    #: severity. Default on: a labelled stand-in is more use to a pit wall than
+    #: a refusal, and every such row is marked ``source="stand-in"``.
+    allow_stand_ins: bool = True
+
+
+@app.get("/practice-sessions")
+def practice_sessions(event: str) -> dict:
+    """What each practice session says on its own, and how they are combined.
+
+    Built for the question a strategist actually asks on a Friday night: what
+    did FP1 tell us, what did FP2 tell us, do they agree, and which one am I
+    trusting? The pooled forecast answers none of that -- it hands over one
+    number with the disagreement already averaged away.
+
+    Sessions are NOT weighted equally. Scored against the races that have run,
+    FP2's measured degradation correlates 0.84 with the race and FP1's
+    correlates 0.05, so FP2 carries twice the weight of the other two. The
+    weights and the evidence behind them ship in the response rather than
+    living in a docstring, because a number a pit wall cannot interrogate is a
+    number it will not use.
+    """
+    from .data import session_weight
+    from .validation.transfer import per_session_rates
+
+    st = state()
+    if st.practice is None or st.practice.empty:
+        raise HTTPException(422, "no practice data in the dataset")
+    if event not in st.events_in_dataset:
+        raise HTTPException(404, f"{event!r} has no practice in the dataset yet")
+
+    compounds = alloc.compounds_for(event)
+    label_of = {c: lab for lab, c in (compounds or {}).items()}
+
+    tbl = per_session_rates(st.practice, event)
+    rnd = sched.find(event, SEASON)
+    gaps = session_weight.hours_to_race(event, SEASON)
+
+    rows = []
+    for _, r in tbl.iterrows():
+        se = float(r["se"])
+        rows.append(
+            {
+                "session": str(r["session"]),
+                "compound": str(r["C"]),
+                "label": label_of.get(str(r["C"])),
+                "rate": round(float(r["rate"]), 5),
+                "se": None if pd.isna(se) else round(se, 5),
+                "n_runs": int(r["n_runs"]),
+                "n_laps": int(r["n_laps"]),
+                "weight": round(float(r["weight"]), 3),
+                # A cell this thin is shown but must not be leaned on. Two runs
+                # of a soft at Madrid carry a standard error of 0.39 s/lap,
+                # which is wider than any rate on the calendar.
+                "thin": int(r["n_runs"]) < 3,
+            }
+        )
+
+    ran = rnd.long_run_sessions_run() if rnd else []
+    sessions = []
+    for code in ("FP1", "FP2", "FP3"):
+        cells = [r for r in rows if r["session"] == code]
+        sessions.append(
+            {
+                "session": code,
+                "has_run": code in ran,
+                "weight": session_weight.weight_for(code),
+                "hours_to_race": gaps.get(code),
+                "n_cells": len(cells),
+                "n_race_sim_runs": sum(c["n_runs"] for c in cells),
+                "n_race_sim_laps": sum(c["n_laps"] for c in cells),
+                "cells": cells,
+            }
+        )
+
+    return {
+        "event": event,
+        "sessions": sessions,
+        "weights": session_weight.weights(),
+        # The measurement that sets the weights, so the screen can show why
+        # rather than asserting it. Correlation of each session's measured
+        # degradation against the same cell's race degradation.
+        "weight_evidence": SESSION_SKILL,
+        "allocation": compounds or None,
+    }
 
 
 @app.post("/forecast")
@@ -857,7 +952,7 @@ def forecast(req: ForecastRequest) -> dict:
     import time
 
     from .validation.transfer import forecast as forecast_rates
-    from .validation.transfer import leave_one_event_out
+    from .validation.transfer import leave_one_event_out, stand_in_rates
 
     t0 = time.perf_counter()
     st = state()
@@ -903,6 +998,23 @@ def forecast(req: ForecastRequest) -> dict:
 
     label_of = {c: lab for lab, c in compounds.items()}
     nominated = set(compounds.values())
+
+    # Stand in for nominated compounds this weekend never ran on a race
+    # simulation. Madrid nominated a HARD that nobody put on a long run in any
+    # of the three sessions, which left one usable compound, which is not a
+    # legal plan -- so the screen refused to answer on the very race we demo.
+    # A borrowed rate, scaled by how harsh this circuit is and labelled as
+    # borrowed, beats silence. Off by default so /forecast keeps its old
+    # meaning for callers that want measured-only.
+    standins = pd.DataFrame()
+    if req.allow_stand_ins:
+        try:
+            standins = stand_in_rates(st.practice, factor, req.event, sorted(nominated))
+        except Exception as exc:  # noqa: BLE001 - a stand-in is a bonus, never a blocker
+            log.warning("stand-in rates failed for %s: %s", req.event, exc)
+    if not standins.empty:
+        rows = pd.concat([rows, standins], ignore_index=True)
+
     usable: dict[str, float] = {}
     out_compounds = []
     for _, r in rows.iterrows():
@@ -913,6 +1025,7 @@ def forecast(req: ForecastRequest) -> dict:
         excluded = rate <= 0
         if not excluded:
             usable[c] = rate
+        src = str(r.get("source", "measured"))
         out_compounds.append(
             {
                 "compound": c,
@@ -924,8 +1037,19 @@ def forecast(req: ForecastRequest) -> dict:
                 "optimal_stint": 0,
                 "excluded": excluded,
                 "overridden": False,
+                # "measured" means this weekend put that tyre on a race
+                # simulation. "stand-in" means nobody did and the number came
+                # from other circuits, rescaled. The screen must not draw the
+                # two the same way.
+                "source": src,
+                "n_runs": int(r.get("n_runs") or 0),
+                "n_laps": int(r.get("n_laps") or 0),
+                "severity": (
+                    None if pd.isna(r.get("severity")) else round(float(r["severity"]), 3)
+                ),
             }
         )
+    out_compounds.sort(key=lambda c: C_ORDER.index(c["compound"]) if c["compound"] in C_ORDER else 99)
 
     # Best stint length per usable tyre, computed BEFORE the can-plan check.
     # It used to sit after the early return, so a compound that was perfectly

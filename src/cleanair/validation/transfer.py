@@ -26,6 +26,8 @@ asked to predict, so a better score cannot come from fitting the answer.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+
 from dataclasses import dataclass
 
 import numpy as np
@@ -50,6 +52,10 @@ MIN_RUNS = 3
 #: Refusing to report those is the same discipline as the power analysis: do not
 #: publish an estimate the design cannot support.
 MIN_AGE_SPREAD_LAPS = 2.0
+
+#: Hardest to softest. Degradation must not decrease along it: a softer tyre
+#: cannot wear more slowly than a harder one on the same track.
+C_ORDER = ("C1", "C2", "C3", "C4", "C5")
 
 
 @dataclass
@@ -119,12 +125,36 @@ def cell_rates(
         X = g[cols].to_numpy(dtype=float)
         if not np.isfinite(X).all() or float(X[:, 0] @ X[:, 0]) <= 0:
             continue
+
+        # Weighted least squares, by scaling both sides by sqrt(w).
+        #
+        # This is how practice sessions stop counting equally. FP1's measured
+        # degradation correlates 0.05 with the race where FP2's correlates
+        # 0.84, so pooling them one-for-one let the least informative session
+        # pull the slope. Race frames carry no `w` and fall through unweighted,
+        # which is the same arithmetic as before.
+        #
+        # Scaling rather than a weight argument keeps the clustered sandwich
+        # below correct without a second code path: the residuals it squares
+        # are already the weighted ones.
+        w = None
+        if "w" in g.columns:
+            w = g["w"].to_numpy(dtype=float)
+            if not np.isfinite(w).all() or (w <= 0).any():
+                w = None
+        if w is not None:
+            rw = np.sqrt(w)
+            Xf, yf = X * rw[:, None], y * rw
+        else:
+            Xf, yf = X, y
+
         try:
-            beta, *_ = np.linalg.lstsq(X, y, rcond=None)
+            beta, *_ = np.linalg.lstsq(Xf, yf, rcond=None)
         except np.linalg.LinAlgError:
             continue
         slope = float(beta[0])
 
+        X, y = Xf, yf
         resid = y - X @ beta
 
         # Standard error CLUSTERED BY RUN, not by lap.
@@ -256,4 +286,177 @@ def forecast(
     # Practice is thin, so carry its uncertainty through rather than hiding it.
     p["lo"] = (p["rate"] - 1.96 * p["se"]) * factor
     p["hi"] = (p["rate"] + 1.96 * p["se"]) * factor
+    p["source"] = "measured"
+    p["severity"] = np.nan
     return p
+
+
+#: How much wider a stand-in rate's interval is than a measured one's. A rate
+#: borrowed from other circuits and rescaled is a weaker claim than a rate
+#: measured here, and the interval is the only place that can show it. Set so
+#: a typical stand-in spans roughly the compound's spread across the calendar.
+STANDIN_INTERVAL_MULTIPLE = 3.0
+
+
+def circuit_severity(measured: pd.DataFrame, pooled: pd.Series) -> float | None:
+    """How harsh this circuit is on tyres, relative to the calendar.
+
+    The ratio of what we measured here to what the same compounds do
+    everywhere else. Madrid's C3 wears at 0.394 s/lap against a season-wide
+    C3 median of 0.157, so Madrid runs about 2.5x harsh -- which is plausible
+    on its own terms, since Barcelona, the other high-load Spanish track, is
+    the second worst on the calendar.
+
+    Taken as a median over whatever compounds we do have, so one noisy cell
+    cannot set it. Returns None when nothing overlaps, which the caller must
+    read as "we cannot stand in for anything here".
+    """
+    ratios = [
+        float(r["rate"]) / float(pooled[r["C"]])
+        for _, r in measured.iterrows()
+        if r["C"] in pooled.index and float(pooled[r["C"]]) > 0 and float(r["rate"]) > 0
+    ]
+    return float(np.median(ratios)) if ratios else None
+
+
+def stand_in_rates(
+    practice: pd.DataFrame,
+    factor: float,
+    event: str,
+    wanted: Iterable[str],
+    min_runs: int = MIN_RUNS,
+) -> pd.DataFrame:
+    """Fill compounds this weekend never ran, from the rest of the calendar.
+
+    THE PROBLEM THIS SOLVES
+        Madrid 2026 is a new circuit with no history, and across all three
+        practice sessions nobody put a HARD on a race simulation -- zero runs
+        on a compound Pirelli nominated for Sunday. The SOFT managed two runs
+        where three are needed. One usable compound is not a legal plan, so
+        the strategy screen refused to answer the only question that matters,
+        on the one race we demo.
+
+    WHAT WE DO
+        Take the compound's rate across every other circuit, and scale it by
+        how harsh this circuit is on the compounds we DID measure. "Nobody ran
+        the HARD here, so take the HARD's season-wide wear rate and scale it
+        by how much harsher this track is on the tyres we did run."
+
+    WHAT IT IS NOT
+        It is not a measurement, and it must never be drawn as one. Rows come
+        back marked ``source='stand-in'`` with a deliberately wide interval,
+        and the caller is expected to label them on screen. A stand-in rate is
+        the difference between a planner that says "probably two stops, and
+        here is which number we borrowed" and one that says nothing at all.
+    """
+    here = cell_rates(practice[practice["event"] == event], min_runs)
+    measured = set(here["C"]) if not here.empty else set()
+    missing = [c for c in wanted if c not in measured]
+    if not missing:
+        return pd.DataFrame()
+
+    elsewhere = cell_rates(practice[practice["event"] != event], min_runs)
+    if elsewhere.empty:
+        return pd.DataFrame()
+    pooled = elsewhere.groupby("C")["rate"].median()
+
+    sev = circuit_severity(here, pooled) if not here.empty else None
+    if sev is None:
+        # No overlap to calibrate against. We could still hand back the bare
+        # pooled rate, and we do not: an unscaled rate at an unseen circuit is
+        # a guess wearing the clothes of an estimate.
+        return pd.DataFrame()
+
+    # Keep the stand-ins in physical order against what we measured.
+    #
+    # Severity is calibrated on the compounds this weekend ran, so a circuit
+    # with one extreme measured cell drags the scale for everything else.
+    # Madrid measured C3 at 0.394 s/lap -- the harshest cell on the calendar --
+    # which set severity at 2.6x, which put the borrowed C4 at 0.354. That says
+    # the SOFT wears more slowly than the MEDIUM, which no tyre does.
+    #
+    # So a stand-in is clamped into the window its neighbours leave it: never
+    # below a measured harder compound, never above a measured softer one.
+    # Measured rows are never touched. Without this the optimiser built
+    # Madrid's plan out of two borrowed compounds and ignored the only one we
+    # actually watched run.
+    known = dict(zip(here["C"], here["rate"], strict=True)) if not here.empty else {}
+
+    def clamp(c: str, rate: float) -> float:
+        i = C_ORDER.index(c) if c in C_ORDER else None
+        if i is None:
+            return rate
+        harder = [known[k] for k in C_ORDER[:i] if k in known]
+        softer = [known[k] for k in C_ORDER[i + 1 :] if k in known]
+        if harder:
+            rate = max(rate, max(harder))
+        if softer:
+            rate = min(rate, min(softer))
+        return rate
+
+    rows = []
+    for c in missing:
+        if c not in pooled.index:
+            continue
+        base = float(pooled[c])
+        spread = float(elsewhere.loc[elsewhere["C"] == c, "rate"].std(ddof=0) or 0.0)
+        rate = clamp(c, base * sev)
+        half = STANDIN_INTERVAL_MULTIPLE * max(spread, abs(base) * 0.5) * sev
+        rows.append(
+            {
+                "event": event,
+                "C": c,
+                "rate": rate,
+                "se": np.nan,
+                "n_runs": 0,
+                "n_laps": 0,
+                "age_spread": np.nan,
+                "predicted_race_rate": rate * factor,
+                "lo": (rate - half) * factor,
+                "hi": (rate + half) * factor,
+                "source": "stand-in",
+                "severity": round(sev, 3),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def per_session_rates(
+    practice: pd.DataFrame,
+    event: str,
+    min_runs: int = 2,
+) -> pd.DataFrame:
+    """What each practice session says on its own, before they are blended.
+
+    A mentor asked for exactly this: summarise FP1, then FP2, then FP3, then
+    tell me how you combined them. The pooled fit answers the last part and
+    hides the first three, so this reports each session separately.
+
+    It is a DIAGNOSTIC, not the forecast. ``min_runs`` is lower than the
+    pooled threshold on purpose, because a single session rarely clears the
+    pooled bar and "FP1 had two runs and they disagree" is the useful thing to
+    see. Rows carry their run and lap counts so a thin cell is visible as thin
+    rather than read as a measurement.
+
+    Returns columns: session, C, rate, se, n_runs, n_laps, weight.
+    """
+    sub = practice[practice["event"] == event]
+    if sub.empty:
+        return pd.DataFrame()
+
+    out = []
+    for session, g in sub.groupby("session", observed=True):
+        # cell_rates keys on event, so relabel each session as its own "event"
+        # and fit them independently. Same estimator, same clustering, one
+        # session at a time.
+        r = cell_rates(g.assign(event=session), min_runs=min_runs)
+        if r.empty:
+            continue
+        r = r.rename(columns={"event": "session"})
+        r["weight"] = float(g["w"].iloc[0]) if "w" in g.columns else 1.0
+        out.append(r)
+
+    if not out:
+        return pd.DataFrame()
+    cols = ["session", "C", "rate", "se", "n_runs", "n_laps", "weight"]
+    return pd.concat(out, ignore_index=True)[cols].sort_values(["session", "C"])
