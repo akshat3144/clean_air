@@ -13,6 +13,7 @@ import pytest
 from cleanair.validation.calibration import leave_one_run_out
 from cleanair.validation.power import detectable_effect, power_curve
 from cleanair.validation.scoring import (
+    crosscheck_against_r,
     crps_normal,
     rmse_seconds,
     rolling_origin_folds,
@@ -180,3 +181,18 @@ def test_coverage_increases_with_the_nominal_level():
 def test_calibration_refuses_when_there_is_nothing_to_fit_on():
     with pytest.raises(ValueError, match="not enough|no runs"):
         leave_one_run_out(_runs(n_runs=2, laps=5))
+
+
+def test_our_crps_matches_r_scoring_rules():
+    """The app claims our CRPS is the same number theirs is. Nothing enforced
+    that claim until this test: ``crosscheck_against_r`` existed but was never
+    called, so the guarantee rested on a function no one ran.
+
+    Skips where R is missing, because the package must not depend on R -- but on
+    a machine that has it, the claim is now checked rather than asserted.
+    """
+    result = crosscheck_against_r()
+    if not result.get("available"):
+        pytest.skip(f"R not available: {result.get('reason')}")
+    for kind in ("normal", "ensemble"):
+        assert result[kind]["diff"] < 1e-9, f"{kind} disagrees with R: {result[kind]}"
