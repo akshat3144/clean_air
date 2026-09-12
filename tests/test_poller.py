@@ -70,13 +70,17 @@ def _patch_calendar(monkeypatch, rounds):
 
 def test_an_event_already_in_the_dataset_is_not_pulled_again(monkeypatch):
     _patch_calendar(monkeypatch, [_round("Italian Grand Prix")])
-    monkeypatch.setattr(poller, "_cached_events", lambda s: {"Italian Grand Prix"})
+    monkeypatch.setattr(
+        poller,
+        "_cached_sessions",
+        lambda s: {("Italian Grand Prix", c) for c in ("FP1", "FP2", "FP3", "R")},
+    )
     assert poller.find_missing(2026, now=BASE + timedelta(hours=100)) == []
 
 
 def test_an_event_whose_practice_has_not_run_is_not_pulled(monkeypatch):
     _patch_calendar(monkeypatch, [_round("Italian Grand Prix")])
-    monkeypatch.setattr(poller, "_cached_events", lambda s: set())
+    monkeypatch.setattr(poller, "_cached_sessions", lambda s: set())
     # One hour in: FP1 has started but cannot have finished.
     assert poller.find_missing(2026, now=BASE + timedelta(hours=1)) == []
 
@@ -89,7 +93,7 @@ def test_it_never_asks_for_a_session_that_has_not_happened(monkeypatch):
     whole event -- including the FP1 and FP2 data that arrived perfectly well.
     """
     _patch_calendar(monkeypatch, [_round("Italian Grand Prix")])
-    monkeypatch.setattr(poller, "_cached_events", lambda s: set())
+    monkeypatch.setattr(poller, "_cached_sessions", lambda s: set())
 
     # After FP2, before FP3.
     missing = poller.find_missing(2026, now=BASE + timedelta(hours=10))
@@ -102,9 +106,47 @@ def test_it_never_asks_for_a_session_that_has_not_happened(monkeypatch):
 
 def test_the_race_joins_the_pull_once_it_has_run(monkeypatch):
     _patch_calendar(monkeypatch, [_round("Italian Grand Prix")])
-    monkeypatch.setattr(poller, "_cached_events", lambda s: set())
+    monkeypatch.setattr(poller, "_cached_sessions", lambda s: set())
     missing = poller.find_missing(2026, now=BASE + timedelta(hours=100))
     assert missing == [("Italian Grand Prix", ["FP1", "FP2", "FP3", "R"])]
+
+
+def test_a_half_cached_weekend_still_gets_its_remaining_sessions(monkeypatch):
+    """The bug this pins, and it is the worst one the poller has had.
+
+    Reconciling on EVENT names means an event is "cached" the moment its FP1
+    lands. Every session after that -- FP2, FP3 and the race itself -- is then
+    skipped forever, so the live weekend is precisely the weekend the app stops
+    updating. It fails silently: the loop runs, finds nothing, reports healthy.
+
+    Found on the Saturday of the Madrid round, with FP1 and FP2 on disk and FP3
+    two hours out.
+    """
+    _patch_calendar(monkeypatch, [_round("Italian Grand Prix")])
+    monkeypatch.setattr(
+        poller,
+        "_cached_sessions",
+        lambda s: {("Italian Grand Prix", "FP1"), ("Italian Grand Prix", "FP2")},
+    )
+
+    missing = poller.find_missing(2026, now=BASE + timedelta(hours=100))
+    assert missing == [("Italian Grand Prix", ["FP3", "R"])], missing
+
+
+def test_it_asks_only_for_the_sessions_it_is_missing(monkeypatch):
+    """Not the whole weekend again. Re-pulling FP1 and FP2 to get FP3 is three
+    network calls where one will do, against an API that has truncated us at
+    its 500/hour cap three times already."""
+    _patch_calendar(monkeypatch, [_round("Italian Grand Prix")])
+    monkeypatch.setattr(
+        poller,
+        "_cached_sessions",
+        lambda s: {("Italian Grand Prix", c) for c in ("FP1", "FP2", "FP3")},
+    )
+
+    assert poller.find_missing(2026, now=BASE + timedelta(hours=100)) == [
+        ("Italian Grand Prix", ["R"])
+    ]
 
 
 def test_a_sprint_weekend_is_pulled_for_its_race_only(monkeypatch):
@@ -120,7 +162,7 @@ def test_a_sprint_weekend_is_pulled_for_its_race_only(monkeypatch):
     taking.
     """
     _patch_calendar(monkeypatch, [_round("Sprinty Grand Prix", fmt="sprint_qualifying")])
-    monkeypatch.setattr(poller, "_cached_events", lambda s: set())
+    monkeypatch.setattr(poller, "_cached_sessions", lambda s: set())
 
     missing = poller.find_missing(2026, now=BASE + timedelta(hours=100))
     assert missing == [("Sprinty Grand Prix", ["R"])], missing
@@ -136,7 +178,7 @@ def test_one_event_at_a_time(monkeypatch):
     _patch_calendar(
         monkeypatch, [_round("Italian Grand Prix"), _round("Spanish Grand Prix")]
     )
-    monkeypatch.setattr(poller, "_cached_events", lambda s: set())
+    monkeypatch.setattr(poller, "_cached_sessions", lambda s: set())
 
     pulled = []
     monkeypatch.setattr(
@@ -155,7 +197,7 @@ def test_one_event_at_a_time(monkeypatch):
 
 def test_a_missing_dataset_reads_as_empty_not_an_error(monkeypatch, tmp_path):
     monkeypatch.setattr(poller, "PROCESSED", tmp_path)
-    assert poller._cached_events(2026) == set()
+    assert poller._cached_sessions(2026) == set()
 
 
 def test_a_corrupt_parquet_reads_as_empty_not_an_error(monkeypatch, tmp_path):
@@ -167,7 +209,7 @@ def test_a_corrupt_parquet_reads_as_empty_not_an_error(monkeypatch, tmp_path):
     """
     monkeypatch.setattr(poller, "PROCESSED", tmp_path)
     (tmp_path / "laps.parquet").write_bytes(b"this is not a parquet file")
-    assert poller._cached_events(2026) == set()
+    assert poller._cached_sessions(2026) == set()
 
 
 # ---------------------------------------------------------------------------
@@ -177,7 +219,7 @@ def test_a_corrupt_parquet_reads_as_empty_not_an_error(monkeypatch, tmp_path):
 
 def test_a_held_lock_stops_a_second_pull(monkeypatch):
     _patch_calendar(monkeypatch, [_round("Italian Grand Prix")])
-    monkeypatch.setattr(poller, "_cached_events", lambda s: set())
+    monkeypatch.setattr(poller, "_cached_sessions", lambda s: set())
     poller.LOCK.parent.mkdir(parents=True, exist_ok=True)
     poller.LOCK.write_text("someone else is pulling", encoding="utf-8")
 
@@ -190,7 +232,7 @@ def test_a_held_lock_stops_a_second_pull(monkeypatch):
 
 def test_the_lock_is_released_even_when_the_pull_fails(monkeypatch):
     _patch_calendar(monkeypatch, [_round("Italian Grand Prix")])
-    monkeypatch.setattr(poller, "_cached_events", lambda s: set())
+    monkeypatch.setattr(poller, "_cached_sessions", lambda s: set())
     monkeypatch.setattr(poller, "_pull", lambda *a: (False, "boom"))
 
     asyncio.run(poller.tick(2026))
@@ -226,7 +268,7 @@ def test_hitting_the_rate_cap_backs_off_far_longer_than_a_normal_failure(monkeyp
     interval would keep it truncated.
     """
     _patch_calendar(monkeypatch, [_round("Italian Grand Prix")])
-    monkeypatch.setattr(poller, "_cached_events", lambda s: set())
+    monkeypatch.setattr(poller, "_cached_sessions", lambda s: set())
 
     monkeypatch.setattr(poller, "_pull", lambda *a: (False, "hit the F1 API rate cap; backing off"))
     asyncio.run(poller.tick(2026))
@@ -243,7 +285,7 @@ def test_hitting_the_rate_cap_backs_off_far_longer_than_a_normal_failure(monkeyp
 
 def test_a_failed_republish_is_recorded_rather_than_swallowed(monkeypatch):
     _patch_calendar(monkeypatch, [_round("Italian Grand Prix")])
-    monkeypatch.setattr(poller, "_cached_events", lambda s: set())
+    monkeypatch.setattr(poller, "_cached_sessions", lambda s: set())
     monkeypatch.setattr(poller, "_pull", lambda *a: (True, "cached"))
     monkeypatch.setattr(poller, "_republish", lambda: (False, "03_fit_model.py exploded"))
 
@@ -256,7 +298,7 @@ def test_a_failed_republish_is_recorded_rather_than_swallowed(monkeypatch):
 
 def test_a_clean_pass_records_the_pull_and_clears_the_error(monkeypatch):
     _patch_calendar(monkeypatch, [_round("Italian Grand Prix")])
-    monkeypatch.setattr(poller, "_cached_events", lambda s: set())
+    monkeypatch.setattr(poller, "_cached_sessions", lambda s: set())
     monkeypatch.setattr(poller, "_pull", lambda *a: (True, "cached"))
     monkeypatch.setattr(poller, "_republish", lambda: (True, "republished"))
     poller.STATE.last_error = "something from before"
@@ -270,7 +312,11 @@ def test_a_clean_pass_records_the_pull_and_clears_the_error(monkeypatch):
 
 def test_nothing_missing_is_a_quiet_no_op(monkeypatch):
     _patch_calendar(monkeypatch, [_round("Italian Grand Prix")])
-    monkeypatch.setattr(poller, "_cached_events", lambda s: {"Italian Grand Prix"})
+    monkeypatch.setattr(
+        poller,
+        "_cached_sessions",
+        lambda s: {("Italian Grand Prix", c) for c in ("FP1", "FP2", "FP3", "R")},
+    )
     called = []
     monkeypatch.setattr(poller, "_pull", lambda *a: (called.append(1), (True, "x"))[1])
 

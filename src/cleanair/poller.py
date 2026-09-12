@@ -83,8 +83,18 @@ class PollState:
 STATE = PollState()
 
 
-def _cached_events(season: int) -> set[str]:
-    """Events already represented in the season's parquet."""
+def _cached_sessions(season: int) -> set[tuple[str, str]]:
+    """(event, session) pairs already represented in the season's parquet.
+
+    SESSION-LEVEL, and that is the whole point.
+
+    This used to return event names, and ``find_missing`` skipped any event it
+    found there. That is correct exactly once -- the first time an event is
+    seen. After FP1 lands, the event is "cached", so FP2, FP3 and the RACE are
+    never pulled, and the weekend the product is actually for is the weekend it
+    silently stops updating. Reconciling per session is what makes the loop
+    idempotent in the way the docstring at the top of this file claims.
+    """
     import pandas as pd
 
     name = "laps.parquet" if season == SEASON else f"laps_{season}.parquet"
@@ -92,9 +102,10 @@ def _cached_events(season: int) -> set[str]:
     if not path.exists():
         return set()
     try:
-        return set(pd.read_parquet(path, columns=["event"])["event"].unique())
+        df = pd.read_parquet(path, columns=["event", "session"])
     except Exception:  # noqa: BLE001 -- a half-written parquet is a normal race
         return set()
+    return {(str(e), str(c)) for e, c in df.drop_duplicates().itertuples(index=False)}
 
 
 def find_missing(
@@ -102,23 +113,23 @@ def find_missing(
 ) -> list[tuple[str, list[str]]]:
     """Events with finished sessions that are not in the dataset.
 
-    Returns (event, sessions_that_have_run). Event-level because the cache
-    script pulls an event in one invocation, but the session list is carried
-    along so an upcoming race pulls only what exists.
+    Returns (event, sessions_missing). Event-level because the cache script
+    pulls an event in one invocation, but the session list is what is actually
+    missing, so a weekend already holding FP1 asks only for FP2 -- one network
+    call, not four.
     """
-    have = _cached_events(season)
+    have = _cached_sessions(season)
     out: list[tuple[str, list[str]]] = []
     # Every round, not just conventional ones. A sprint weekend has no FP2 but
     # it still races on Sunday, and that race is as good as any other. The
     # format-aware `sessions_to_pull` returns practice + race for a
     # conventional weekend and the race alone for a sprint one.
     for rnd in sched.rounds(season):
-        if rnd.event in have:
-            continue
         ran = rnd.sessions_to_pull(now)
-        if not ran:
+        gap = [c for c in ran if (rnd.event, c) not in have]
+        if not gap:
             continue
-        out.append((rnd.event, ran))
+        out.append((rnd.event, gap))
     return out
 
 
