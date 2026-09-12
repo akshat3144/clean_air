@@ -1,0 +1,87 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# ---- FastF1 cache (large, regenerable) ----
+data/fastf1_cache/
+
+# ---- Reference material ----
+# Default: reference PDFs stay local. scripts/fetch_reference.sh re-downloads them.
+docs/reference/*.pdf
+
+# Exception: the benchmark paper is CC BY 4.0, so redistribution is permitted
+# with attribution. It is 588 KB and the whole project is measured against it,
+# so the repo carries it and stays self-contained. Attribution is in
+# docs/reference/README.md.
+!docs/reference/cappello_hoegh_2025_arXiv-2512.00640.pdf
+
+# The benchmark authors' code repo has NO license file, so all rights are
+# reserved and we have no right to redistribute it. Fetched locally, never
+# committed. See scripts/fetch_reference.sh.
+benchmark/upstream/
+
+# ---- Intermediate data (regenerable from scripts/) ----
+data/raw/
+data/processed/
+*.parquet
+
+# NOTE: data/artifacts/*.json IS committed on purpose.
+# It is the contract the web app reads, and a fresh clone should render.
+!data/artifacts/*.json
+
+# ---- Stan build output ----
+# Compiled models are platform-specific binaries; the .stan source is committed.
+*.exe
+*.o
+*.hpp.bak
+src/cleanair/models/stan/*
+!src/cleanair/models/stan/*.stan
+!src/cleanair/models/stan/*.stanfunctions
+benchmark/stan/*
+!benchmark/stan/*.stan
+!benchmark/stan/*.stanfunctions
+
+# ---- R ----
+.Rhistory
+.RData
+.Rproj.user/
+
+# ---- Node / web ----
+node_modules/
+web/dist/
+web/.vite/
+*.local
+
+# Artifacts are copied into the web app at build time from data/artifacts/
+web/public/data/
+
+# ---- Editors / OS ----
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- Internal, never committed ----
+# Working notes: the verified dossier and the plan. These contain pitch strategy,
+# a cut list, and a record of which of our own claims turned out to be wrong.
+# Useful to us, damaging in a public repo.
+notes/
+
+# Competition submission. Kept local for now.
+deck/
+
+# ---- Scratch ----
+scratch/
+tmp/
+*.log
