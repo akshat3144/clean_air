@@ -368,6 +368,21 @@ class PlaybookPlan:
 
 
 @dataclass
+class DriverStint:
+    """One car's run on one set of tyres, as it actually happened.
+
+    Keyed by the timing feed's label rather than the C number, because this is
+    a record of the race and not an input to the model.
+    """
+
+    driver: str
+    stint: int
+    compound: str
+    start_lap: int
+    end_lap: int
+
+
+@dataclass
 class PlaybookEvent:
     event: str
     race_laps: int
@@ -398,6 +413,10 @@ class PlaybookEvent:
     #: counting them among the strategies would drag the median. Reported
     #: separately rather than dropped silently.
     n_retired_before_stop: int = 0
+    #: What every car actually did, stint by stint. Lets the app draw the
+    #: field's real strategy against ours -- the only claim a viewer can check
+    #: against a race they watched.
+    stints: list[DriverStint] = field(default_factory=list)
 
 
 @dataclass

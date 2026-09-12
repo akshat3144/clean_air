@@ -38,6 +38,7 @@ import pandas as pd
 
 from cleanair.artifacts import schema
 from cleanair.artifacts.schema import (
+    DriverStint,
     Interval,
     PlaybookArtifact,
     PlaybookCompound,
@@ -99,8 +100,43 @@ def actual_stops(race: pd.DataFrame, event: str) -> tuple[dict[str, int], int | 
     )
 
 
+def driver_stints(raw: pd.DataFrame, event: str) -> list[DriverStint]:
+    """Every car's stints as they actually ran, for the race-shape chart.
+
+    Built from RAW race laps rather than the design frame, so a stint's start
+    and end are its true lap numbers and not the long-run portion of it. The
+    stop counts this implies were checked against ``actual_stops`` and agree at
+    every event, so the chart cannot contradict the number printed beside it.
+    """
+    ev = raw[(raw["event"] == event) & raw["Stint"].notna()]
+    if ev.empty:
+        return []
+    g = (
+        ev.groupby(["Driver", "Stint"])
+        .agg(
+            compound=("Compound", "first"),
+            start_lap=("LapNumber", "min"),
+            end_lap=("LapNumber", "max"),
+        )
+        .reset_index()
+        .sort_values(["Driver", "start_lap"])
+    )
+    return [
+        DriverStint(
+            driver=str(r.Driver),
+            stint=int(r.Stint),
+            compound=str(r.compound),
+            start_lap=int(r.start_lap),
+            end_lap=int(r.end_lap),
+        )
+        for r in g.itertuples()
+        if pd.notna(r.compound)
+    ]
+
+
 def build_event(
     race: pd.DataFrame,
+    raw: pd.DataFrame,
     fit,
     event: str,
     pit_loss: float,
@@ -188,6 +224,7 @@ def build_event(
         actual_stop_counts=counts,
         actual_median_stops=median_stops,
         n_retired_before_stop=retired,
+        stints=driver_stints(raw, event),
     )
 
 
@@ -198,6 +235,7 @@ def main() -> None:
 
     laps = pd.read_parquet(PROCESSED / "laps.parquet")
     race = prepare(laps, "race")
+    raw_race = laps[laps["session"] == "R"]
     fit = fit_degradation(race, quadratic=False, context="race")
 
     events = sorted(race["event"].unique())
@@ -212,6 +250,7 @@ def main() -> None:
             continue
         built = build_event(
             race,
+            raw_race,
             fit,
             event,
             float(row["pit_loss_s"].iloc[0]),

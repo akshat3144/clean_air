@@ -3,6 +3,7 @@ import { DegradationChart } from "./DegradationChart";
 import { ConsoleView } from "./ConsoleView";
 import { NextRaceView } from "./NextRaceView";
 import { EvidenceView } from "./EvidenceView";
+import { RaceShapeView } from "./RaceShapeView";
 import { ValidationView } from "./ValidationView";
 import { useBundle } from "./useBundle";
 import { COMPOUND_COLOR, width } from "./types/artifacts";
@@ -202,7 +203,10 @@ export default function App() {
             </p>
           </>
         ) : view === "record" ? (
-          <ValidationView bundle={state.bundle} />
+          <div className="space-y-6">
+            <RaceShapeView playbook={state.bundle.playbook} />
+            <ValidationView bundle={state.bundle} />
+          </div>
         ) : (
           <EvidenceView bundle={state.bundle} />
         )}

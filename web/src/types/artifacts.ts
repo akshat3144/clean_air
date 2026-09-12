@@ -303,6 +303,17 @@ export interface PlaybookPlan {
   delta_s: number;
 }
 
+/** One car's run on one set of tyres, as it actually happened. Keyed by the
+ *  timing feed's label rather than the C number -- this is a record of the
+ *  race, not an input to the model. */
+export interface DriverStint {
+  driver: string;
+  stint: number;
+  compound: string;
+  start_lap: number;
+  end_lap: number;
+}
+
 export interface PlaybookEvent {
   event: string;
   race_laps: number;
@@ -323,6 +334,9 @@ export interface PlaybookEvent {
   /** Cars per stop count, keyed by stop count as a string. */
   actual_stop_counts: Record<string, number>;
   actual_median_stops: number | null;
+  /** What every car actually did, stint by stint. Draws the field's real
+   *  strategy against ours. */
+  stints: DriverStint[];
   /** Cars that never pitted, so retired before their first stop. Held out of
    *  the distribution above -- a DNF did not run a strategy -- but reported,
    *  because "five cars never pitted" says something about the race. */

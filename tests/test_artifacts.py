@@ -145,6 +145,12 @@ def _ts_interface_fields(name: str) -> set[str]:
         ("PowerArtifact", fixtures.power()),
         ("TransferArtifact", fixtures.transfer()),
         ("StrategyArtifact", fixtures.strategy()),
+        # Playbook was not covered here, so a field added to PlaybookEvent could
+        # reach the app with no TypeScript counterpart. It is the biggest
+        # artifact and the one the console reads, so it is the worst one to
+        # leave unchecked.
+        ("PlaybookArtifact", fixtures.playbook()),
+        ("PlaybookEvent", fixtures.playbook().events[0]),
     ],
 )
 def test_typescript_declares_the_same_fields_as_python(interface, obj):
