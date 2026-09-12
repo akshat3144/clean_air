@@ -183,7 +183,7 @@ compound nomination — is one click in the UI.
 | **Driver management effect**  | ✅ **p = 0.0020** across 5 seasons, 98 cells                                          |
 | **Strategy call vs reality**  | ✅ **10 of 11 races** match the stop count teams actually ran                         |
 | **Forecasts an unraced race** | ✅ Madrid predicted from FP1, a day out                                                    |
-| **Test suite**                | ✅ **273 tests**                                                                      |
+| **Test suite**                | ✅ **280 tests**                                                                      |
 
 ### The track effect — the finding we did not expect
 
@@ -305,6 +305,20 @@ table — a test fails if FP2 ever stops being the best predictor.
 
 That change alone moved the forecast from **0.083 to 0.081 s/lap**, and the
 error reduction from 25.6% to **29.0%**.
+
+The blend is not hidden. **Session by session** appears on both the Next Race
+and Strategy tabs: each session's own fitted rate, its run and lap counts, its
+weight, and the clock gap to the race. Cells under three runs are struck through
+rather than dropped — two runs of a soft at Madrid carry a standard error of
+0.39 s/lap, which is worth seeing and not worth trusting, and only the counts
+tell you which. Where the race has already run it also prints what Sunday
+actually did beside what Friday said, which is the post-race comparison the
+brief asks for.
+
+A sprint weekend says so. It has one practice hour and no FP2 at all, so its
+FP2 and FP3 read "not part of a sprint weekend" rather than "no data" — a
+session that does not exist and a session we failed to pull are different
+facts.
 
 ### When the weekend does not run the tyre
 
@@ -636,7 +650,7 @@ data/
 app/lab.py                       Streamlit lab bench — internal, never demoed
 docs/DEPLOYMENT.md               how this ships
 docs/reference/                  the benchmark paper, plus licensing notes on every source
-tests/                           273 tests
+tests/                           280 tests
 ```
 
 ---
