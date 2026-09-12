@@ -3,6 +3,7 @@ import {
   ApiError,
   getUpcoming,
   postForecast,
+  clearAllocation,
   putAllocation,
   type ForecastResult,
   type UpcomingRound,
@@ -97,7 +98,6 @@ export function NextRaceView() {
         <div className="space-y-5">
           <Nomination rnd={rnd} onSaved={reload} />
           <CircuitHistory rnd={rnd} />
-          <WhyCNumbers rounds={rounds} />
         </div>
         <Forecast rnd={rnd} />
       </div>
@@ -280,16 +280,48 @@ function Nomination({ rnd, onSaved }: { rnd: UpcomingRound; onSaved: () => void 
               </div>
             ))}
           </div>
+          {/* One line, about THIS race, not a lecture. The full derivation lives
+              in Method; here it only has to explain why the numbers below are
+              keyed on a C number instead of the word on the sidewall. */}
+          <p className="mt-3 text-tiny leading-relaxed text-fg-faint">
+            <span className="num text-fg-dim">{rnd.allocation!.HARD}</span> is this
+            weekend&apos;s <span className="text-fg-dim">hard</span> — the label is relative to
+            what was brought, so the same rubber is called something else elsewhere.
+          </p>
+
           <div className="mt-3 flex items-center justify-between">
             <span className="text-tiny text-fg-dim">
               {WINDOWS.find((w) => w.key === current)?.name ?? "custom nomination"}
             </span>
-            <button
-              onClick={() => setEditing(true)}
-              className="text-tiny text-fg-faint underline decoration-dotted hover:text-fg"
-            >
-              change
-            </button>
+            <span className="flex items-center gap-3">
+              {/* Only for values typed here. A cited nomination has nothing to
+                  take back, and offering to "clear" it would imply otherwise. */}
+              {rnd.allocation_source === "user" && (
+                <button
+                  onClick={async () => {
+                    setSaving(true);
+                    try {
+                      await clearAllocation(rnd.event);
+                      onSaved();
+                    } catch (e) {
+                      setErr(e instanceof ApiError ? e.message : "could not clear");
+                    } finally {
+                      setSaving(false);
+                    }
+                  }}
+                  disabled={saving}
+                  className="text-tiny text-signal-warn underline decoration-dotted hover:text-fg disabled:opacity-50"
+                >
+                  clear
+                </button>
+              )}
+              <button
+                onClick={() => setEditing(true)}
+                className="text-tiny text-fg-faint underline decoration-dotted hover:text-fg"
+              >
+                change
+              </button>
+            </span>
           </div>
         </>
       )}
@@ -392,47 +424,6 @@ function Nomination({ rnd, onSaved }: { rnd: UpcomingRound; onSaved: () => void 
 }
 
 /**
- * The same rubber, called three different things.
- *
- * This is the project's whole argument in one table, and it was sitting in the
- * data unshown. C3 appears in every window, so it is HARD at five races, MEDIUM
- * at three and SOFT at Suzuka -- which is why grouping laps by the label pools
- * different tyres and splits identical ones.
- */
-function WhyCNumbers({ rounds }: { rounds: UpcomingRound[] }) {
-  void rounds;
-  const c3 = [
-    { label: "HARD", at: "Melbourne, Austria, Hungary, Monza, Monaco" },
-    { label: "MEDIUM", at: "Barcelona, Spa, Madrid" },
-    { label: "SOFT", at: "Suzuka" },
-  ];
-  return (
-    <Panel title="why we never group by hard / medium / soft">
-      <p className="text-tiny leading-relaxed text-fg-dim">
-        The labels are relative to whatever three compounds were brought. Take{" "}
-        <span className="num rounded bg-compound-medium px-1.5 py-0.5 font-bold text-ink-950">
-          C3
-        </span>{" "}
-        — one physical tyre, across the 2026 races we hold:
-      </p>
-      <div className="mt-3 space-y-2">
-        {c3.map((r) => (
-          <div key={r.label} className="flex gap-3 text-tiny">
-            <span className="label w-16 shrink-0">{r.label}</span>
-            <span className="text-fg-dim">at {r.at}</span>
-          </div>
-        ))}
-      </div>
-      <p className="mt-3 text-tiny leading-relaxed text-fg-faint">
-        Group by the label and you pool Monza&apos;s C3 with Suzuka&apos;s C5 while splitting
-        C3 from itself. That is how a public tyre analysis ends up reporting that hard tyres
-        wear faster than softs — and it is why everything here keys on C1–C5.
-      </p>
-    </Panel>
-  );
-}
-
-/**
  * What previous seasons say about this circuit.
  *
  * An upcoming race supplies neither its pit loss nor its distance, and both are
@@ -454,20 +445,25 @@ function CircuitHistory({ rnd }: { rnd: UpcomingRound }) {
   }
   const wide = (h.pit_loss_spread_s ?? 0) > 3;
   return (
-    <Panel title="circuit history" meta={h.seasons.length ? `${h.seasons.length} seasons` : undefined}>
+    <Panel
+      title="circuit history"
+      meta={h.seasons.length ? `${h.seasons.length} seasons` : undefined}
+    >
       <dl className="space-y-2">
         {h.pit_loss_s !== null && (
           <Row
             label="pit loss"
             value={`${h.pit_loss_s.toFixed(1)}s`}
-            note={h.pit_loss_spread_s !== null ? `spread ${h.pit_loss_spread_s.toFixed(1)}s` : undefined}
+            note={
+              h.pit_loss_spread_s !== null
+                ? `spread ${h.pit_loss_spread_s.toFixed(1)}s`
+                : undefined
+            }
             tone={wide ? "warn" : undefined}
           />
         )}
         {h.race_laps !== null && <Row label="race distance" value={`${h.race_laps} laps`} />}
-        {h.seasons.length > 0 && (
-          <Row label="measured in" value={h.seasons.join(", ")} />
-        )}
+        {h.seasons.length > 0 && <Row label="measured in" value={h.seasons.join(", ")} />}
       </dl>
       {wide && (
         <p className="mt-3 text-tiny leading-relaxed text-signal-warn">
@@ -477,7 +473,7 @@ function CircuitHistory({ rnd }: { rnd: UpcomingRound }) {
       )}
       <p className="mt-3 text-micro leading-relaxed text-fg-faint">
         Distance is the longest completed race, not the average — a race shortened by a red
-        flag is not the circuit's distance.
+        flag is not the circuit&apos;s distance.
       </p>
     </Panel>
   );

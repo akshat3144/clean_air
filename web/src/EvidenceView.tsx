@@ -1,6 +1,7 @@
 import { scaleLinear } from "d3-scale";
 import { line } from "d3-shape";
 import { AblationChart } from "./AblationChart";
+import { CompoundLabels } from "./CompoundLabels";
 import type { Bundle, CalibrationPoint, ManagementArtifact, PowerPoint } from "./types/artifacts";
 
 /**
@@ -16,6 +17,10 @@ export function EvidenceView({ bundle }: { bundle: Bundle }) {
 
   return (
     <div className="space-y-5">
+      {/* Why the whole project keys on C1-C5. First in Method because every
+          number below it depends on the grouping being right. */}
+      <CompoundLabels />
+
       <section className="panel p-4">
         <h3 className="label mb-3">Deconfounding</h3>
         <AblationChart ablation={ablation} />

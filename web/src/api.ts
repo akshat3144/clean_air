@@ -305,3 +305,26 @@ export async function putAllocation(
   }
   return res.json();
 }
+
+export interface AllocationRow {
+  event: string;
+  season: number;
+  /** Label -> C number, e.g. {"HARD": "C3", "MEDIUM": "C4", "SOFT": "C5"}. */
+  compounds: Record<string, string>;
+  /** "pirelli" for a cited value, "user" for one entered in the app. */
+  source: string;
+  updated_at: string | null;
+}
+
+export const getAllocations = (signal?: AbortSignal) =>
+  get<AllocationRow[]>("/allocation", "allocation", signal);
+
+/** Clear a nomination entered in the app, reverting to the cited value if any. */
+export async function clearAllocation(event: string, signal?: AbortSignal): Promise<unknown> {
+  const res = await fetch(`${BASE}/allocation/${encodeURIComponent(event)}`, {
+    method: "DELETE",
+    signal,
+  });
+  if (!res.ok) throw new ApiError(reason(res, "clear allocation"), res.status);
+  return res.json();
+}

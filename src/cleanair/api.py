@@ -725,6 +725,29 @@ def put_allocation(event: str, body: AllocationIn) -> dict:
     return asdict(a)
 
 
+@app.delete("/allocation/{event}")
+def delete_allocation(event: str) -> dict:
+    """Clear a nomination entered here, reverting to the cited value if any.
+
+    The set path existed without this one, which meant a value typed into the
+    app could not be taken back out of it -- and a typed value that cannot be
+    removed is worse than one that was never allowed, because it looks like a
+    fact from then on. Testing this app wrote a nomination for a race Pirelli
+    has not announced, and only the `source` marker made that visible.
+    """
+    removed = alloc.unset(event)
+    if not removed:
+        raise HTTPException(404, f"no nomination recorded for {event!r}")
+    _state.cache_clear()  # the fit keys on nominated compounds
+    a = alloc.get(event)
+    return {
+        "event": event,
+        "cleared": True,
+        "reverted_to": a.compounds if a else None,
+        "source": a.source if a else None,
+    }
+
+
 @app.get("/upcoming")
 def upcoming(limit: int = 3) -> list[dict]:
     """Races that have not run yet, and how much we can already say.

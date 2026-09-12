@@ -255,3 +255,31 @@ def test_a_stale_cache_is_refreshed_rather_than_trusted_forever(monkeypatch, tmp
     assert source == "cache"
     assert rounds[0].event == "Stale Grand Prix"
     sched.load.cache_clear()
+
+
+def test_a_typed_nomination_can_be_taken_back_out(monkeypatch, tmp_path):
+    """Set existed without clear, which is the wrong asymmetry.
+
+    A value typed into the app that cannot be removed reads as a fact from then
+    on. Testing this project wrote a nomination for a race Pirelli had not
+    announced, and only the `source` marker made it visible -- there was no way
+    to undo it from the interface that created it.
+    """
+    monkeypatch.setattr(alloc, "STORE", tmp_path / "allocation.json")
+
+    # A race with no cited value disappears entirely when cleared.
+    alloc.set_allocation("Invented Grand Prix", {"HARD": "C1", "MEDIUM": "C2", "SOFT": "C3"})
+    assert alloc.compounds_for("Invented Grand Prix")
+    assert alloc.unset("Invented Grand Prix") is True
+    assert alloc.compounds_for("Invented Grand Prix") == {}
+
+    # A race that HAS a cited value reverts to it rather than vanishing.
+    cited = alloc.compounds_for("Monaco Grand Prix")
+    alloc.set_allocation("Monaco Grand Prix", {"HARD": "C1", "MEDIUM": "C2", "SOFT": "C3"})
+    assert alloc.get("Monaco Grand Prix").source == "user"
+    alloc.unset("Monaco Grand Prix")
+    assert alloc.compounds_for("Monaco Grand Prix") == cited
+    assert alloc.get("Monaco Grand Prix").source == "pirelli"
+
+    # Clearing something that was never set is not an error to swallow.
+    assert alloc.unset("Never Existed Grand Prix") is False
