@@ -42,7 +42,7 @@ import logging
 import numpy as np
 import pandas as pd
 
-from ..config import MASS_SENSITIVITY_S_PER_KG
+from ..config import MASS_SENSITIVITY_S_PER_KG, MIN_LONG_RUN_LAPS
 from ..data.fuel import practice_fuel_correction_s
 from ..data.session_weight import weight_for
 from ..data.traffic import add_gap_ahead
@@ -57,6 +57,39 @@ PRACTICE_BURN_KG_PER_LAP = 1.7
 #: A run whose median lap is at least this far off the session's best is doing
 #: race work, not a qualifying simulation.
 RACE_SIM_MIN_DELTA_S = 1.5
+
+#: Laps dropped from the START of every practice run before fitting.
+#:
+#: A tyre is not at temperature on its out-lap and the lap after it, so the
+#: opening laps of a run get FASTER as it comes in -- degradation reads
+#: negative. Cappello & Hoegh (arXiv:2512.00640, Figure 3) find exactly this in
+#: their time-varying model: the fitted rate is below zero for the first laps of
+#: every stint and only crosses zero once the tyre is up to temperature.
+#:
+#: It matters most on the short runs, which is precisely where we have least to
+#: spare: Madrid's two-run soft reads -0.051 s/lap across 12 laps, and a run of
+#: five can sit almost entirely inside the warm-up. Measured on our own data by
+#: scripts/13_design_sweep.py, dropping one lap takes the practice-to-race error
+#: from 0.0819 to 0.0491 s/lap on the cells both designs can score.
+#:
+#: One, not two. Dropping two costs more runs than the accuracy is worth and
+#: leaves Madrid with nothing at all.
+WARMUP_LAPS = 1
+
+#: A run survives a hole this big without being split in two.
+#:
+#: Unrepresentative laps are removed from the middle of stints, and the laps
+#: either side are then no longer consecutive. Splitting there is over-strict:
+#: the design regresses on TYRE AGE, which a missing lap number does not
+#: disturb. Splitting nowhere is over-loose -- a five-lap hole really is two
+#: separate pieces of driving, which is what the original filter-then-detect
+#: order was guarding against.
+#:
+#: So bridge small holes and split large ones. The exact value is weakly
+#: identified -- 2, 3 and 5 all beat splitting on every hole, and the ordering
+#: between them sits inside the noise of a five-cell comparison -- so this is a
+#: judgement bounded by measurement rather than a fitted parameter.
+MAX_RUN_GAP_LAPS = 3
 
 #: Laps slower than this multiple of the session's best are not representative
 #: running and are dropped before runs are detected.
@@ -249,6 +282,34 @@ def practice_design(
     return df
 
 
+def split_on_large_gaps(df: pd.DataFrame, max_gap: int) -> pd.DataFrame:
+    """Re-split runs wherever the lap numbering jumps more than ``max_gap``.
+
+    Called after laps have been removed from the middle of runs. A hole of one
+    or two laps is a filtered out-lap and the run is still one piece of
+    driving; a hole of six is a trip through the pit lane and a different
+    exercise on the other side.
+    """
+    if df.empty:
+        return df
+    df = df.sort_values(["event", "session", "Driver", "LapNumber"]).copy()
+    prev = df.groupby("run_id")["LapNumber"].shift(1)
+    gap = (df["LapNumber"] - prev).fillna(1)
+    piece = gap.gt(max_gap).groupby(df["run_id"]).cumsum().astype(int)
+    df["run_id"] = df["run_id"] + "#" + piece.astype(str)
+    df["run_len"] = df.groupby("run_id")["LapNumber"].transform("size")
+
+    # run_lap is deliberately NOT recomputed.
+    #
+    # It counts laps completed since the STINT began, and that is what the
+    # practice fuel correction consumes -- fuel burned is (run_lap - 1) x
+    # kg/lap. Renumbering the surviving laps from one tells the fuel model that
+    # a lap ten laps into a stint is on a full tank, which understates the
+    # burn and leaks straight into the degradation slope. Resetting it here
+    # cost 0.033 s/lap of transfer accuracy before this comment existed.
+    return df
+
+
 def prepare(
     laps: pd.DataFrame,
     context: str,
@@ -280,12 +341,27 @@ def prepare(
         df = drop_stint_outliers(df[df["is_long_run"]])
         df = race_design(df, **kw)
     else:
-        # Order matters. Drop cool-down laps first, THEN re-detect runs: a
-        # dropped lap breaks the chain, so runs found before filtering would
-        # still span the gap and stitch push laps together across it.
-        df = drop_non_representative_laps(df[df["session"] != "R"])
-        df = tag_long_runs(df)
-        df = df[df["is_long_run"]]
+        # Order matters, and it used to be the other way round.
+        #
+        # Dropping cool-down laps first and re-detecting runs afterwards meant
+        # a single removed lap SHATTERED a stint into two sub-five-lap
+        # fragments, and both were discarded. At Madrid -- a new circuit where
+        # this weekend is the only evidence there is -- that took 462
+        # representative laps down to 66 and left FP1 and FP3 contributing
+        # nothing at all.
+        #
+        # Now: detect the run on the stint, drop the bad laps, re-split only
+        # where the hole is bigger than MAX_RUN_GAP_LAPS, trim the warm-up, and
+        # judge the length on what survives. The guard against stitching two
+        # pieces of driving together is kept; it is just sized instead of
+        # absolute.
+        df = tag_long_runs(df[df["session"] != "R"], min_laps=1)
+        df = drop_non_representative_laps(df)
+        df = split_on_large_gaps(df, MAX_RUN_GAP_LAPS)
+        df = df[df.groupby("run_id").cumcount() >= WARMUP_LAPS]
+        df = df[df.groupby("run_id")["LapNumber"].transform("size") >= MIN_LONG_RUN_LAPS]
+        if df.empty:
+            return df
         df = drop_stint_outliers(df)
         df = classify_runs(df)
         if race_sims_only:
