@@ -35,13 +35,13 @@ Measured on this dataset:
 |---|---|---|
 | fit the degradation model | 0.10s | at API startup, cached for the process |
 | enumerate strategies, coarse (`step=3`) | 0.07–0.3s | **every request** |
-| enumerate strategies, exact (`step=1`) | 0.35–6.6s | **every request** |
+| enumerate strategies, exact (`step=1`) | 0.4–5.5s | **every request** |
 | hierarchical MCMC, one race | ~6 min | offline only, never behind a request |
 | pull a session from the F1 API | up to a minute | scheduled worker only |
 
 So the optimiser is a live endpoint and the sampler is not. `POST /fit` is still a bad idea; `POST /strategy` is the product.
 
-**The consequence for hosting:** the exact enumeration at Barcelona is 1,060,416 plans and 6.6s on a developer laptop. On 0.1 CPU that is tens of seconds, which destroys the one interaction the demo is built around. Compute for *serving* now matters as much as compute for fitting.
+**The consequence for hosting:** the exact enumeration at Monaco, the season's worst case, is 131,053 allocations and 5.5s on a developer laptop. On 0.1 CPU that is tens of seconds, which destroys the one interaction the demo is built around. Compute for *serving* now matters as much as compute for fitting.
 
 The console mitigates this itself — it requests the coarse grid while a slider moves and the exact answer once it settles, and a test pins that both pick the same stop count — but a slow box still shows.
 
@@ -78,7 +78,7 @@ The console mitigates this itself — it requests the coarse grid while a slider
 | Setup time | a few hours | under an hour |
 | Cold starts | none | ~1 min on the API unless kept warm |
 
-**Path A wins on serving CPU.** A slider drag is a request, so CPU is the binding constraint — and 0.1 CPU turns a 350ms answer into several seconds.
+**Path A wins on serving CPU.** A slider drag is a request, so CPU is the binding constraint — and 0.1 CPU turns a 360ms answer into several seconds.
 
 Cold starts matter for the same reason. A judge opening Next Race or Strategy on a Render free instance that has slept waits about a minute before anything appears.
 
@@ -204,7 +204,7 @@ Nothing to patch, nothing to SSH into, everything deploys from git.
 2. Copy the pooled connection string
 3. Run the schema below
 
-Free plan: 0.5 GB storage and **100 compute-hours per month**, autosuspending after 5 minutes idle. Our data is a few megabytes of JSON, so storage is a non-issue.
+Free plan: 0.5 GB storage and **100 compute-hours per month**, autosuspending after 5 minutes idle. Our data is about 200 KB of JSON, so storage is a non-issue.
 
 ### B2. API — Render
 
@@ -219,7 +219,7 @@ New Web Service from the repo:
 
 Environment: `DATABASE_URL` (from Neon), `CORS_ORIGINS=https://cleanair.vercel.app`.
 
-Free tier is 512 MB and 0.1 CPU. **This is the constraint that moved the recommendation to Path A.** No fitting happens in this process — that is still true and still the rule — but the optimiser does, and 0.1 CPU turns a 350ms answer into several seconds.
+Free tier is 512 MB and 0.1 CPU. **This is the constraint that moved the recommendation to Path A.** No fitting happens in this process — that is still true and still the rule — but the optimiser does, and 0.1 CPU turns a 360ms answer into several seconds.
 
 Take this path only if you accept the console degrading to the precomputed playbook, which the app already falls back to cleanly.
 

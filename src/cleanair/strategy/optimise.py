@@ -175,7 +175,8 @@ def enumerate_plans(
         # console answers with while you drag.
         #
         # Second, sorted(). Set iteration follows the hash seed, and the best
-        # plan is routinely an exact tie -- six ways at Barcelona. Unsorted, the
+        # plan can be an exact tie -- six ways at Barcelona under an earlier fit,
+        # though a sweep of the current season finds none. Unsorted, the
         # same data recommended "C2 x23 -> C3 x19 -> C2 x24" on one boot and
         # "C3 x19 -> C2 x23 -> C2 x24" on the next. The sequence we print is
         # therefore a stable convention, not a claim: the model ranks which
