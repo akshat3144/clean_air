@@ -25,6 +25,11 @@ dependencies = [
     "cmdstanpy>=1.2",
     "matplotlib>=3.8",
     "pyarrow>=15",
+    # The strategy console's backend. The optimiser runs per request, so the
+    # maths lives in Python once rather than being reimplemented in TypeScript
+    # where the two could disagree on stage.
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
 ]
 
 [project.optional-dependencies]
