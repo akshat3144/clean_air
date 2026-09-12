@@ -12,7 +12,58 @@ Problem statement: *Tyre Degradation Intelligence*.
 | | | | |
 | --- | --- | --- | --- |
 | **4.4×** tighter intervals than the published model, race for race | **820** driver-stints vs their 3 | **10 of 11** strategy calls match what teams ran | **80.6%** empirical coverage at nominal 80% |
-| **138,589** clean laps, 5 seasons | **131,053** strategies enumerated per race | **0** code pushes to add a race | **232** tests |
+| **138,839** clean laps, 5 seasons | **131,053** strategies enumerated per race | **0** code pushes to add a race | **234** tests |
+
+---
+
+## The brief asks three questions. Here they are, answered.
+
+**1. How quickly is the driver losing performance, and when do they have to pit?**
+
+A rate in seconds per lap, per compound, with an interval — and the stint length
+that rate implies. Across the 2026 season, measured in races:
+
+| | C1 | C2 | C3 | C4 | C5 |
+| --- | --- | --- | --- | --- | --- |
+| **s/lap lost** | 0.115 | 0.072 | 0.057 | 0.029 | 0.003 |
+
+That ordering is backwards from the textbook, and it is not a bug — it is one of
+our findings. In a *race*, drivers nurse a soft tyre and lean on a hard one, so
+the hardest compound wears fastest. We test it over five seasons and 98 cells:
+**ρ = −0.308, p = 0.0020.** [Full result below.](#why-softer-compounds-do-not-degrade-faster-in-races)
+
+The pit lap itself comes from the optimiser, which enumerates every legal plan
+for the race rather than guessing: **131,053** of them at Monaco, in 362 ms.
+
+**2. How will the tyre perform after 5, 10, 15 laps?**
+
+Read straight off the fitted curve, interval included. Seconds slower than the
+same tyre when fresh:
+
+| compound | after 5 laps | after 10 laps | after 15 laps |
+| --- | --- | --- | --- |
+| **C1** | +0.55 | +1.05 | +1.50 |
+| **C2** | +0.35 | +0.66 | +0.94 |
+| **C3** | +0.28 | +0.54 | +0.78 |
+| **C4** | +0.15 | +0.29 | +0.44 |
+| **C5** | +0.02 | +0.05 | +0.09 |
+
+This table is on the **Tyre Curves** tab of the console, with the 95% interval
+under every number.
+
+**3. Is the prediction trustworthy?**
+
+We answer this four ways rather than asserting it once:
+
+| | |
+| --- | --- |
+| **Are the intervals honest?** | **80.6%** of actual values land inside the nominal **80%** band |
+| **Does Friday predict Sunday?** | **0.083 s/lap** mean absolute error, leave-one-event-out — the event being predicted never contributes to its own correction |
+| **Does the call match reality?** | the stop count agrees with what real teams ran at **10 of 11** races |
+| **Does it know when to shut up?** | at **2** races the evidence was too thin, and it refuses to call them rather than guessing |
+
+The fourth row is the one we would defend hardest. A model that answers every
+question with equal confidence is not a trustworthy model.
 
 ---
 
@@ -132,7 +183,7 @@ compound nomination — is one click in the UI.
 | **Driver management effect**  | ✅ **p = 0.0020** across 5 seasons, 98 cells                                          |
 | **Strategy call vs reality**  | ✅ **10 of 11 races** match the stop count teams actually ran                         |
 | **Forecasts an unraced race** | ✅ Madrid predicted from FP1, a day out                                                    |
-| **Test suite**                | ✅ **232 tests**                                                                      |
+| **Test suite**                | ✅ **234 tests**                                                                      |
 
 ### The track effect — the finding we did not expect
 
@@ -393,6 +444,60 @@ because no feed carries it.
 
 ---
 
+## Feasible, scalable, economical
+
+The brief names these three as what industry actually looks for, so they are
+measured rather than asserted. Every number below is from this repository on a
+2021 laptop CPU — **12 logical cores, no GPU, nothing rented.**
+
+**Feasible — it already runs, end to end.**
+
+| Step | Time |
+| --- | --- |
+| Refit degradation on 11,039 race laps | **6.8 s** |
+| Full pipeline: refit, validate, transfer, strategy, benchmark, publish | **56.4 s** |
+| Forecast a whole race from Friday practice | **484 ms** |
+| Re-plan mid-race when you move a slider | **6 ms** warm, 152 ms cold |
+
+There is no training run, no GPU, no cluster, and nothing to wait for. The
+heaviest thing in the project — an MCMC hierarchical model at roughly six
+minutes — is an offline cross-check that the live path never touches.
+
+**Economical — the input data is free and the output is a static file.**
+
+| | |
+| --- | --- |
+| Data source | FastF1, the public F1 timing API. **No licence, no vendor, no per-seat cost.** |
+| Everything the browser downloads | **196 KB** of JSON |
+| Whole season, cleaned, on disk | **8.2 MB** of Parquet |
+| Runtime dependencies | **13** Python, **6** JavaScript |
+| Database | **none** — artifacts are files, the API is stateless |
+| To serve it | static hosting plus one Python process |
+
+A team already paying for timing data pays nothing more to run this. It fits on
+the laptop that is already on the pit wall, and it works with the network
+unplugged: the cache is on disk, and three of the five tabs render with the API
+stopped.
+
+**Scalable — the cost of another race is zero engineering.**
+
+Adding a race takes **no code change and no redeploy.** The poller reconciles the
+calendar against what is on disk every 15 minutes, pulls what is missing, refits,
+republishes, and every open browser picks it up within 60 seconds. The same loop
+handles a new season, a new circuit, and a session that ran two hours late.
+
+The cost model is linear and shallow: one more race is ~1,000 laps, a few
+megabytes, and seconds of arithmetic. The expensive axis is *network*, not
+compute — which is why the poller pulls in a subprocess, backs off for 45 minutes
+on failure, and asks only for the sessions it is actually missing.
+
+> Honest limit: this consumes a public timing feed, so it inherits that feed's
+> availability and its 500-calls-per-hour cap. A team running it against their
+> own garage telemetry would not have that ceiling — but we have not tested that,
+> because we do not have that data.
+
+---
+
 ## Repository
 
 ```
@@ -474,7 +579,7 @@ data/
 app/lab.py                       Streamlit lab bench — internal, never demoed
 docs/DEPLOYMENT.md               how this ships
 docs/reference/                  the benchmark paper, plus licensing notes on every source
-tests/                           232 tests
+tests/                           234 tests
 ```
 
 ---
