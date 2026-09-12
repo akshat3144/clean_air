@@ -85,3 +85,7 @@ deck/
 scratch/
 tmp/
 *.log
+
+# Claude Code local state; launch.json is shared, the rest is per-machine.
+.claude/*
+!.claude/launch.json
