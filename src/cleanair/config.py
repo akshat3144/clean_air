@@ -63,7 +63,11 @@ CONVENTIONAL_2026 = (
     "Hungarian Grand Prix",    # R11, 26 Jul
 )
 
-#: Completed sprint weekends as of 2026-09-03. No FP2, so no long runs.
+#: Completed sprint weekends as of 2026-09-03. No FP2, so no PRACTICE long runs
+#: -- but a full Grand Prix on Sunday like everyone else, so their RACE long runs
+#: are in the degradation fit and contribute 5 of its 13 events. This list gates
+#: practice-derived work only. See the note on CONVENTIONAL_2026 above; reading
+#: "no long runs" as "no data" is exactly the bug that cost us five races.
 SPRINT_2026 = (
     "Chinese Grand Prix",      # R2
     "Miami Grand Prix",        # R4

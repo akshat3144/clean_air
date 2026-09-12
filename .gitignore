@@ -86,9 +86,8 @@ scratch/
 tmp/
 *.log
 
-# Claude Code local state; launch.json is shared, the rest is per-machine.
-.claude/*
-!.claude/launch.json
+# Claude Code local state. Per-machine, never shared.
+.claude/
 
 # ---- Discovered / user-editable state ----
 # The schedule cache is regenerable from the API and goes stale, but it is
