@@ -37,6 +37,7 @@ export const ARTIFACT_FILES = [
   "power",
   "transfer",
   "strategy",
+  "management",
 ] as const;
 
 /** A value with an uncertainty band. Seconds unless the field says otherwise. */
@@ -142,6 +143,23 @@ export interface BenchmarkArtifact {
   season_2025: RaceScore[];
   n_wins: number;
   n_races: number;
+  /** Season-wide mean CRPS. Their repo publishes only a season mean, not
+   *  per-race numbers, so `season_2025` stays empty rather than being filled
+   *  with a guess at their side of each race. These two means are the
+   *  like-for-like comparison that can actually be made. */
+  ours_season_crps: number | null;
+  theirs_season_crps: number | null;
+  /** Median race. One race dominates the mean: at Singapore 2025 Hamilton lost
+   *  32s on a single green-flag lap while the field's median was unchanged. The
+   *  lap stays in the test set; the median is shown so both readings are
+   *  visible. */
+  ours_season_crps_median: number | null;
+  /** Race counts behind each mean. They differ, which is why both are here. */
+  ours_season_races: number | null;
+  theirs_season_races: number | null;
+  /** Worst absolute gap between our CRPS and R's scoringRules on identical
+   *  input. Backs the "same estimator" claim with a number. */
+  r_crosscheck_max_diff: number | null;
 }
 
 // --- calibration.json / power.json ------------------------------------------
@@ -213,6 +231,47 @@ export interface StrategyArtifact {
 
 // ---------------------------------------------------------------------------
 
+// --- management.json : why softer compounds do not appear to degrade faster --
+
+export interface ManagementRow {
+  label: Label;
+  n_cells: number;
+  /** Race degradation over practice degradation. Below 1 = suppressed in races. */
+  ratio: number;
+  median_race: number;
+  median_practice: number;
+}
+
+export interface ManagementStability {
+  seasons: number[];
+  n_cells: number;
+  rho: number;
+  p_one_sided: number;
+  p_two_sided: number;
+  ordered: boolean;
+}
+
+export interface ManagementArtifact {
+  rows: ManagementRow[];
+  n_cells: number;
+  n_events: number;
+  n_seasons: number;
+  seasons: number[];
+  rho: number;
+  /** One-sided; the direction was predicted before the data was pulled. */
+  p_one_sided: number;
+  /** Two-sided, so the reader need not accept the one-sided choice. */
+  p_two_sided: number;
+  /** Omnibus alternative, which ignores the ordering we predicted. */
+  p_kruskal: number;
+  ordered: boolean;
+  /** True only when BOTH sidedness conventions clear 0.05. */
+  significant: boolean;
+  verdict: string;
+  /** How the effect moved as seasons were added. Ours shrank. */
+  stability: ManagementStability[];
+}
+
 export interface Bundle {
   meta: Meta;
   degradation: DegradationArtifact;
@@ -222,6 +281,7 @@ export interface Bundle {
   power: PowerArtifact;
   transfer: TransferArtifact;
   strategy: StrategyArtifact;
+  management: ManagementArtifact;
 }
 
 /** Official Pirelli colours, keyed by physical compound rather than by label. */

@@ -51,6 +51,7 @@ FILES = (
     "power",
     "transfer",
     "strategy",
+    "management",
 )
 
 
@@ -144,7 +145,12 @@ class DegradationArtifact:
     fuel_coefficient: Interval | None
     #: Fitted track evolution, s per lap of session elapsed.
     track_evolution: Interval | None
-    #: P(softer of the pair degrades faster), from the posterior. Keys "C3>C4".
+    #: P(softer of the pair degrades faster). Keys like "C3>C4".
+    #:
+    #: NOT a posterior probability. The model is mixed-effects, so what we have
+    #: are confidence intervals; this is a normal approximation to the
+    #: difference between two fitted rates. It reads like a Bayesian quantity and
+    #: is not one, which is worth saying rather than letting a reader assume.
     separation: dict[str, float] = field(default_factory=dict)
     #: Pairs whose 95% intervals do not overlap. Keys "C3|C4".
     separated_pairs: list[str] = field(default_factory=list)
@@ -207,6 +213,25 @@ class BenchmarkArtifact:
     season_2025: list[RaceScore] = field(default_factory=list)
     n_wins: int = 0
     n_races: int = 0
+    #: Season-wide mean CRPS, ours and theirs. Their repo reports only a season
+    #: mean, not per-race numbers, so a per-race win table cannot be built
+    #: honestly -- these two means are the like-for-like comparison we can make.
+    ours_season_crps: float | None = None
+    theirs_season_crps: float | None = None
+    #: Median race, carried next to the mean because one race dominates the
+    #: mean: at Singapore 2025 Hamilton lost 32 seconds on a single green-flag
+    #: lap while the field's median was unchanged, so it was his car, not the
+    #: track. The lap is kept in the test set -- dropping the laps we predict
+    #: worst would flatter the score -- and the median is shown so the reader
+    #: can see both the typical race and the damage one bad one does.
+    ours_season_crps_median: float | None = None
+    #: Race counts behind each mean. They differ (they had 19, we cached 16),
+    #: which is exactly why both are carried rather than just the difference.
+    ours_season_races: int | None = None
+    theirs_season_races: int | None = None
+    #: Largest absolute gap between our CRPS and R's scoringRules on identical
+    #: input. Backs the "same estimator" claim with a number instead of a word.
+    r_crosscheck_max_diff: float | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -299,6 +324,54 @@ class StrategyArtifact:
     confidence: float
     #: Optimal stint length per compound given the pit loss. Keyed by C-number.
     optimal_stint: dict[str, Interval] = field(default_factory=dict)
+
+
+# ---------------------------------------------------------------------------
+# management.json -- why softer compounds do not appear to degrade faster
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class ManagementRow:
+    label: Label
+    n_cells: int
+    #: Race degradation divided by practice degradation, median across cells.
+    #: Below 1 means the race number is suppressed relative to practice.
+    ratio: float
+    median_race: float
+    median_practice: float
+
+
+@dataclass
+class ManagementArtifact:
+    """Evidence that drivers nurse softer tyres in races.
+
+    Keyed on the HARD/MEDIUM/SOFT label rather than the physical compound, and
+    that is correct here even though it is wrong everywhere else: within one
+    event the label is the same tyre in practice and in the race, which is all a
+    ratio needs.
+    """
+
+    rows: list[ManagementRow]
+    n_cells: int
+    n_events: int
+    n_seasons: int
+    seasons: list[int]
+    #: Spearman correlation between compound softness and the ratio.
+    rho: float
+    #: One-sided, because the direction was predicted before the data was pulled.
+    p_one_sided: float
+    #: Two-sided as well, so the reader need not accept the one-sided choice.
+    p_two_sided: float
+    #: The omnibus alternative, which ignores the ordering we predicted.
+    p_kruskal: float
+    ordered: bool
+    #: True only when BOTH sidedness conventions clear 0.05.
+    significant: bool
+    verdict: str
+    #: How the effect moved as seasons were added. Shrinking with more data is
+    #: worth showing rather than hiding.
+    stability: list[dict] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------

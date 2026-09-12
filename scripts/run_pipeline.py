@@ -33,7 +33,10 @@ def run(label: str, args: list[str], optional: bool = False) -> bool:
     ok = proc.returncode == 0
     mark = "ok" if ok else ("skipped" if optional else "FAILED")
     print(f"-- {label}: {mark} ({time.time() - t0:.1f}s)", flush=True)
-    return ok
+    # An optional stage that fails is not a pipeline failure -- it prints
+    # "skipped", and the caller counts anything falsy as FAILED, so saying
+    # otherwise here would contradict what was just printed on screen.
+    return ok or optional
 
 
 def main() -> None:
@@ -57,6 +60,12 @@ def main() -> None:
         ("2. fit degradation", ["scripts/03_fit_model.py", "--context", "race"], False),
         ("3. practice to race transfer", ["scripts/05_transfer.py"], False),
         ("4. strategy", ["scripts/06_strategy.py", "--event", args.event], False),
+        # Both of these were written but never wired in, so their artifacts went
+        # stale whenever the pipeline was re-run. Optional because each needs a
+        # season the default cache may not have: management pools several, and
+        # the benchmark scores 2025 specifically.
+        ("5. tyre management", ["scripts/07_management.py"], True),
+        ("6. benchmark", ["scripts/08_benchmark.py"], True),
     ]
 
     if not args.skip_validation:
