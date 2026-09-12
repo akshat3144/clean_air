@@ -12,7 +12,13 @@ from __future__ import annotations
 
 import random
 
-from ..config import BENCHMARK_CRPS, BENCHMARK_RMSPE, CONVENTIONAL_2026, SEASON
+from ..config import (
+    BENCHMARK_CRPS,
+    BENCHMARK_RMSPE,
+    BENCHMARK_SEASON_2025,
+    CONVENTIONAL_2026,
+    SEASON,
+)
 from .schema import (
     AblationArtifact,
     AblationRow,
@@ -29,7 +35,6 @@ from .schema import (
     Meta,
     PowerArtifact,
     PowerPoint,
-    RaceScore,
     StrategyArtifact,
     StrategyPlan,
     TransferArtifact,
@@ -133,24 +138,29 @@ def benchmark() -> BenchmarkArtifact:
         BenchmarkScore("SSM base", BENCHMARK_RMSPE["base"], BENCHMARK_CRPS["base"], "published"),
         BenchmarkScore("SSM compound-specific", BENCHMARK_RMSPE["ext1"], BENCHMARK_CRPS["ext1"], "published"),
         BenchmarkScore("SSM skew-t (their best)", BENCHMARK_RMSPE["skew_t"], BENCHMARK_CRPS["skew_t"], "published"),
-        BenchmarkScore("SSM compound-specific", 1.191, 0.238, "reproduced"),
-        BenchmarkScore("Clean Air pooled", 0.974, 0.181, "ours"),
+        # Deliberately a LOSING score. These are placeholders, but a fixture
+        # that shows us beating the published best is the one number nobody
+        # would question on a screenshot, so it is the last one that should be
+        # invented. The real figure is worse than their best, and the fixture
+        # says so too.
+        BenchmarkScore("Clean Air pooled", 1.250, 0.238, "ours"),
     ]
-    races = [
-        "Chinese", "Japanese", "Bahrain", "Saudi Arabian", "Emilia Romagna", "Monaco",
-        "Spanish", "Canadian", "Austrian", "Hungarian", "Italian", "Azerbaijan",
-        "Singapore", "United States", "Mexico City", "Sao Paulo", "Las Vegas",
-        "Qatar", "Abu Dhabi",
-    ]
-    season, wins = [], 0
-    for r in races:
-        theirs = round(RNG.uniform(0.13, 0.58), 4)
-        ours = round(theirs * RNG.uniform(0.72, 1.08), 4)
-        win = ours < theirs
-        wins += win
-        season.append(RaceScore(race=f"{r} Grand Prix", ours_crps=ours, theirs_crps=theirs, ours_wins=win))
-
-    return BenchmarkArtifact(austria_2025=austria, season_2025=season, n_wins=wins, n_races=len(races))
+    # season_2025 is left EMPTY, matching what the real pipeline can produce.
+    # Their repository publishes a season mean, not per-race numbers, so their
+    # side of a per-race table does not exist. This fixture used to invent it --
+    # nineteen races of random opponent scores, with us winning most of them --
+    # and a plausible-looking win rate is exactly the kind of number that walks
+    # into a screenshot and never gets checked. What we can compare is the two
+    # season means, so that is what is filled in.
+    return BenchmarkArtifact(
+        austria_2025=austria,
+        ours_season_crps=0.6058,
+        ours_season_crps_median=0.3240,
+        theirs_season_crps=BENCHMARK_SEASON_2025["skewt_crps_mean"],
+        ours_season_races=16,
+        theirs_season_races=BENCHMARK_SEASON_2025["n_races"],
+        r_crosscheck_max_diff=2.48e-11,
+    )
 
 
 def calibration() -> CalibrationArtifact:
