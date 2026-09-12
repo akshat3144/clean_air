@@ -1,22 +1,22 @@
 {
   "event": "Hungarian Grand Prix",
-  "pit_loss_s": 21.4,
+  "pit_loss_s": 22.33,
   "race_laps": 70,
   "plans": [
     {
       "n_stops": 1,
       "compounds": [
         "C3",
-        "C2"
+        "C4"
       ],
       "stint_lengths": [
-        24,
-        46
+        16,
+        54
       ],
       "total_time": {
-        "mean": 4712.4,
-        "lo": 4703.3,
-        "hi": 4721.5
+        "mean": 38.38,
+        "lo": 35.38,
+        "hi": 41.38
       }
     },
     {
@@ -24,58 +24,53 @@
       "compounds": [
         "C4",
         "C3",
-        "C3"
+        "C4"
       ],
       "stint_lengths": [
-        16,
-        27,
-        27
+        32,
+        5,
+        33
       ],
       "total_time": {
-        "mean": 4708.9,
-        "lo": 4697.5,
-        "hi": 4720.3
+        "mean": 36.6,
+        "lo": 33.6,
+        "hi": 39.6
       }
     },
     {
       "n_stops": 3,
       "compounds": [
-        "C4",
-        "C4",
         "C3",
-        "C3"
+        "C4",
+        "C4",
+        "C4"
       ],
       "stint_lengths": [
-        12,
-        18,
-        20,
-        20
+        5,
+        21,
+        22,
+        22
       ],
       "total_time": {
-        "mean": 4731.6,
-        "lo": 4715.8,
-        "hi": 4747.4
+        "mean": 49.19,
+        "lo": 46.19,
+        "hi": 52.19
       }
     }
   ],
   "recommended_stops": 2,
-  "rationale": "Two stops is 3.5s faster than one, but the intervals overlap \u2014 it is a coin flip that turns on the safety-car probability.",
-  "confidence": 0.58,
+  "rationale": "2-stop: C4 x32 -> C3 x5 -> C4 x33 is 1.8s faster than the best 1-stop alternative at a measured pit loss of 22.3s. The crossover sits at 24.5s.",
+  "confidence": 0.18,
   "optimal_stint": {
-    "C2": {
-      "mean": 31.0,
-      "lo": 27.0,
-      "hi": 35.0
-    },
     "C3": {
-      "mean": 24.0,
-      "lo": 21.0,
-      "hi": 27.0
+      "mean": 29.0,
+      "lo": 26.0,
+      "hi": 31.0
     },
     "C4": {
-      "mean": 17.0,
-      "lo": 14.0,
-      "hi": 20.0
+      "mean": 40.0,
+      "lo": 37.0,
+      "hi": 43.0
     }
   }
 }

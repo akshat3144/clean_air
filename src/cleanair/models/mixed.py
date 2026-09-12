@@ -36,6 +36,11 @@ class Fit:
 
     rates: dict[str, Interval]
     curvature: dict[str, Interval]
+    #: Fresh-tyre pace of each compound relative to the field average at that
+    #: moment, seconds. Softer compounds should be NEGATIVE (faster). Strategy
+    #: needs these: without them an optimiser always picks the hardest tyre,
+    #: because it only sees that hard tyres degrade more slowly.
+    offsets: dict[str, Interval]
     n_laps: dict[str, int]
     n_runs: dict[str, int]
     events: dict[str, list[str]]
@@ -85,7 +90,13 @@ class Fit:
         return rate * n_laps + (quad.mean * n_laps**2 if quad else 0.0)
 
 
-def fit_degradation(df: pd.DataFrame, *, quadratic: bool = True, context: str = "race") -> Fit:
+def fit_degradation(
+    df: pd.DataFrame,
+    *,
+    quadratic: bool = True,
+    context: str = "race",
+    with_offsets: bool = True,
+) -> Fit:
     """Fit per-compound degradation on a prepared design frame.
 
     The design is already demeaned, so there is no intercept: ``0 +`` in the
@@ -101,7 +112,11 @@ def fit_degradation(df: pd.DataFrame, *, quadratic: bool = True, context: str = 
     df = df.copy()
     df["C"] = pd.Categorical(df["C"], [c for c in C_ORDER if c in set(df["C"])])
 
-    formula = "y ~ 0 + C:tl" + (" + C:tl2" if quadratic else "")
+    # Compound main effects give the pace difference between compounds at equal
+    # tyre age -- the "soft is faster when fresh" term. In the demeaned design
+    # these are identified from cars on different compounds at the same lap.
+    formula = "y ~ 0 + " + ("C + " if with_offsets else "") + "C:tl"
+    formula += " + C:tl2" if quadratic else ""
     # Traffic gets a single shared coefficient, not one per compound: dirty air
     # costs the same lap time whatever tyre you are on, and a per-compound
     # traffic term would compete with the degradation slope for the same signal.
@@ -116,10 +131,15 @@ def fit_degradation(df: pd.DataFrame, *, quadratic: bool = True, context: str = 
 
     params, ci = res.params, res.conf_int()
 
-    def pull(prefix: str) -> dict[str, Interval]:
+    def pull(prefix: str | None) -> dict[str, Interval]:
+        """Collect per-compound coefficients. ``None`` pulls the main effects."""
         out = {}
         for name in params.index:
-            if not name.endswith(f":{prefix}"):
+            if prefix is None:
+                # A main effect looks like "C[C3]" with no interaction suffix.
+                if ":" in name or not name.startswith("C["):
+                    continue
+            elif not name.endswith(f":{prefix}"):
                 continue
             compound = name.split("[")[1].split("]")[0].replace("T.", "")
             out[compound] = Interval(
@@ -133,6 +153,7 @@ def fit_degradation(df: pd.DataFrame, *, quadratic: bool = True, context: str = 
     return Fit(
         rates=pull("tl"),
         curvature=pull("tl2") if quadratic else {},
+        offsets=pull(None) if with_offsets else {},
         n_laps={str(k): int(v) for k, v in counts.size().items()},
         n_runs={str(k): int(v) for k, v in counts["run_id"].nunique().items()},
         events={str(k): sorted(v) for k, v in counts["event"].unique().items()},
