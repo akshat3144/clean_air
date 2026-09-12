@@ -55,6 +55,7 @@ disagreeing during a demo is the one failure with no recovery.
 |---|---|
 | `App.tsx` | shell and the five tabs, named after moments not scripts |
 | `NextRaceView.tsx` | the race that has not happened yet — the front door |
+| `DegradationHorizon.tsx` | what staying out costs after 5, 10 and 15 laps — the fitted rate stated in the units the question is asked in. On both Next Race and Strategy |
 | `PracticeSessionsPanel.tsx` | each practice session's own answer, its weight, why FP2 carries most of it, and — where the race has run — what Sunday actually did. On both Next Race and Strategy |
 | `ConsoleView.tsx` | the strategy console |
 | `CompoundLabels.tsx` | why nothing is grouped by hard/medium/soft — derived from the live nominations, never written down |
