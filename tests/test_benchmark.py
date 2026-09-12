@@ -12,10 +12,12 @@ import pandas as pd
 import pytest
 
 from cleanair.validation.benchmark import (
+    FALLBACK_SIGMA,
     TRAIN_FRACTION,
     _extrapolate,
     _fit_rate,
     _folds,
+    _oos_bias_sigma,
     score,
 )
 
@@ -237,3 +239,51 @@ def test_a_real_age_spread_still_recovers_the_rate():
                 }
             )
     assert _fit_rate(pd.DataFrame(rows), "MEDIUM") == pytest.approx(0.05, abs=0.01)
+
+
+def test_the_spread_estimator_only_ever_looks_backwards():
+    """The predictive spread must not read a lap the forecast could not.
+
+    This pins the new estimator's contract rather than its value. It records
+    every (train_to, test_lap) pair _oos_bias_sigma asks for and asserts none
+    of them reaches past the training window. A spread that peeked would look
+    like a well-calibrated model and be worthless.
+    """
+    asked: list[tuple[int, int]] = []
+
+    def fake_predict(train_to, test_lap):
+        asked.append((int(train_to), int(test_lap)))
+        return 90.0, 89.5
+
+    subject = _subject([(1, 30)])
+    _oos_bias_sigma(fake_predict, subject, train_to=20)
+
+    assert asked, "estimator asked for nothing"
+    for train_to, test_lap in asked:
+        assert test_lap <= 20, f"looked at lap {test_lap}, past the window"
+        assert train_to < test_lap, "trained on the lap it predicts"
+
+
+def test_the_spread_is_the_scatter_of_the_forecast_s_own_errors():
+    """Pins the fix. The old estimator built residuals from the "field"
+    construction while the scored prediction used "hybrid", so the spread
+    described a different forecast than the one being made."""
+    err = 0.4
+
+    def biased_predict(train_to, test_lap):
+        # Constant offset: scatter zero, so sigma must hit its floor, not the bias.
+        return 90.0 + err, 90.0
+
+    subject = _subject([(1, 30)])
+    bias, sigma = _oos_bias_sigma(biased_predict, subject, train_to=20)
+    assert bias == pytest.approx(err, abs=1e-9)
+    assert sigma == pytest.approx(0.05, abs=1e-9), "constant error implies no scatter"
+
+
+def test_too_little_history_falls_back_wide_not_narrow():
+    """The first prediction of a race is the one we know least about. A narrow
+    guess there is punished by CRPS far harder than a wide one."""
+    subject = _subject([(1, 30)])
+    bias, sigma = _oos_bias_sigma(lambda a, b: None, subject, train_to=20)
+    assert bias == 0.0
+    assert sigma == pytest.approx(FALLBACK_SIGMA)
