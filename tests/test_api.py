@@ -213,25 +213,25 @@ def test_whatif_prefers_a_lap_inside_the_safety_car_window(client):
     and cancels out of the comparison, so the answer was identical with and
     without a safety car. The cheap stop is a window that closes.
     """
-    green = client.post(
-        "/whatif",
-        json={"event": EVENT, "current_lap": 34, "tyre_age": 18, "compound": "C4"},
-    ).json()
+    # Lap 20 on a six-lap-old set, NOT lap 34 on an eighteen-lap-old one.
+    #
+    # The original inputs were chosen against the global degradation rate,
+    # which had Hungary's C4 at 0.029 s/lap. The per-circuit rate is 0.069 --
+    # Hungary's circuit slope is +0.040 -- and on that a tyre eighteen laps old
+    # is already due a stop, so green and safety car both answer "box now" and
+    # the test could no longer see the effect it exists to check. A fresher
+    # tyre restores the contrast it was written for.
+    LAP, AGE, WINDOW = 20, 6, 3
+    base = {"event": EVENT, "current_lap": LAP, "tyre_age": AGE, "compound": "C4"}
+    green = client.post("/whatif", json=base).json()
     sc = client.post(
         "/whatif",
-        json={
-            "event": EVENT,
-            "current_lap": 34,
-            "tyre_age": 18,
-            "compound": "C4",
-            "safety_car": True,
-            "safety_car_laps": 3,
-        },
+        json={**base, "safety_car": True, "safety_car_laps": WINDOW},
     ).json()
 
     assert sc["best_pit_lap"] != green["best_pit_lap"], "safety car changed nothing"
-    assert sc["best_pit_lap"] < 34 + 3, "should stop inside the window"
-    assert green["best_pit_lap"] >= 34 + 3, "no reason to rush under green"
+    assert sc["best_pit_lap"] < LAP + WINDOW, "should stop inside the window"
+    assert green["best_pit_lap"] >= LAP + WINDOW, "no reason to rush under green"
 
     # Missing the window must cost something, or the urgency is not real.
     #
@@ -239,10 +239,10 @@ def test_whatif_prefers_a_lap_inside_the_safety_car_window(client):
     # calibrated against an INVENTED 0.45 fraction, which made missing the
     # window cost 12s. On the measured 0.84 it costs 3.35s. The urgency is real
     # and considerably milder than the folklore, which is the finding.
-    missed = next(o for o in sc["options"] if o["pit_on_lap"] == 34 + 3)
+    missed = next(o for o in sc["options"] if o["pit_on_lap"] == LAP + WINDOW)
     assert missed["delta_s"] > 1.0
     # And staying out past the window must be worse than taking it.
-    inside = [o for o in sc["options"] if o["laps_from_now"] < 3]
+    inside = [o for o in sc["options"] if o["laps_from_now"] < WINDOW]
     assert min(o["delta_s"] for o in inside) < missed["delta_s"]
 
 
@@ -257,11 +257,23 @@ def test_whatif_costs_are_relative_to_the_best_option(client):
 
 
 def test_whatif_refuses_a_compound_it_cannot_price(client):
-    """C5 at Hungary has a non-positive fitted rate, so the cost of staying out
-    on it is not something we can compute. Saying so beats inventing it."""
+    """A compound with a non-positive fitted rate cannot be priced, and saying
+    so beats inventing a number.
+
+    The event moved from Hungary to Italy. Hungary's C5 was non-positive only
+    under the global fit; its circuit slope is +0.040, which lifts the same
+    tyre to 0.051 s/lap and makes it perfectly usable. Italy's slope is -0.019
+    and its C5 lands at -0.008, so this now pins the behaviour at a cell that
+    is genuinely unpriceable rather than at one the model was getting wrong.
+    """
     r = client.post(
         "/whatif",
-        json={"event": EVENT, "current_lap": 30, "tyre_age": 10, "compound": "C5"},
+        json={
+            "event": "Italian Grand Prix",
+            "current_lap": 30,
+            "tyre_age": 10,
+            "compound": "C5",
+        },
     )
     assert r.status_code == 422
 
@@ -283,3 +295,114 @@ def test_inputs_outside_physical_range_are_rejected_by_the_schema(client):
         ).status_code
         == 422
     )
+
+
+# ---------------------------------------------------------------------------
+# one screen, one set of controls, one answer
+# ---------------------------------------------------------------------------
+
+
+def test_whatif_honours_the_race_distance_it_is_given(client):
+    """`/whatif` and `/strategy` sit on one screen driven by one set of
+    controls. This endpoint ignored `race_laps` entirely, so shortening the
+    race moved the plan above and left "pit now or later" optimising the old
+    distance underneath it.
+    """
+    base = {"event": EVENT, "current_lap": 20, "tyre_age": 10, "compound": "C4"}
+    default = client.post("/whatif", json=base).json()
+    short = client.post("/whatif", json={**base, "race_laps": 45}).json()
+
+    assert short["race_laps"] == 45
+    assert default["race_laps"] != 45, "the fixture event should not already be 45 laps"
+    assert [o["total_time"] for o in short["options"]] != [
+        o["total_time"] for o in default["options"]
+    ], "race distance changed nothing"
+
+
+def test_whatif_honours_rate_overrides(client):
+    """The degradation sliders drive the plan. They must drive this too, or a
+    strategist exploring the edge of the confidence interval sees half the
+    screen move."""
+    base = {"event": EVENT, "current_lap": 20, "tyre_age": 10, "compound": "C4"}
+    fitted = client.post("/whatif", json=base).json()
+    steep = client.post("/whatif", json={**base, "rates": {"C4": 0.25}}).json()
+
+    assert [o["delta_s"] for o in steep["options"]] != [
+        o["delta_s"] for o in fitted["options"]
+    ], "rate override changed nothing"
+    # A tyre falling apart makes waiting expensive fast.
+    assert steep["options"][-1]["delta_s"] > fitted["options"][-1]["delta_s"]
+
+
+def test_whatif_honours_the_pace_step(client):
+    base = {"event": EVENT, "current_lap": 20, "tyre_age": 10, "compound": "C4"}
+    a = client.post("/whatif", json=base).json()
+    b = client.post("/whatif", json={**base, "pace_step_s": 0.0}).json()
+    assert [o["delta_s"] for o in a["options"]] != [o["delta_s"] for o in b["options"]]
+
+
+def test_whatif_reports_a_window_not_just_a_lap(client):
+    """"Best stop is lap 20" reads as a decision and usually is not one. The
+    window is what a pit wall can actually act on."""
+    r = client.post(
+        "/whatif",
+        json={"event": EVENT, "current_lap": 20, "tyre_age": 6, "compound": "C4"},
+    ).json()
+    assert r["window_from"] <= r["best_pit_lap"] <= r["window_to"]
+    laps = {o["pit_on_lap"]: o["delta_s"] for o in r["options"]}
+    for lap in range(r["window_from"], r["window_to"] + 1):
+        assert laps[lap] <= r["window_tolerance_s"], f"lap {lap} is outside the tolerance"
+
+
+def test_the_pit_window_is_contiguous(client):
+    """A cheap lap on the far side of an expensive one is not somewhere a car
+    can drift to, so the window must not jump over a gap."""
+    r = client.post(
+        "/whatif",
+        json={"event": EVENT, "current_lap": 20, "tyre_age": 6, "compound": "C4"},
+    ).json()
+    laps = {o["pit_on_lap"]: o["delta_s"] for o in r["options"]}
+    before, after = r["window_from"] - 1, r["window_to"] + 1
+    if before in laps:
+        assert laps[before] > r["window_tolerance_s"]
+    if after in laps:
+        assert laps[after] > r["window_tolerance_s"]
+
+
+def test_a_tight_window_collapses_to_one_lap(client):
+    """When the call really is sharp the window must say so, or it is just a
+    wider way of saying nothing."""
+    r = client.post(
+        "/whatif",
+        json={
+            "event": EVENT,
+            "current_lap": 20,
+            "tyre_age": 10,
+            "compound": "C4",
+            "rates": {"C4": 0.3},
+            "window_tolerance_s": 0.5,
+        },
+    ).json()
+    assert r["window_from"] == r["window_to"] == r["best_pit_lap"]
+
+
+def test_strategy_uses_the_circuit_rate_not_the_season_average(client):
+    """The bug that made every event a one-stop.
+
+    Hungary's circuit slope is +0.040 s/lap. If the API is reading the global
+    fit, its C4 comes back at the season average and matches every other
+    circuit's.
+    """
+    hungary = client.post("/strategy", json={"event": EVENT}).json()
+    italy = client.post("/strategy", json={"event": "Italian Grand Prix"}).json()
+
+    def rate(res, c):
+        return next((x["rate"] for x in res["compounds"] if x["compound"] == c), None)
+
+    shared = {x["compound"] for x in hungary["compounds"]} & {
+        x["compound"] for x in italy["compounds"]
+    }
+    assert shared, "the two events share no nominated compound to compare"
+    assert any(
+        rate(hungary, c) != rate(italy, c) for c in shared
+    ), "two circuits report identical degradation, which is the season average leaking through"

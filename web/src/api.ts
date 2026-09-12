@@ -88,8 +88,14 @@ export interface WhatIfResult {
   tyre_age: number;
   compound: string;
   pit_loss_s: number;
+  race_laps: number;
   safety_car: boolean;
   best_pit_lap: number;
+  /** The contiguous run of laps costing less than `window_tolerance_s` more
+   *  than the best. Equal to best_pit_lap twice when the call is sharp. */
+  window_from: number;
+  window_to: number;
+  window_tolerance_s: number;
   options: WhatIfOption[];
   compute_ms: number;
 }
@@ -100,6 +106,11 @@ export interface WhatIfInput {
   tyre_age: number;
   compound: string;
   pit_loss_s?: number;
+  /** The same overrides /strategy takes. Both panels sit on one screen driven
+   *  by one set of controls; sending fewer here makes them answer different
+   *  races. */
+  race_laps?: number;
+  rates?: Record<string, number>;
   safety_car?: boolean;
   safety_car_laps?: number;
   neutralised_fraction?: number;

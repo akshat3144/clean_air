@@ -164,6 +164,7 @@ export function ConsoleView({ playbook }: { playbook: PlaybookArtifact }) {
                 compounds={result.compounds}
                 pitLoss={pitLoss}
                 safetyCar={safetyCar}
+                rates={rates}
               />
             </>
           ) : (
@@ -624,8 +625,12 @@ function Controls({
             onChange={(e) => setRaceLaps(Number(e.target.value))}
             className="mt-2"
           />
+          {/* Both ends name their lap count, like the pit-loss slider above.
+              "shortened" alone made a reader work out what the left end meant
+              and read as a status on the current value rather than as an axis
+              label. */}
           <div className="mt-1.5 flex justify-between text-micro text-fg-faint">
-            <span>shortened</span>
+            <span className="num">{Math.max(10, Math.round(event.race_laps * 0.4))} shortened</span>
             <span className="num">full {event.race_laps}</span>
           </div>
         </div>
@@ -674,12 +679,18 @@ function WhatIf({
   compounds,
   pitLoss,
   safetyCar,
+  rates,
 }: {
   event: string;
   raceLaps: number;
   compounds: ApiCompound[];
   pitLoss: number | null;
   safetyCar: boolean;
+  /** Degradation overrides from the same controls that drive the plan above.
+   *  This panel used to receive raceLaps only to bound its slider and never
+   *  sent it, so shortening the race moved the plan and left this answering
+   *  the old distance. */
+  rates: Record<string, number>;
 }) {
   const usable = compounds.filter((c) => !c.excluded);
   const [lap, setLap] = useState(Math.round(raceLaps * 0.5));
@@ -708,7 +719,9 @@ function WhatIf({
           tyre_age: age,
           compound,
           pit_loss_s: pitLoss,
+          race_laps: raceLaps,
           safety_car: safetyCar,
+          ...(Object.keys(rates).length ? { rates } : {}),
           step: 3,
         },
         ac.signal,
@@ -727,7 +740,10 @@ function WhatIf({
       ac.abort();
       window.clearTimeout(t);
     };
-  }, [event, lap, age, compound, pitLoss, safetyCar]);
+    // raceLaps and rates belong here. Sending them without depending on them
+    // is the same bug in a quieter form: the request carries the new value,
+    // but nothing re-issues the request when the control moves.
+  }, [event, lap, age, compound, pitLoss, safetyCar, raceLaps, rates]);
 
   const worst = res ? Math.max(...res.options.map((o) => o.delta_s), 1) : 1;
 
@@ -776,33 +792,58 @@ function WhatIf({
         <p className="mt-4 text-tiny text-signal-warn">{err}</p>
       ) : res ? (
         <>
-          <p className="mt-4 text-base leading-relaxed text-fg-dim">
-            Best stop is lap{" "}
-            <span className="num text-lg font-medium text-fg">{res.best_pit_lap}</span>
-            {res.best_pit_lap === lap ? (
-              <span className="text-signal-good"> — now</span>
-            ) : (
-              <>
-                {" "}
-                — <span className="num text-fg">{res.best_pit_lap - lap}</span> lap
-                {res.best_pit_lap - lap === 1 ? "" : "s"} away
-              </>
-            )}
-            . A stop costs <span className="num text-fg">{res.pit_loss_s.toFixed(1)}s</span>.
-          </p>
+          {/* The window, not the winner.
+              "Best stop is lap 20" reads as a decision, and usually is not
+              one -- the first four options at Hungary sit 0.03s apart, far
+              below the 2.2s the same pit lane varies by between seasons. A
+              strategist given a window can spend it on the things we do not
+              model: track position, traffic, a safety car. Given a single lap
+              they will defend it. */}
+          {(() => {
+            const wide = res.window_to > res.window_from;
+            const callNow = res.window_from <= lap;
+            return (
+              <p className="mt-4 text-base leading-relaxed text-fg-dim">
+                {wide ? (
+                  <>
+                    <span className="text-lg font-medium text-signal-good">
+                      {callNow ? "Box any lap now through " : "Box between laps "}
+                      <span className="num">{callNow ? res.window_to : `${res.window_from}–${res.window_to}`}</span>
+                    </span>{" "}
+                    — all within{" "}
+                    <span className="num text-fg">{res.window_tolerance_s.toFixed(1)}s</span> of
+                    each other, so the lap is yours to pick.
+                  </>
+                ) : (
+                  <>
+                    <span className="text-lg font-medium text-signal-warn">
+                      Box on lap <span className="num">{res.best_pit_lap}</span>
+                      {res.best_pit_lap === lap && " — now"}
+                    </span>{" "}
+                    — waiting a lap already costs more than{" "}
+                    <span className="num text-fg">{res.window_tolerance_s.toFixed(1)}s</span>.
+                  </>
+                )}{" "}
+                A stop costs <span className="num text-fg">{res.pit_loss_s.toFixed(1)}s</span>.
+              </p>
+            );
+          })()}
           {/* Bar height is COST, so taller is worse and the shortest bar is the
               answer. The first version inverted this -- tallest meant best --
               which put a tall bar directly under a label reading "+8.7s". The
               chart and the number it sat beside disagreed. */}
           <div className="mt-3 flex h-24 items-end gap-1.5">
             {res.options.map((o) => {
-              const best = o.delta_s === 0;
+              // Green means "you can take this lap", which is the window --
+              // colouring only the single minimum told a strategist four
+              // equally good laps were three mistakes and one right answer.
+              const best = o.pit_on_lap >= res.window_from && o.pit_on_lap <= res.window_to;
               return (
                 <div key={o.pit_on_lap} className="flex h-full flex-1 flex-col items-center justify-end gap-1.5">
                   <span
                     className={`num text-micro ${best ? "font-bold text-signal-good" : "text-fg-faint"}`}
                   >
-                    {best ? "best" : `+${o.delta_s.toFixed(1)}`}
+                    {o.delta_s === 0 ? "best" : best ? "free" : `+${o.delta_s.toFixed(1)}`}
                   </span>
                   <motion.div
                     className={`w-full rounded-t ${best ? "bg-signal-good" : "bg-ink-500"}`}
