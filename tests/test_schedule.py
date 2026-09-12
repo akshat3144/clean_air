@@ -283,3 +283,42 @@ def test_a_typed_nomination_can_be_taken_back_out(monkeypatch, tmp_path):
 
     # Clearing something that was never set is not an error to swallow.
     assert alloc.unset("Never Existed Grand Prix") is False
+
+
+def test_a_half_written_store_does_not_take_the_api_down(tmp_path, monkeypatch):
+    """The bug this pins.
+
+    Every strategy and forecast request reads the allocation store. A process
+    killed mid-save used to leave invalid JSON, and the next read raised
+    JSONDecodeError -- turning one bad write into a total outage. Degrading to
+    the cited Pirelli values is the same behaviour as the file being absent.
+    """
+    store = tmp_path / "allocation.json"
+    monkeypatch.setattr(alloc, "STORE", store)
+    store.write_text('[{"event": "Truncated Grand Pri', encoding="utf-8")
+
+    out = alloc.all_allocations()
+    assert out, "a corrupt store wiped the nominations instead of falling back"
+    assert alloc.compounds_for("Monaco Grand Prix"), "cited values were not restored"
+
+
+def test_saving_the_store_is_atomic(tmp_path, monkeypatch):
+    """A reader must see the old file or the new one, never a half-written one.
+
+    Simulated by making the rename fail: the original must survive intact
+    rather than having been truncated by an in-place write.
+    """
+    store = tmp_path / "allocation.json"
+    monkeypatch.setattr(alloc, "STORE", store)
+    alloc.set_allocation("Monaco Grand Prix", {"HARD": "C3", "MEDIUM": "C4", "SOFT": "C5"})
+    before = store.read_text(encoding="utf-8")
+
+    def boom(*a, **k):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(alloc.os, "replace", boom)
+    with pytest.raises(OSError):
+        alloc.set_allocation("Monaco Grand Prix", {"HARD": "C1", "MEDIUM": "C2", "SOFT": "C3"})
+
+    assert store.read_text(encoding="utf-8") == before, "a failed save corrupted the store"
+    assert json.loads(store.read_text(encoding="utf-8")), "store is not valid JSON"

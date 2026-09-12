@@ -29,10 +29,14 @@ somebody typed can never be mistaken for one we cited.
 from __future__ import annotations
 
 import json
+import logging
+import os
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 
 from ..config import COMPOUND_ALLOCATION_2026, DATA
+
+log = logging.getLogger(__name__)
 
 STORE = DATA / "allocation.json"
 
@@ -83,7 +87,15 @@ def _seed() -> dict[str, Allocation]:
 def _read() -> dict[str, Allocation]:
     if not STORE.exists():
         return _seed()
-    raw = json.loads(STORE.read_text(encoding="utf-8"))
+    try:
+        raw = json.loads(STORE.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        # A half-written store must not take the API down with it. Every
+        # strategy and forecast request reads this file, so raising here
+        # turns one bad write into a total outage. Degrading to the cited
+        # Pirelli values is the same behaviour as the file being absent.
+        log.error("allocation store unreadable (%s); using cited values", exc)
+        return _seed()
     out = {}
     for row in raw:
         a = Allocation(**row)
@@ -96,9 +108,20 @@ def _read() -> dict[str, Allocation]:
 
 
 def _write(store: dict[str, Allocation]) -> None:
+    """Save the store atomically.
+
+    ``write_text`` truncates before it writes, so a process killed mid-save
+    -- a container stopped during a deploy, say -- leaves invalid JSON
+    behind. Writing to a sibling temp file and renaming makes the swap
+    atomic on POSIX and Windows alike: a reader sees the old file or the
+    new one, never a half-written one. This is the one durability guarantee
+    a database would have bought us, in three lines instead of a service.
+    """
     STORE.parent.mkdir(parents=True, exist_ok=True)
     rows = [asdict(a) for a in sorted(store.values(), key=lambda x: x.event)]
-    STORE.write_text(json.dumps(rows, indent=2) + "\n", encoding="utf-8")
+    tmp = STORE.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(rows, indent=2) + "\n", encoding="utf-8")
+    os.replace(tmp, STORE)
 
 
 def all_allocations() -> dict[str, Allocation]:
