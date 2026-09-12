@@ -117,6 +117,32 @@ class Round:
         r = self.session(RACE_SESSION)
         return bool(r and r.has_run(now))
 
+    @property
+    def cacheable_sessions(self) -> tuple[str, ...]:
+        """Sessions worth pulling for this weekend's format.
+
+        A sprint weekend is FP1 + Sprint Qualifying on Friday, Sprint +
+        Qualifying on Saturday, and a FULL GRAND PRIX on Sunday. It has no FP2
+        or FP3, and its FP1 is sprint preparation rather than race simulation
+        -- measured across the cached 2025 sprint weekends, FP1 yields 34 runs
+        at a median of 6 laps, which the practice filters reject anyway.
+
+        But its RACE is a race like any other: 198 long runs at a median of 20
+        laps across those same four weekends, against 17 for conventional
+        races. Excluding it was costing us five 2026 events.
+        """
+        return (*LONG_RUN_SESSIONS, RACE_SESSION) if self.is_conventional else (RACE_SESSION,)
+
+    def sessions_to_pull(self, now: datetime | None = None) -> list[str]:
+        """The subset of ``cacheable_sessions`` that has actually finished.
+
+        Asking for a session that has not run makes the cache script record a
+        failure, which writes ``complete: false``, which makes the completeness
+        guard refuse the whole event -- including data that arrived perfectly
+        well.
+        """
+        return [c for c in self.cacheable_sessions if (s := self.session(c)) and s.has_run(now)]
+
 
 def _parse(sched: pd.DataFrame) -> list[Round]:
     rounds = []
@@ -272,6 +298,27 @@ def rounds(season: int = SEASON) -> list[Round]:
     return load(season)[0]
 
 
+def race_events(season: int = SEASON) -> list[str]:
+    """Every event with a Grand Prix, whatever the weekend format.
+
+    Use this for anything derived from RACE data -- degradation, pit loss,
+    strategy. Use ``event_names`` only for practice-derived work, which
+    genuinely needs an FP2.
+    """
+    return [r.event for r in rounds(season)]
+
+
+def raced_events(season: int = SEASON, now: datetime | None = None) -> list[str]:
+    """Events whose Grand Prix has actually finished.
+
+    ``race_events`` lists every round on the calendar, most of which have not
+    happened. Anything that loads a race session must use this instead, or it
+    spends API calls failing on the future -- which is how a pull hit the
+    500/h cap and wrote `complete: false` across a good season.
+    """
+    return [r.event for r in rounds(season) if r.race_has_run(now)]
+
+
 def conventional(season: int = SEASON) -> list[Round]:
     """Rounds with an FP2, and therefore with race-simulation long runs."""
     return [r for r in rounds(season) if r.is_conventional]
@@ -319,10 +366,8 @@ def pending_sessions(
     now = now or datetime.now(timezone.utc)
     out: list[tuple[Round, str]] = []
     for r in sorted(rounds(season), key=lambda x: x.date_utc):
-        if not r.is_conventional:
-            continue
-        for code in (*LONG_RUN_SESSIONS, RACE_SESSION):
-            s = r.session(code)
-            if s and s.has_run(now):
-                out.append((r, code))
+        # Every format, not just conventional: `cacheable_sessions` already
+        # knows a sprint weekend offers only its race.
+        for code in r.sessions_to_pull(now):
+            out.append((r, code))
     return out

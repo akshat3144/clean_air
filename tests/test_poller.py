@@ -60,7 +60,7 @@ def _round(event: str, fmt: str = "conventional", sessions=None) -> sched.Round:
 
 
 def _patch_calendar(monkeypatch, rounds):
-    monkeypatch.setattr(sched, "conventional", lambda season=2026: rounds)
+    monkeypatch.setattr(sched, "rounds", lambda season=2026: rounds)
 
 
 # ---------------------------------------------------------------------------
@@ -107,16 +107,26 @@ def test_the_race_joins_the_pull_once_it_has_run(monkeypatch):
     assert missing == [("Italian Grand Prix", ["FP1", "FP2", "FP3", "R"])]
 
 
-def test_sprint_weekends_are_never_pulled(monkeypatch):
-    """They run FP1 then Sprint Qualifying, so they carry no race-simulation
-    long runs. `sched.conventional` filters them, and this pins that the poller
-    goes through it rather than around it."""
-    rounds = [_round("Sprinty Grand Prix", fmt="sprint_qualifying")]
-    monkeypatch.setattr(sched, "conventional", lambda season=2026: [
-        r for r in rounds if r.is_conventional
-    ])
+def test_a_sprint_weekend_is_pulled_for_its_race_only(monkeypatch):
+    """The bug this pins.
+
+    A sprint weekend is FP1 + Sprint Qualifying, then Sprint + Qualifying, then
+    a FULL GRAND PRIX on Sunday. We used to skip the whole weekend because it
+    has no FP2, which silently cost us five 2026 races -- about 361 long runs,
+    nearly as many as the seven conventional weekends put together.
+
+    Its FP1 is sprint prep (median 6 laps) and the practice filters reject it
+    anyway, so the race is the only thing worth taking -- but it IS worth
+    taking.
+    """
+    _patch_calendar(monkeypatch, [_round("Sprinty Grand Prix", fmt="sprint_qualifying")])
     monkeypatch.setattr(poller, "_cached_events", lambda s: set())
-    assert poller.find_missing(2026, now=BASE + timedelta(hours=100)) == []
+
+    missing = poller.find_missing(2026, now=BASE + timedelta(hours=100))
+    assert missing == [("Sprinty Grand Prix", ["R"])], missing
+
+    # ...and nothing at all before its race has run.
+    assert poller.find_missing(2026, now=BASE + timedelta(hours=10)) == []
 
 
 def test_one_event_at_a_time(monkeypatch):

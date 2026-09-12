@@ -108,14 +108,16 @@ def find_missing(
     """
     have = _cached_events(season)
     out: list[tuple[str, list[str]]] = []
-    for rnd in sched.conventional(season):
+    # Every round, not just conventional ones. A sprint weekend has no FP2 but
+    # it still races on Sunday, and that race is as good as any other. The
+    # format-aware `sessions_to_pull` returns practice + race for a
+    # conventional weekend and the race alone for a sprint one.
+    for rnd in sched.rounds(season):
         if rnd.event in have:
             continue
-        ran = rnd.long_run_sessions_run(now)
+        ran = rnd.sessions_to_pull(now)
         if not ran:
             continue
-        if rnd.race_has_run(now):
-            ran = [*ran, sched.RACE_SESSION]
         out.append((rnd.event, ran))
     return out
 

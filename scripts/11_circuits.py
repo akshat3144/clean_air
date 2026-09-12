@@ -74,8 +74,10 @@ def main() -> None:
     ap.add_argument("--season", type=int, default=2026)
     args = ap.parse_args()
 
-    wanted = sorted({r.event for r in rounds(args.season) if r.is_conventional})
-    print(f"{len(wanted)} conventional events on the {args.season} calendar")
+    # Every round, not just conventional ones: pit loss and race distance are
+    # properties of the circuit and the race, and a sprint weekend races too.
+    wanted = sorted({r.event for r in rounds(args.season)})
+    print(f"{len(wanted)} events on the {args.season} calendar")
 
     out: dict[str, dict] = {}
     for event in wanted:

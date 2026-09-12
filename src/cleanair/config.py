@@ -39,9 +39,20 @@ SEASON = 2026
 #: relocated to Sepang, Malaysia (2-4 Oct) and still carries the Bahrain name.
 N_ROUNDS_2026 = 23
 
-#: Completed conventional weekends as of 2026-09-03. These are the only 2026
-#: events with an FP2 session, and therefore the only ones with race-simulation
-#: long runs. Sprint weekends run FP1 then Sprint Qualifying, so they have none.
+#: Completed conventional weekends as of 2026-09-03: the only 2026 events with
+#: an FP2 session, and therefore the only ones with PRACTICE race-simulation
+#: long runs. That is what practice->race transfer and the management analysis
+#: need, and it is the only thing this list should ever gate.
+#:
+#: It does NOT mean sprint weekends have no usable data. A sprint weekend is
+#: FP1 + Sprint Qualifying on Friday, Sprint + Qualifying on Saturday, and a
+#: FULL GRAND PRIX on Sunday -- so its race long runs exist and are as good as
+#: any other race's. Measured on the four cached 2025 sprint weekends: 198 race
+#: long runs, median 20 laps, against 17 for conventional races. Their FP1 gives
+#: 34 runs at a median of 6 laps, which is sprint prep and not a race sim.
+#:
+#: An earlier version of this comment said sprint weekends "have none", full
+#: stop, which silently excluded five 2026 races from the degradation fit.
 CONVENTIONAL_2026 = (
     "Australian Grand Prix",   # R1,  08 Mar
     "Japanese Grand Prix",     # R3,  29 Mar

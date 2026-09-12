@@ -48,7 +48,7 @@ import warnings
 import pandas as pd
 
 from cleanair.data.cache import load_session
-from cleanair.data.schedule import event_names
+from cleanair.data.schedule import raced_events
 from cleanair.strategy.pitloss import estimate, loss_by_status
 
 warnings.filterwarnings("ignore")
@@ -67,14 +67,20 @@ def main() -> None:
     args = ap.parse_args()
 
     frames, green_lib = [], []
-    for event in event_names(args.season):
+    # Races, not conventional weekends. A pit stop on a sprint weekend costs
+    # the same as any other -- the weekend format changes practice, not the
+    # pit lane -- and excluding five races threw away a third of the sample.
+    for event in raced_events(args.season):
         try:
             s = load_session(event, "R", args.season, telemetry=False, weather=False)
+            # .laps inside the guard: a session can load and still hold no lap
+            # data, and that raised outside the try.
+            laps = s.laps
         except Exception as exc:  # noqa: BLE001 -- one bad session must not stop the batch
             print(f"  {event:26s} skipped: {type(exc).__name__}")
             continue
-        frames.append(loss_by_status(s.laps, event))
-        pl = estimate(s.laps, event)
+        frames.append(loss_by_status(laps, event))
+        pl = estimate(laps, event)
         if pl:
             green_lib.append(pl.seconds)
 

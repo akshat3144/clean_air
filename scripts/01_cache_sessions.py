@@ -5,8 +5,12 @@ Run this well before the event, and copy data/fastf1_cache/ to every laptop.
     python scripts/01_cache_sessions.py
     python scripts/01_cache_sessions.py --events "Italian Grand Prix"
 
-Only conventional weekends are included by default. Sprint weekends run FP1 then
-Sprint Qualifying, so they carry no race-simulation long runs.
+Only conventional weekends are included by default, because only they have an
+FP2 and therefore practice long runs. Sprint weekends still race on Sunday, so
+pass them explicitly to collect race data:
+
+    python scripts/01_cache_sessions.py --sessions R --events "British Grand Prix"
+
 """
 
 from __future__ import annotations
@@ -22,7 +26,7 @@ import pandas as pd
 from cleanair.config import PROCESSED, SEASON
 from cleanair.data.cache import load_session
 from cleanair.data.laps import clean_laps, summarise, tag_long_runs
-from cleanair.data.schedule import event_names
+from cleanair.data.schedule import find, race_events
 
 logging.basicConfig(level=logging.WARNING, format="%(message)s")
 logging.getLogger("fastf1").setLevel(logging.ERROR)
@@ -48,7 +52,13 @@ def _conventional_events(season: int) -> list[str]:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--events", nargs="*", default=None)
-    ap.add_argument("--sessions", nargs="*", default=list(SESSIONS))
+    ap.add_argument(
+        "--sessions",
+        nargs="*",
+        default=None,
+        help="override; by default each event gets the sessions its weekend "
+             "format actually has (a sprint weekend has only a race)",
+    )
     ap.add_argument("--season", type=int, default=SEASON)
     ap.add_argument("--out", default=None, help="parquet filename; defaults per season")
     args = ap.parse_args()
@@ -56,18 +66,53 @@ def main() -> None:
     # 2026 keeps writing laps.parquet so nothing downstream changes. Earlier
     # seasons go to their own file: their tyre construction differs, so their
     # degradation rates must never be pooled with 2026's by accident.
+    # Default to EVERY round with data, not just conventional ones. Which
+    # sessions each event offers is decided per event below, because a sprint
+    # weekend has only a race and asking it for FP2 logs a failure -- which
+    # writes `complete: false` and makes the guard refuse the whole event.
     if args.events is None:
         args.events = (
-            event_names(args.season)
+            race_events(args.season)
             if args.season == SEASON
             else _conventional_events(args.season)
         )
     out_name = args.out or ("laps.parquet" if args.season == SEASON
                             else f"laps_{args.season}.parquet")
 
+    def sessions_for(event: str) -> list[str]:
+        """What to request for one event.
+
+        An explicit --sessions wins. Otherwise ask the calendar: a conventional
+        weekend has FP1/FP2/FP3 and a race, a sprint weekend has only the race.
+        Requesting a session a weekend does not have logs a failure, which sets
+        `complete: false`, which makes the completeness guard reject the event.
+        """
+        if args.sessions is not None:
+            return list(args.sessions)
+        rnd = find(event, args.season)
+        if rnd is None:
+            return list(SESSIONS)
+        # sessions_to_pull, NOT cacheable_sessions: the first is what has
+        # actually finished, the second is what the format has in principle.
+        # Using the latter asked eleven unrun 2026 events for four sessions
+        # each, failed all 44, wrote `complete: false`, and hit the 500/h cap.
+        return rnd.sessions_to_pull()
+
+    requested: dict[str, list[str]] = {e: sessions_for(e) for e in args.events}
+    # Drop events with nothing to fetch. The calendar carries all 23 rounds of
+    # 2026, most of which have not happened; asking for them logs failures,
+    # which writes `complete: false`, which makes the completeness guard refuse
+    # the whole season. An event that has not run is not a failure.
+    skipped = [e for e, v in requested.items() if not v]
+    requested = {e: v for e, v in requested.items() if v}
+    args.events = [e for e in args.events if e in requested]
+    if skipped:
+        names = ", ".join(e.replace(" Grand Prix", "") for e in skipped[:6])
+        more = " ..." if len(skipped) > 6 else ""
+        print(f"  .. {len(skipped)} event(s) not run yet, skipped: {names}{more}", flush=True)
     frames, rows = [], []
     for event in args.events:
-        for ses in args.sessions:
+        for ses in requested[event]:
             t0 = time.time()
             try:
                 s = load_session(event, ses, args.season)
@@ -138,7 +183,8 @@ def main() -> None:
         "season": args.season,
         "written_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "parquet": out.name,
-        "sessions_requested": len(args.events) * len(args.sessions),
+        "sessions_requested": sum(len(v) for v in requested.values()),
+        "sessions_by_event_requested": {k: sorted(v) for k, v in sorted(requested.items())},
         "sessions_loaded": len(frames),
         "sessions_failed": len(rows),
         "events_requested": sorted(args.events),
