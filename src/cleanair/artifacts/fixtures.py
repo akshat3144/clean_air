@@ -24,6 +24,8 @@ from .schema import (
     CurvePoint,
     DegradationArtifact,
     Interval,
+    ManagementArtifact,
+    ManagementRow,
     Meta,
     PowerArtifact,
     PowerPoint,
@@ -201,6 +203,37 @@ def strategy(event: str = "Hungarian Grand Prix") -> StrategyArtifact:
     )
 
 
+def management() -> ManagementArtifact:
+    """Shaped like the real finding: ordering holds, significance is marginal."""
+    rows = [
+        ManagementRow("HARD", 9, 0.523, 0.0656, 0.1349),
+        ManagementRow("MEDIUM", 25, 0.355, 0.0263, 0.1384),
+        ManagementRow("SOFT", 16, 0.190, 0.0313, 0.1806),
+    ]
+    return ManagementArtifact(
+        rows=rows,
+        n_cells=50,
+        n_events=16,
+        n_seasons=3,
+        seasons=[2024, 2025, 2026],
+        rho=-0.266,
+        p_one_sided=0.0311,
+        p_two_sided=0.0621,
+        p_kruskal=0.1635,
+        ordered=True,
+        significant=False,
+        verdict="marginal: ordering holds but the two-sided p is above 0.05",
+        stability=[
+            {"seasons": [2026], "n_cells": 13, "rho": -0.375,
+             "p_one_sided": 0.1033, "p_two_sided": 0.2067, "ordered": True},
+            {"seasons": [2025, 2026], "n_cells": 26, "rho": -0.402,
+             "p_one_sided": 0.0210, "p_two_sided": 0.0419, "ordered": True},
+            {"seasons": [2024, 2025, 2026], "n_cells": 50, "rho": -0.266,
+             "p_one_sided": 0.0311, "p_two_sided": 0.0621, "ordered": True},
+        ],
+    )
+
+
 def meta() -> Meta:
     return Meta.now(
         model_version="fixture",
@@ -226,4 +259,5 @@ def bundle() -> dict:
         "power": power(),
         "transfer": transfer(),
         "strategy": strategy(),
+        "management": management(),
     }

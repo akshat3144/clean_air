@@ -1,0 +1,75 @@
+{
+  "rows": [
+    {
+      "label": "HARD",
+      "n_cells": 9,
+      "ratio": 0.5227,
+      "median_race": 0.06563,
+      "median_practice": 0.1349
+    },
+    {
+      "label": "MEDIUM",
+      "n_cells": 25,
+      "ratio": 0.3551,
+      "median_race": 0.02632,
+      "median_practice": 0.13842
+    },
+    {
+      "label": "SOFT",
+      "n_cells": 16,
+      "ratio": 0.1902,
+      "median_race": 0.03133,
+      "median_practice": 0.18056
+    }
+  ],
+  "n_cells": 50,
+  "n_events": 16,
+  "n_seasons": 3,
+  "seasons": [
+    2024,
+    2025,
+    2026
+  ],
+  "rho": -0.2658,
+  "p_one_sided": 0.0311,
+  "p_two_sided": 0.0621,
+  "p_kruskal": 0.1635,
+  "ordered": true,
+  "significant": false,
+  "verdict": "marginal: ordering holds and the predicted direction gives p = 0.031, but two-sided p = 0.062 is above 0.05. Consistent, not conclusive.",
+  "stability": [
+    {
+      "seasons": [
+        2026
+      ],
+      "n_cells": 13,
+      "rho": -0.3751,
+      "p_one_sided": 0.1033,
+      "p_two_sided": 0.2067,
+      "ordered": true
+    },
+    {
+      "seasons": [
+        2025,
+        2026
+      ],
+      "n_cells": 26,
+      "rho": -0.4017,
+      "p_one_sided": 0.021,
+      "p_two_sided": 0.0419,
+      "ordered": true
+    },
+    {
+      "seasons": [
+        2024,
+        2025,
+        2026
+      ],
+      "n_cells": 50,
+      "rho": -0.2658,
+      "p_one_sided": 0.0311,
+      "p_two_sided": 0.0621,
+      "ordered": true
+    }
+  ]
+}
