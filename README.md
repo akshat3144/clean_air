@@ -161,18 +161,6 @@ Significant on every convention, ordering intact.
 **Drivers nurse the fragile tyre, and they nurse it hardest when it is softest.**
 The mechanism was predicted in the benchmark paper and never tested. We tested it.
 
-Robustness across seasons, cumulative. The full trail ships in the `stability`
-block of `management.json` and is rendered in the app, so the claim is checkable
-rather than asserted:
-
-| Seasons              | Cells        | ρ                | p (2-sided)      |
-| -------------------- | ------------ | ----------------- | ---------------- |
-| 2026                 | 13           | −0.375           | 0.207            |
-| 2025–2026           | 29           | −0.416           | 0.025            |
-| 2024–2026           | 54           | −0.295           | 0.031            |
-| 2023–2026           | 72           | −0.329           | 0.0047           |
-| **2022–2026** | **97** | **−0.295** | **0.0034** |
-
 ### Against the published benchmark
 
 The published model is a **one-step lap-time forecaster for a single driver**.
