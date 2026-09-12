@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { DegradationChart } from "./DegradationChart";
 import { ConsoleView } from "./ConsoleView";
+import { NextRaceView } from "./NextRaceView";
 import { EvidenceView } from "./EvidenceView";
-import { StrategyView } from "./StrategyView";
 import { ValidationView } from "./ValidationView";
 import { useBundle } from "./useBundle";
 import { COMPOUND_COLOR, width } from "./types/artifacts";
@@ -25,18 +25,28 @@ import { COMPOUND_COLOR, width } from "./types/artifacts";
  * Nothing was deleted. Every panel that existed still exists.
  */
 
-type ViewId = "plan" | "friday" | "curves" | "evidence" | "strategy";
+type ViewId = "next" | "plan" | "record" | "curves" | "evidence";
 
+/**
+ * Tabs are the moments a strategist actually has, not the scripts that produce
+ * the data.
+ *
+ * The previous set was named after the pipeline -- Race Plan, Friday to Sunday,
+ * Tyre Curves, Proof, Optimiser -- which meant two product tabs, two evidence
+ * tabs, one redundant one, and a single tab that jammed together planning a
+ * race and reacting mid-race. Those are different jobs done in different
+ * states of mind.
+ */
 const VIEWS: { id: ViewId; label: string; hint: string }[] = [
-  { id: "plan", label: "Race Plan", hint: "Set the race state; the call is recomputed live" },
-  { id: "friday", label: "Friday → Sunday", hint: "Predicted from practice, checked against the race" },
+  { id: "next", label: "Next Race", hint: "The race that has not happened yet" },
+  { id: "plan", label: "Strategy", hint: "Set the race state; the call is recomputed live" },
+  { id: "record", label: "Track Record", hint: "Predicted against what actually happened" },
   { id: "curves", label: "Tyre Curves", hint: "Clean degradation by physical compound" },
-  { id: "evidence", label: "Proof", hint: "Deconfounding, benchmark, calibration, power" },
-  { id: "strategy", label: "Optimiser", hint: "One event in full detail" },
+  { id: "evidence", label: "Method", hint: "Deconfounding, benchmark, calibration, power" },
 ];
 
 export default function App() {
-  const [view, setView] = useState<ViewId>("plan");
+  const [view, setView] = useState<ViewId>("next");
   const state = useBundle();
   const active = VIEWS.find((v) => v.id === view)!;
 
@@ -118,7 +128,9 @@ export default function App() {
           )}
         </div>
 
-        {view === "plan" ? (
+        {view === "next" ? (
+          <NextRaceView />
+        ) : view === "plan" ? (
           <ConsoleView playbook={state.bundle.playbook} />
         ) : view === "curves" ? (
           <>
@@ -181,12 +193,10 @@ export default function App() {
               )}
             </p>
           </>
-        ) : view === "friday" ? (
+        ) : view === "record" ? (
           <ValidationView bundle={state.bundle} />
-        ) : view === "evidence" ? (
-          <EvidenceView bundle={state.bundle} />
         ) : (
-          <StrategyView bundle={state.bundle} />
+          <EvidenceView bundle={state.bundle} />
         )}
       </main>
 

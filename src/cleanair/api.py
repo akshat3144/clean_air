@@ -797,3 +797,190 @@ def _blocked_by(compounds, practice_run, have_practice, hist) -> list[str]:
     if not hist or hist.get("pit_loss_s") is None:
         reasons.append("no pit-loss history for this circuit, so it must be supplied")
     return reasons
+
+
+class ForecastRequest(BaseModel):
+    """A race that has not happened yet."""
+
+    event: str
+    #: Override the circuit's historical pit loss. Editable because last year's
+    #: pit lane is evidence about this weekend, not a measurement of it.
+    pit_loss_s: float | None = Field(default=None, ge=5.0, le=60.0)
+    race_laps: int | None = Field(default=None, ge=5, le=100)
+    pace_step_s: float = Field(default=PACE_STEP_S, ge=0.0, le=3.0)
+    step: int = Field(default=1, ge=1, le=5)
+
+
+@app.post("/forecast")
+def forecast(req: ForecastRequest) -> dict:
+    """Predict a race from the practice that has already run.
+
+    THE ACTUAL PRODUCT. Friday practice is in, Sunday has not happened, and a
+    strategist wants the plan. Distinct from /strategy in what it is allowed to
+    use: /strategy fits on races that finished, this fits on practice and
+    applies a correction learned from OTHER events.
+
+    Every input reports its source. A rate forecast from Friday long runs and a
+    rate measured from a finished race are not the same claim, and the screen
+    has to be able to tell a viewer which one it is looking at.
+    """
+    import time
+
+    from .validation.transfer import forecast as forecast_rates
+    from .validation.transfer import leave_one_event_out
+
+    t0 = time.perf_counter()
+    st = state()
+
+    if st.practice is None or st.practice.empty:
+        raise HTTPException(422, "no practice data in the dataset")
+    if req.event not in st.events_in_dataset:
+        raise HTTPException(
+            404,
+            f"{req.event!r} is not in the dataset; its practice has not been pulled yet",
+        )
+
+    compounds = alloc.compounds_for(req.event)
+    if not compounds:
+        raise HTTPException(
+            422,
+            f"no compound nomination recorded for {req.event!r}. Pirelli publishes "
+            "this and no feed carries it, so it has to be entered.",
+        )
+
+    hist = _circuits().get(req.event, {})
+    pit = req.pit_loss_s if req.pit_loss_s is not None else hist.get("pit_loss_s")
+    laps = req.race_laps if req.race_laps is not None else hist.get("race_laps")
+    if pit is None or laps is None:
+        raise HTTPException(
+            422,
+            f"no pit-loss or distance history for {req.event!r}; supply pit_loss_s "
+            "and race_laps explicitly",
+        )
+
+    # The practice-to-race factor, learned from events that HAVE raced. The
+    # event being forecast contributes nothing to its own correction.
+    try:
+        loo = leave_one_event_out(st.practice, st.race)
+        factor = float(loo.factor)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(422, f"could not learn the practice-to-race factor: {exc}") from exc
+
+    try:
+        rows = forecast_rates(st.practice, factor, req.event)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+    label_of = {c: lab for lab, c in compounds.items()}
+    nominated = set(compounds.values())
+    usable: dict[str, float] = {}
+    out_compounds = []
+    for _, r in rows.iterrows():
+        c = str(r["C"])
+        if c not in nominated:
+            continue  # ran in practice but is not nominated for the race
+        rate = float(r["predicted_race_rate"])
+        excluded = rate <= 0
+        if not excluded:
+            usable[c] = rate
+        out_compounds.append(
+            {
+                "compound": c,
+                "label": label_of.get(c),
+                "rate": round(rate, 5),
+                "rate_lo": round(float(r["lo"]), 5),
+                "rate_hi": round(float(r["hi"]), 5),
+                "practice_rate": round(float(r["rate"]), 5),
+                "optimal_stint": 0,
+                "excluded": excluded,
+                "overridden": False,
+            }
+        )
+
+    # Best stint length per usable tyre, computed BEFORE the can-plan check.
+    # It used to sit after the early return, so a compound that was perfectly
+    # usable displayed "0 laps" whenever the race as a whole could not be
+    # planned -- which is exactly the state this screen spends most of a weekend
+    # in, and "C5 is good for 29 laps" is useful even when the plan is not.
+    for c in out_compounds:
+        if not c["excluded"]:
+            c["optimal_stint"] = int(optimal_stint(c["compound"], usable[c["compound"]], pit))
+
+    if len(usable) < 2:
+        # NOT a 422. The compound table and the reason are the useful part of
+        # this answer -- "we cannot plan Monza yet, and here is exactly which
+        # tyre is missing and why" beats a bare error, and it is the state the
+        # screen will legitimately be in for most of a race weekend.
+        return {
+            "event": req.event,
+            "is_forecast": True,
+            "can_plan": False,
+            "reason": (
+                "Fewer than two nominated compounds have a usable degradation rate. "
+                "A dry race needs two, so no legal plan exists yet."
+            ),
+            "compounds": out_compounds,
+            "practice_sessions": (
+                r.long_run_sessions_run() if (r := sched.find(req.event, SEASON)) else []
+            ),
+            "practice_to_race_factor": round(factor, 4),
+            "race_laps": int(laps),
+            "pit_loss_s": round(float(pit), 2),
+            "compute_ms": int((time.perf_counter() - t0) * 1000),
+        }
+
+    order = [c for c in C_ORDER if c in usable]
+    offsets = {c: -req.pace_step_s * i for i, c in enumerate(order)}
+
+    plans_all = _enumerate_cached(
+        int(laps),
+        tuple(sorted(usable.items())),
+        tuple(sorted(offsets.items())),
+        round(float(pit), 4),
+        req.step,
+    )
+    if not plans_all:
+        raise HTTPException(422, "no legal strategy exists for these inputs")
+
+    best = best_per_stop_count(plans_all)
+    top = plans_all[0].total_time
+    rec = plans_all[0]
+    runner_up = next((p for p in plans_all if p.n_stops != rec.n_stops), None)
+    margin = (runner_up.total_time - rec.total_time) if runner_up else 0.0
+    x = crossover(plans_all)
+
+    rnd = sched.find(req.event, SEASON)
+    return {
+        "event": req.event,
+        "is_forecast": True,
+        "can_plan": True,
+        "race_laps": int(laps),
+        "race_laps_source": "supplied" if req.race_laps is not None else "circuit history",
+        "pit_loss_s": round(float(pit), 2),
+        "pit_loss_source": "supplied" if req.pit_loss_s is not None else "circuit history",
+        "pit_loss_spread_s": hist.get("pit_loss_spread_s"),
+        "history_seasons": hist.get("seasons", []),
+        "practice_sessions": rnd.long_run_sessions_run() if rnd else [],
+        # The correction, surfaced. A race degrades at roughly this fraction of
+        # its practice rate, learned from other events and never from the one
+        # being predicted.
+        "practice_to_race_factor": round(factor, 4),
+        "compounds": out_compounds,
+        "plans": [
+            {
+                "n_stops": p.n_stops,
+                "compounds": list(p.compounds),
+                "stint_lengths": [int(v) for v in p.stints],
+                "total_time": round(p.total_time, 2),
+                "delta_s": round(p.total_time - top, 2),
+            }
+            for _, p in sorted(best.items(), key=lambda kv: kv[1].total_time)
+        ],
+        "recommended_stops": rec.n_stops,
+        "margin_s": round(margin, 2),
+        "crossover_pit_loss_s": round(x, 2) if x else None,
+        "n_plans_enumerated": len(plans_all),
+        "step": req.step,
+        "approximate": req.step > 1,
+        "compute_ms": int((time.perf_counter() - t0) * 1000),
+    }

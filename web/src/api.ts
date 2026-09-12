@@ -183,3 +183,125 @@ export const postStrategy = (input: StrategyInput, signal?: AbortSignal) =>
 
 export const postWhatIf = (input: WhatIfInput, signal?: AbortSignal) =>
   post<WhatIfResult>("/whatif", input, signal);
+
+/* ---------------------------------------------------------------------------
+ * The race that has not happened yet
+ * ------------------------------------------------------------------------ */
+
+export interface UpcomingSession {
+  code: string;
+  starts_utc: string;
+  has_run: boolean;
+}
+
+export interface UpcomingRound {
+  round_number: number;
+  event: string;
+  location: string;
+  country: string;
+  date_utc: string;
+  sessions: UpcomingSession[];
+  practice_sessions_run: string[];
+  allocation: Record<string, string> | null;
+  /** "pirelli" for a value we cited, "user" for one typed into the app. A typed
+   *  number and a cited one are different kinds of claim. */
+  allocation_source: string | null;
+  history: {
+    pit_loss_s: number | null;
+    pit_loss_spread_s: number | null;
+    race_laps: number | null;
+    seasons: number[];
+  } | null;
+  ready_to_forecast: boolean;
+  /** Plain sentences, not flags. This is what the screen shows when it has
+   *  nothing else, and a boolean tells a user nothing they can act on. */
+  blocked_by: string[];
+}
+
+export interface ForecastCompound {
+  compound: string;
+  label: string | null;
+  rate: number;
+  rate_lo: number;
+  rate_hi: number;
+  /** The uncorrected practice rate, before the practice-to-race factor. */
+  practice_rate: number;
+  optimal_stint: number;
+  excluded: boolean;
+  overridden: boolean;
+}
+
+export interface ForecastResult {
+  event: string;
+  is_forecast: true;
+  /** False when fewer than two compounds have a usable rate. The compound
+   *  table and `reason` are still returned -- that is the useful part. */
+  can_plan: boolean;
+  reason?: string;
+  race_laps: number;
+  race_laps_source?: string;
+  pit_loss_s: number;
+  pit_loss_source?: string;
+  pit_loss_spread_s?: number | null;
+  history_seasons?: number[];
+  practice_sessions: string[];
+  /** A race degrades at roughly this fraction of its practice rate. Learned
+   *  from other events, never from the one being predicted. */
+  practice_to_race_factor: number;
+  compounds: ForecastCompound[];
+  plans?: ApiPlan[];
+  recommended_stops?: number;
+  margin_s?: number;
+  crossover_pit_loss_s?: number | null;
+  n_plans_enumerated?: number;
+  approximate?: boolean;
+  compute_ms: number;
+}
+
+export interface PollerState {
+  enabled: boolean;
+  running: boolean;
+  last_tick: string | null;
+  last_pull: string | null;
+  last_error: string | null;
+  pulls: number;
+  failures: number;
+  missing: string[];
+  schedule_source: string;
+  next_tick_seconds: number;
+}
+
+export const getUpcoming = (limit = 3, signal?: AbortSignal) =>
+  get<UpcomingRound[]>(`/upcoming?limit=${limit}`, "upcoming", signal);
+
+export const getPoller = (signal?: AbortSignal) =>
+  get<PollerState>("/poller", "poller", signal);
+
+export const postForecast = (
+  input: { event: string; pit_loss_s?: number; race_laps?: number; step?: number },
+  signal?: AbortSignal,
+) => post<ForecastResult>("/forecast", input, signal);
+
+export async function putAllocation(
+  event: string,
+  compounds: Record<string, string>,
+  signal?: AbortSignal,
+): Promise<unknown> {
+  const res = await fetch(`${BASE}/allocation/${encodeURIComponent(event)}`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ compounds }),
+    signal,
+  });
+  if (!res.ok) {
+    let detail = `${res.status}`;
+    try {
+      const j = await res.json();
+      detail = typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail);
+    } catch {
+      /* keep the status */
+    }
+    throw new ApiError(detail, res.status);
+  }
+  return res.json();
+}

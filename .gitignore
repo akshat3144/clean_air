@@ -89,3 +89,15 @@ tmp/
 # Claude Code local state; launch.json is shared, the rest is per-machine.
 .claude/*
 !.claude/launch.json
+
+# ---- Discovered / user-editable state ----
+# The schedule cache is regenerable from the API and goes stale, but it is
+# committed on purpose: Challenge Day may have no network, and a fresh clone
+# that cannot name the next race is useless. schedule.load() re-fetches once
+# the copy is older than its TTL, so a committed cache cannot freeze.
+!data/schedule/
+!data/schedule/*.json
+# allocation.json is Pirelli's nomination per weekend -- the one fact no feed
+# carries. Committed so a clone starts with the values we cited; the app writes
+# to it, and anything edited is marked source=user.
+!data/allocation.json
