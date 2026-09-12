@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import type { PlaybookArtifact, PlaybookEvent } from "./types/artifacts";
+import type { DriverStint, PlaybookArtifact } from "./types/artifacts";
 import { Panel } from "./ui";
 
 /**
@@ -31,10 +31,58 @@ function color(c: string): string {
   return LABEL_COLOR[c?.toUpperCase?.() ?? ""] ?? "#7A7A7A";
 }
 
+type Row = {
+  event: string;
+  race_laps: number | null;
+  stints: DriverStint[];
+  actual_median_stops: number | null;
+  n_retired_before_stop: number;
+  /** null when we declined to call this race. */
+  recommended_stops: number | null;
+  plan: string | null;
+  reason: string | null;
+};
+
 export function RaceShapeView({ playbook }: { playbook: PlaybookArtifact }) {
-  const withStints = playbook.events.filter((e) => (e.stints?.length ?? 0) > 0);
+  // Planned races and refused ones in one list. A race we decline to call used
+  // to disappear from this tab entirely, so somebody who watched the Japanese
+  // Grand Prix just saw it missing. Showing it with the reason is the honest
+  // version, and we still have its stints, so the race itself still draws.
+  const planned: Row[] = playbook.events
+    .filter((e) => (e.stints?.length ?? 0) > 0)
+    .map((e) => {
+      const rec = e.plans.find((p) => p.n_stops === e.recommended_stops);
+      return {
+        event: e.event,
+        race_laps: e.race_laps,
+        stints: e.stints,
+        actual_median_stops: e.actual_median_stops,
+        n_retired_before_stop: e.n_retired_before_stop,
+        recommended_stops: e.recommended_stops,
+        plan: rec
+          ? rec.compounds.map((c, i) => `${c} ×${rec.stint_lengths[i]}`).join("  +  ")
+          : null,
+        reason: null,
+      };
+    });
+  const refused: Row[] = (playbook.unavailable ?? [])
+    .filter((u) => (u.stints?.length ?? 0) > 0)
+    .map((u) => ({
+      event: u.event,
+      race_laps: u.race_laps,
+      stints: u.stints,
+      actual_median_stops: u.actual_median_stops,
+      n_retired_before_stop: u.n_retired_before_stop,
+      recommended_stops: null,
+      plan: null,
+      reason: u.reason,
+    }));
+  const withStints = [...planned, ...refused].sort((a, b) =>
+    a.event.localeCompare(b.event)
+  );
+
   const [eventName, setEventName] = useState(withStints[0]?.event ?? "");
-  const ev: PlaybookEvent | undefined =
+  const ev: Row | undefined =
     withStints.find((e) => e.event === eventName) ?? withStints[0];
 
   if (!ev) {
@@ -63,9 +111,9 @@ export function RaceShapeView({ playbook }: { playbook: PlaybookArtifact }) {
     }))
     .sort((a, b) => b.last - a.last || a.driver.localeCompare(b.driver));
 
-  const laps = ev.race_laps;
-  const rec = ev.plans.find((p) => p.n_stops === ev.recommended_stops);
-  const agrees = ev.actual_median_stops === ev.recommended_stops;
+  const laps = ev.race_laps ?? Math.max(...ev.stints.map((s) => s.end_lap), 1);
+  const agrees =
+    ev.recommended_stops !== null && ev.actual_median_stops === ev.recommended_stops;
 
   return (
     <div className="space-y-5">
@@ -75,8 +123,10 @@ export function RaceShapeView({ playbook }: { playbook: PlaybookArtifact }) {
             key={e.event}
             onClick={() => setEventName(e.event)}
             className={`chip ${e.event === ev.event ? "chip-active" : ""}`}
+            title={e.reason ?? undefined}
           >
             {e.event.replace(" Grand Prix", "")}
+            {e.reason && <span className="ml-1 text-fg-faint">·</span>}
           </button>
         ))}
       </div>
@@ -86,26 +136,40 @@ export function RaceShapeView({ playbook }: { playbook: PlaybookArtifact }) {
         meta={`${drivers.length} cars · ${laps} laps`}
       >
         {/* our call, as a reference row */}
-        <div className="mb-4 rounded-md border border-signal-good/25 bg-signal-good/5 px-3 py-3">
-          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <span className="label text-signal-good">Clean Air said</span>
-            <span className="num text-lg font-medium text-fg">
-              {ev.recommended_stops} stop{ev.recommended_stops === 1 ? "" : "s"}
-            </span>
-            {rec && (
-              <span className="num text-tiny text-fg-dim">
-                {rec.compounds.map((c, i) => `${c} ×${rec.stint_lengths[i]}`).join("  +  ")}
+        {ev.recommended_stops !== null ? (
+          <div className="mb-4 rounded-md border border-signal-good/25 bg-signal-good/5 px-3 py-3">
+            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              <span className="label text-signal-good">Clean Air said</span>
+              <span className="num text-lg font-medium text-fg">
+                {ev.recommended_stops} stop{ev.recommended_stops === 1 ? "" : "s"}
               </span>
-            )}
-            <span className="ml-auto text-tiny text-fg-dim">
-              the field ran{" "}
-              <span className={`num font-medium ${agrees ? "text-signal-good" : "text-signal-warn"}`}>
-                {ev.actual_median_stops ?? "—"}
-              </span>{" "}
-              (median)
-            </span>
+              {ev.plan && <span className="num text-tiny text-fg-dim">{ev.plan}</span>}
+              <span className="ml-auto text-tiny text-fg-dim">
+                the field ran{" "}
+                <span
+                  className={`num font-medium ${agrees ? "text-signal-good" : "text-signal-warn"}`}
+                >
+                  {ev.actual_median_stops ?? "—"}
+                </span>{" "}
+                (median)
+              </span>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="mb-4 rounded-md border border-signal-warn/30 bg-signal-warn/5 px-3 py-3">
+            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              <span className="label text-signal-warn">no call on this race</span>
+              <span className="ml-auto text-tiny text-fg-dim">
+                the field ran{" "}
+                <span className="num font-medium text-fg">
+                  {ev.actual_median_stops ?? "—"}
+                </span>{" "}
+                (median)
+              </span>
+            </div>
+            <p className="mt-2 text-tiny leading-relaxed text-fg-dim">{ev.reason}</p>
+          </div>
+        )}
 
         <div className="space-y-1">
           {drivers.map((d) => (
@@ -140,7 +204,9 @@ export function RaceShapeView({ playbook }: { playbook: PlaybookArtifact }) {
               </div>
               <span
                 className={`num w-4 shrink-0 text-right text-tiny ${
-                  d.stops === ev.recommended_stops ? "text-signal-good" : "text-fg-faint"
+                  ev.recommended_stops !== null && d.stops === ev.recommended_stops
+                    ? "text-signal-good"
+                    : "text-fg-faint"
                 }`}
               >
                 {d.stops}

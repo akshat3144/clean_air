@@ -343,11 +343,26 @@ export interface PlaybookEvent {
   n_retired_before_stop: number;
 }
 
+/** A race we have data for but deliberately did not call. Carries its stints,
+ *  so the race still draws with an explanation instead of vanishing. */
+export interface UnplannedEvent {
+  event: string;
+  reason: string;
+  race_laps: number | null;
+  actual_stop_counts: Record<string, number>;
+  actual_median_stops: number | null;
+  n_retired_before_stop: number;
+  stints: DriverStint[];
+}
+
 export interface PlaybookArtifact {
   events: PlaybookEvent[];
   /** Assumed fresh-tyre pace gap between adjacent compounds, seconds. Surfaced
    *  because it is assumed rather than fitted -- the weakest input here. */
   pace_step_s: number;
+  /** Races we hold data for but decline to plan, each with its reason. Kept
+   *  out of `events` so the agreement count covers only calls we made. */
+  unavailable: UnplannedEvent[];
 }
 
 export interface Bundle {

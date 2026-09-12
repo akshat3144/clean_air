@@ -31,6 +31,7 @@ WHAT THE TEAMS ACTUALLY DID
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import warnings
 
@@ -44,8 +45,9 @@ from cleanair.artifacts.schema import (
     PlaybookCompound,
     PlaybookEvent,
     PlaybookPlan,
+    UnplannedEvent,
 )
-from cleanair.config import PROCESSED
+from cleanair.config import ARTIFACTS, PROCESSED
 from cleanair.data.allocation import compounds_for
 from cleanair.models.design import prepare
 from cleanair.models.mixed import fit_degradation
@@ -248,22 +250,58 @@ def main() -> None:
     print(f"measuring pit loss for {len(events)} events...", flush=True)
     pl = estimate_all(events)
 
+    # Circuit history, for races whose own green-flag stops are too few to
+    # measure a pit loss from. Next Race already falls back to this for races
+    # that have not happened; the playbook was not doing it for races that HAD,
+    # so Monza was dropped despite four seasons of history giving 25.45s.
+    history = {}
+    hist_path = ARTIFACTS / "circuits.json"
+    if hist_path.exists():
+        history = json.loads(hist_path.read_text(encoding="utf-8"))
+
     out: list[PlaybookEvent] = []
+    unavailable: list[UnplannedEvent] = []
+
+    def _unplanned(event: str, reason: str) -> UnplannedEvent:
+        counts, median_stops, retired = actual_stops(race, event)
+        ev = raw_race[raw_race["event"] == event]
+        return UnplannedEvent(
+            event=event,
+            reason=reason,
+            race_laps=int(ev["LapNumber"].max()) if len(ev) else None,
+            actual_stop_counts=counts,
+            actual_median_stops=median_stops,
+            n_retired_before_stop=retired,
+            stints=driver_stints(raw_race, event),
+        )
+
     for event in events:
         row = pl[pl["event"] == event] if not pl.empty else pd.DataFrame()
         if row.empty:
-            print(f"  {event:28s} SKIPPED -- no pit-loss measurement")
-            continue
-        built = build_event(
-            race,
-            raw_race,
-            fit,
-            event,
-            float(row["pit_loss_s"].iloc[0]),
-            int(row["n_stops"].iloc[0]),
-        )
+            h = history.get(event) or {}
+            if h.get("pit_loss_s"):
+                pit, n_green = float(h["pit_loss_s"]), 0
+                print(f"  {event:28s} pit loss from circuit history ({pit:.2f}s)")
+            else:
+                print(f"  {event:28s} SKIPPED -- no pit-loss measurement")
+                unavailable.append(_unplanned(
+                    event,
+                    "No pit loss for this circuit yet: too few green-flag stops in "
+                    "the race itself, and no previous season to fall back on.",
+                ))
+                continue
+        else:
+            pit, n_green = float(row["pit_loss_s"].iloc[0]), int(row["n_stops"].iloc[0])
+
+        built = build_event(race, raw_race, fit, event, pit, n_green)
         if built is None:
             print(f"  {event:28s} SKIPPED -- no legal plan (fewer than 2 usable compounds)")
+            unavailable.append(_unplanned(
+                event,
+                "Fewer than two of the nominated compounds have a positive fitted "
+                "degradation rate at this circuit. A dry race needs two, and an "
+                "optimiser handed a tyre that never wears will run it to the flag.",
+            ))
             continue
         out.append(built)
 
@@ -292,7 +330,10 @@ def main() -> None:
     print("  number a reader should see first.")
 
     if not args.no_write:
-        schema.write("playbook", PlaybookArtifact(events=out, pace_step_s=PACE_STEP_S))
+        schema.write(
+            "playbook",
+            PlaybookArtifact(events=out, pace_step_s=PACE_STEP_S, unavailable=unavailable),
+        )
         print("\nwrote playbook.json")
 
 

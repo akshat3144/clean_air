@@ -1,21 +1,27 @@
 {
-  "generated_at": "2026-09-03T05:37:54+00:00",
+  "generated_at": "2026-09-11T17:34:58+00:00",
   "schema_version": "1.0.0",
-  "model_version": "mixedlm-v1",
+  "model_version": "mixedlm-v2-circuit",
   "season": 2026,
   "events": [
     "Australian Grand Prix",
-    "Japanese Grand Prix",
-    "Monaco Grand Prix",
-    "Barcelona Grand Prix",
     "Austrian Grand Prix",
+    "Barcelona Grand Prix",
     "Belgian Grand Prix",
-    "Hungarian Grand Prix"
+    "British Grand Prix",
+    "Canadian Grand Prix",
+    "Chinese Grand Prix",
+    "Dutch Grand Prix",
+    "Hungarian Grand Prix",
+    "Italian Grand Prix",
+    "Japanese Grand Prix",
+    "Miami Grand Prix",
+    "Monaco Grand Prix"
   ],
-  "n_laps_clean": 13128,
-  "n_long_run_laps": 6426,
-  "n_runs": 417,
-  "n_drivers": 22,
+  "n_laps_clean": 19708,
+  "n_long_run_laps": 11039,
+  "n_runs": 820,
+  "n_drivers": 23,
   "fastf1_version": "3.8.3",
   "is_real": true
 }

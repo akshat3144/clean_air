@@ -12,10 +12,11 @@ from __future__ import annotations
 import argparse
 import warnings
 
+import fastf1
 import pandas as pd
 
 from cleanair.artifacts import schema
-from cleanair.config import PROCESSED
+from cleanair.config import PROCESSED, SEASON
 from cleanair.models import ablation
 from cleanair.models.design import prepare
 from cleanair.models.mixed import fit_degradation, fuel_sensitivity, to_artifact
@@ -102,6 +103,26 @@ def main() -> None:
         # have to come from one fit.
         abl = ablation.build(laps, fits["race"], context="race")
         path = schema.write("ablation", abl)
+        print(f"wrote {path}")
+
+        # meta.json too. It was written once on 3 Sep and never again, so the
+        # app header still announced "7 events, 6,426 long-run laps" after the
+        # dataset had grown to 13 events and 11,039 -- the same orphaned-file
+        # failure ablation.json had. Anything describing the dataset is written
+        # by the stage that reads the dataset.
+        design = fits["race"]
+        meta = schema.Meta.now(
+            model_version="mixedlm-v2-circuit",
+            season=SEASON,
+            events=sorted({e for evs in design.events.values() for e in evs}),
+            n_laps_clean=int(len(laps)),
+            n_long_run_laps=int(design.n_obs),
+            n_runs=int(sum(design.n_runs.values())),
+            n_drivers=int(design.n_drivers),
+            fastf1_version=fastf1.__version__,
+            is_real=True,
+        )
+        path = schema.write("meta", meta)
         print(f"wrote {path}")
 
 

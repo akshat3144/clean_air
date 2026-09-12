@@ -420,6 +420,28 @@ class PlaybookEvent:
 
 
 @dataclass
+class UnplannedEvent:
+    """A race we have data for but deliberately did not produce a call for.
+
+    These used to vanish from the app entirely, which is the wrong way to be
+    honest: a viewer who watched the Japanese Grand Prix just saw it missing,
+    with nothing saying why. A refusal we can explain is worth more than a gap
+    somebody has to notice.
+
+    The stints are still here, so the race still draws -- we show what happened,
+    and say plainly that we are not calling it.
+    """
+
+    event: str
+    reason: str
+    race_laps: int | None = None
+    actual_stop_counts: dict[str, int] = field(default_factory=dict)
+    actual_median_stops: int | None = None
+    n_retired_before_stop: int = 0
+    stints: list[DriverStint] = field(default_factory=list)
+
+
+@dataclass
 class PlaybookArtifact:
     events: list[PlaybookEvent]
     #: Pace gap assumed between adjacent compounds on fresh tyres, seconds.
@@ -427,6 +449,10 @@ class PlaybookArtifact:
     #: input in the layer -- a reader should be able to see it without reading
     #: the source.
     pace_step_s: float
+    #: Races we hold data for but decline to plan, each with its reason. Kept
+    #: out of ``events`` so the agreement count stays over calls we actually
+    #: made -- a race we refuse to call is not a call we got wrong.
+    unavailable: list[UnplannedEvent] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
