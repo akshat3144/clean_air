@@ -73,12 +73,20 @@ export default function App() {
           app is speaking about. */}
       <header className="flex items-center gap-5 border-b border-ink-600 bg-ink-900/60 px-6 py-3.5 backdrop-blur">
         <div className="flex items-center gap-2.5">
-          {/* Three bars, shortest to longest: a tyre losing pace. */}
-          <span className="flex items-end gap-[3px]" aria-hidden>
-            <span className="h-2.5 w-1 rounded-sm bg-brand/50" />
-            <span className="h-4 w-1 rounded-sm bg-brand/75" />
-            <span className="h-5 w-1 rounded-sm bg-brand" />
-          </span>
+          {/* The mark: three ascending bars, a tyre losing pace. This was three
+              CSS spans until the real artwork arrived -- the drawn version has
+              the rounded caps and the three-tone red the spans only approximated.
+              Trimmed and pre-scaled at build time rather than shipping the
+              551px original to draw 24 CSS pixels. */}
+          <img
+            src="/logo-mark.png"
+            alt=""
+            aria-hidden
+            width={23}
+            height={24}
+            className="h-6 w-auto select-none"
+            draggable={false}
+          />
           <h1 className="text-lg font-bold leading-none tracking-tight">CLEAN AIR</h1>
         </div>
         <span className="hidden text-tiny text-fg-dim sm:inline">
