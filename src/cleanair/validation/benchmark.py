@@ -38,6 +38,7 @@ import numpy as np
 import pandas as pd
 
 from .scoring import crps_normal, crps_student_t, rmse_seconds, rolling_origin_folds
+from .transfer import MIN_AGE_SPREAD_LAPS
 
 #: Laps of recent history used to extrapolate the field's mean pace. Long enough
 #: to be stable, short enough to track a safety car or a rain shower.
@@ -45,6 +46,13 @@ TREND_WINDOW = 8
 
 #: Fraction of each stint used for training before the first prediction.
 TRAIN_FRACTION = 0.75
+
+#: Minimum mean tyre-age spread, in laps, among cars sharing a lap before an
+#: in-race degradation rate is believed. Same value and same reasoning as
+#: ``transfer.MIN_AGE_SPREAD_LAPS``; imported rather than redefined so the two
+#: cannot drift apart. Sweeping it over 0-3 laps, the season score improves
+#: sharply to 2 and is flat after, so this sits on the plateau rather than at a
+#: point picked for its score.
 
 
 @dataclass
@@ -66,18 +74,31 @@ class BenchmarkResult:
         return float(np.sum(self.per_stint_rmse))
 
 
-def _folds(stint_last_laps: list[int]) -> list[tuple[int, int]]:
+def _folds(subject: pd.DataFrame) -> list[tuple[int, int]]:
     """Their scheme: (train_up_to, test_lap) pairs, in global lap numbers.
 
-    Delegates to ``scoring.rolling_origin_folds`` so there is a single
-    definition of the scheme. There used to be two implementations here, and the
-    one with a test was not the one producing our published number.
+    For each stint, train on its first 75% of laps and predict each remaining
+    lap one step ahead, expanding the training window by a lap each time.
+
+    ``rolling_origin_folds`` indexes WITHIN a stint, so it must be given the
+    stint's own lap count and its output mapped back onto that stint's global
+    lap numbers. Passing it a global lap number instead -- which this function
+    used to do -- silently made the training fraction relative to the race
+    rather than the stint, so late stints were tested on most of their laps and
+    early ones on a handful. It produced 35 test laps at Austria where the
+    scheme calls for 15.
+
+    Laps inside a stint are not always contiguous, since pit and non-green laps
+    are already filtered out, so positions come from the observed laps rather
+    than from arithmetic on the first and last.
     """
-    return [
-        (k, k + 1)
-        for s_i in stint_last_laps
-        for k, _ in rolling_origin_folds(s_i, TRAIN_FRACTION)
-    ]
+    folds = []
+    for _, g in subject.groupby("Stint", sort=True):
+        laps = sorted(int(x) for x in g["LapNumber"])
+        for i, _ in rolling_origin_folds(len(laps), TRAIN_FRACTION):
+            test_lap = laps[i]
+            folds.append((test_lap - 1, test_lap))
+    return folds
 
 
 def _extrapolate(series: pd.Series, target_lap: int, window: int = TREND_WINDOW) -> float:
@@ -115,10 +136,12 @@ def score(
             the field's laps up to that point, which is the honest version.
         heavy_tails: score against a Student-t predictive distribution rather
             than a normal one. Their best model gained from heavy-tailed errors,
-            so this was worth trying -- but it made no difference here (0.211 vs
-            0.210), so the default stays normal. Kept because the negative result
-            is worth being able to reproduce, and because switching to whichever
-            scored better without a reason would be tuning, not modelling.
+            so this was worth trying. Across the 2025 season it wins 11 races of
+            16 but moves the mean only from 0.6058 to 0.5982 -- consistent, and
+            far too small to matter. The default stays normal: switching to
+            whichever scored better would be tuning, and a 0.008 gain does not
+            pay for the extra assumption. Kept so the negative result can be
+            reproduced rather than taken on trust.
         mode: "hybrid" tracks the driver's own pace level and projects it at the
             field-fitted degradation rate. "field" extrapolates the field mean
             instead -- kept so the two can be compared, since the difference
@@ -134,8 +157,7 @@ def score(
     if subject.empty:
         raise ValueError(f"no laps for {driver!r}")
 
-    stint_last = [int(g["LapNumber"].max()) for _, g in subject.groupby("Stint", sort=True)]
-    folds = _folds(stint_last)
+    folds = _folds(subject)
 
     # Field aggregates per lap, indexed by lap number so they can be extrapolated.
     field_pace = df.groupby("LapNumber")["LapTimeSeconds"].mean()
@@ -223,6 +245,26 @@ def _fit_rate(hist: pd.DataFrame, compound: str) -> float | None:
 
     Same estimator as the production model: demean by (lap) so everything the
     field shares at that moment drops out, then regress on tyre age.
+
+    IDENTIFIABILITY. The within-lap comparison only has something to compare
+    when cars sharing a lap are on DIFFERENT tyre ages. Early in a race they are
+    not -- everyone started together on a fresh set -- so the age spread is
+    almost nothing and the slope is being read off numerical noise. A
+    ``denom > 0`` check does not catch this: the denominator is small but not
+    zero, which is precisely the case that explodes.
+
+    It did explode. At Saudi 2025 this returned about 1.0 s/lap, twenty times
+    any real tyre, and the predictor duly forecast Hamilton's laps 4.7 seconds
+    slow for a whole stint. Requiring a real age spread first -- the same
+    ``MIN_AGE_SPREAD_LAPS`` discipline used in ``transfer.py``, and the same one
+    the power analysis argues for -- cut the season's mean CRPS from 0.82 to
+    0.60.
+
+    When the spread is too small we return 0.0 rather than ``None``. Returning
+    ``None`` skips the fold, which would quietly drop the laps we predict worst
+    and flatter the score; 0.0 says "no evidence of degradation yet", leaves the
+    prediction at the driver's current pace level, and keeps the lap in the test
+    set where it belongs.
     """
     h = hist[hist["Compound"] == compound]
     if len(h) < 25:
@@ -232,11 +274,18 @@ def _fit_rate(hist: pd.DataFrame, compound: str) -> float | None:
     h = h[n_per >= 2]
     if len(h) < 20:
         return None
+
+    per_lap = h.groupby("LapNumber")["TyreLife"].agg(["size", "std"])
+    shared = per_lap[per_lap["size"] >= 2]
+    spread = float(shared["std"].mean()) if len(shared) else 0.0
+    if not np.isfinite(spread) or spread < MIN_AGE_SPREAD_LAPS:
+        return 0.0
+
     cell = h.groupby("LapNumber")
     y = (h["LapTimeSeconds"] - cell["LapTimeSeconds"].transform("mean")).to_numpy()
     x = (h["TyreLife"] - cell["TyreLife"].transform("mean")).to_numpy()
     denom = float(x @ x)
-    return float(x @ y / denom) if denom > 1e-9 else None
+    return float(x @ y / denom) if denom > 1e-9 else 0.0
 
 
 def _training_residuals(

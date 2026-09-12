@@ -86,14 +86,26 @@ def crps_student_t(
 def rolling_origin_folds(stint_length: int, train_fraction: float = 0.75):
     """Their cross-validation scheme, per stint.
 
-    Train on the first ceil(3/4) of a stint, predict the next lap, then expand
-    the training window one lap at a time to the end of the stint.
+    Train on the first three quarters of a stint, predict the next lap, then
+    expand the training window one lap at a time to the end of the stint.
+
+    Transcribed from their ``CV_Functions.R``, which sets the number of test
+    laps to ``K <- round(stint_length/4)`` and predicts the last K laps. Two
+    details are theirs and are kept deliberately:
+
+    * The count is ``round(n/4)`` rather than ``n - ceil(0.75n)``. These differ
+      whenever n/4 lands on a half, and a stint of 22 laps is exactly such a
+      case -- 6 test laps their way, 5 ours.
+    * R's ``round`` breaks halves to even, as NumPy's does. Python's built-in
+      ``round`` also does, but ``int(x + 0.5)`` would not, so the rounding is
+      done explicitly rather than left to whichever idiom came to hand.
 
     Yields:
         (train_end, test_index) pairs, both 0-based.
     """
-    start = int(np.ceil(train_fraction * stint_length))
-    for i in range(start, stint_length):
+    k = int(np.round(stint_length * (1.0 - train_fraction)))
+    k = min(max(k, 0), stint_length)
+    for i in range(stint_length - k, stint_length):
         yield i, i
 
 

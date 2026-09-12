@@ -11,23 +11,57 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from cleanair.validation.benchmark import TRAIN_FRACTION, _extrapolate, _folds, score
+from cleanair.validation.benchmark import (
+    TRAIN_FRACTION,
+    _extrapolate,
+    _fit_rate,
+    _folds,
+    score,
+)
 
 
-def test_folds_match_their_scheme():
-    """S_i is the LAST LAP of stint i in the global index, so training always
-    starts at lap 1. Hamilton's 2025 Austria stints ended on laps 26, 50 and 70,
-    which gives 35 predictions -- the number their tables are computed over."""
-    folds = _folds([26, 50, 70])
-    assert len(folds) == 35
-    assert folds[0] == (20, 21)      # ceil(0.75 * 26) = 20
-    assert (38, 39) in folds         # ceil(0.75 * 50) = 38
+def _subject(spans):
+    """A one-driver frame with the given (first_lap, last_lap) stints."""
+    rows = []
+    for stint, (a, b) in enumerate(spans, start=1):
+        rows += [{"Stint": float(stint), "LapNumber": lap} for lap in range(a, b + 1)]
+    return pd.DataFrame(rows)
+
+
+def test_folds_match_their_r_code():
+    """Transcribed from their ``CV_Functions.R``: the number of test laps is
+    ``K <- round(stint_length/4)`` and the test laps are the LAST K of the
+    stint, per stint.
+
+    This test previously asserted 35 predictions for Hamilton's 2025 Austria,
+    which came from feeding a global lap number where a stint length belongs.
+    That made the training fraction relative to the race instead of the stint,
+    so the last stint was tested on 17 of its 19 laps. His stints spanned laps
+    4-25, 28-49 and 52-70, so their scheme gives round(22/4) + round(22/4) +
+    round(19/4) = 6 + 6 + 5 = 17. (On the real data one lap inside stint 2 is
+    filtered out, leaving 21 laps there and 16 test laps overall.)"""
+    folds = _folds(_subject([(4, 25), (28, 49), (52, 70)]))
+    assert len(folds) == 17
+    assert folds[0] == (19, 20)      # stint 1 is 22 laps: last round(22/4)=6 are 20..25
+    assert folds[5] == (24, 25)
     assert folds[-1] == (69, 70)
 
 
-def test_every_fold_predicts_the_lap_after_its_training_window():
-    for train_to, test_lap in _folds([26, 50, 70]):
+def test_folds_never_train_on_another_stint_s_test_laps():
+    """Every fold trains strictly before the lap it predicts."""
+    for train_to, test_lap in _folds(_subject([(4, 25), (28, 49), (52, 70)])):
         assert test_lap == train_to + 1
+
+
+def test_folds_handle_gaps_in_a_stint():
+    """Non-green and pit laps are already filtered, so a stint's laps are not
+    always contiguous. Positions must come from the laps that are there."""
+    subject = pd.DataFrame(
+        [{"Stint": 1.0, "LapNumber": lap} for lap in [1, 2, 3, 5, 6, 7, 9, 10]]
+    )
+    folds = _folds(subject)
+    assert len(folds) == 2           # round(8/4) = 2
+    assert [t for _, t in folds] == [9, 10]
 
 
 def test_train_fraction_is_three_quarters():
@@ -96,7 +130,11 @@ def synth_race(n_drivers=10, n_laps=70, rate=0.05, base=70.0, seed=0):
 
 def test_scores_the_right_number_of_predictions():
     r = score(synth_race())
-    assert r.n_predictions == 35
+    # synth_race gives three equal stints across 70 laps, so round(n/4) each.
+    assert r.n_predictions == sum(
+        int(np.round(len(g) / 4))
+        for _, g in synth_race()[lambda d: d["Driver"] == "HAM"].groupby("Stint")
+    )
     assert len(r.per_stint_crps) == 3
 
 
@@ -127,7 +165,7 @@ def test_both_predictor_modes_produce_valid_scores():
     laps = synth_race(seed=2)
     for mode in ("hybrid", "field"):
         r = score(laps, mode=mode)
-        assert r.n_predictions == 35
+        assert r.n_predictions > 0
         assert all(np.isfinite(c) and c > 0 for c in r.per_stint_crps)
 
 
@@ -150,3 +188,52 @@ def test_predictions_do_not_use_the_lap_being_predicted():
     # Stints 1 and 2 finish before lap 70, so their scores must be untouched.
     assert after.per_stint_crps[0] == pytest.approx(baseline.per_stint_crps[0])
     assert after.per_stint_crps[1] == pytest.approx(baseline.per_stint_crps[1])
+
+
+def test_unidentifiable_rate_is_zero_not_explosive():
+    """The Saudi 2025 failure, pinned.
+
+    When every car sharing a lap is on the same tyre age there is no within-lap
+    variation to read a slope from, and the regression returns whatever the
+    numerical noise happens to say. It said 1.0 s/lap -- twenty times any real
+    tyre -- and the predictor forecast a whole stint 4.7 seconds slow.
+
+    A field with zero age spread must yield exactly 0.0, not a large number and
+    not ``None``: ``None`` would drop the fold, quietly removing the laps we
+    predict worst from the test set.
+    """
+    rng = np.random.default_rng(0)
+    rows = []
+    for lap in range(1, 41):
+        for drv in range(12):
+            rows.append(
+                {
+                    "Driver": f"D{drv}",
+                    "LapNumber": lap,
+                    "Stint": 1.0,
+                    "Compound": "MEDIUM",
+                    "TyreLife": float(lap),  # identical for every car, every lap
+                    "LapTimeSeconds": 90.0 + 0.05 * lap + rng.normal(0, 0.3),
+                }
+            )
+    assert _fit_rate(pd.DataFrame(rows), "MEDIUM") == 0.0
+
+
+def test_a_real_age_spread_still_recovers_the_rate():
+    """The guard must not silently zero out races that ARE identifiable."""
+    rng = np.random.default_rng(1)
+    rows = []
+    for lap in range(1, 41):
+        for drv in range(12):
+            age = float(lap + drv * 2)  # cars staggered across 22 laps of age
+            rows.append(
+                {
+                    "Driver": f"D{drv}",
+                    "LapNumber": lap,
+                    "Stint": 1.0,
+                    "Compound": "MEDIUM",
+                    "TyreLife": age,
+                    "LapTimeSeconds": 90.0 + 0.05 * age + rng.normal(0, 0.2),
+                }
+            )
+    assert _fit_rate(pd.DataFrame(rows), "MEDIUM") == pytest.approx(0.05, abs=0.01)
