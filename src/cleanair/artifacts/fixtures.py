@@ -33,6 +33,10 @@ from .schema import (
     ManagementArtifact,
     ManagementRow,
     Meta,
+    PlaybookArtifact,
+    PlaybookCompound,
+    PlaybookEvent,
+    PlaybookPlan,
     PowerArtifact,
     PowerPoint,
     StrategyArtifact,
@@ -213,6 +217,70 @@ def strategy(event: str = "Hungarian Grand Prix") -> StrategyArtifact:
     )
 
 
+def playbook() -> PlaybookArtifact:
+    """Two events, deliberately not both agreeing with the field.
+
+    The front door renders a green dot when our call matches what the teams
+    actually ran and an amber one when it does not. A fixture where every event
+    agreed would let that disagreement path be built and never once seen, which
+    is how a UI ends up unable to display its own bad news. So one of these two
+    disagrees, and one has no crossover at all.
+    """
+    return PlaybookArtifact(
+        pace_step_s=0.6,
+        events=[
+            PlaybookEvent(
+                event="Hungarian Grand Prix",
+                race_laps=70,
+                pit_loss_s=22.3,
+                n_green_stops=11,
+                compounds=[
+                    PlaybookCompound("C3", "HARD", _iv(0.064, 0.025), 27),
+                    PlaybookCompound("C4", "MEDIUM", _iv(0.073, 0.029), 24),
+                    PlaybookCompound("C5", "SOFT", _iv(0.061, 0.039), 0, excluded=True),
+                ],
+                plans=[
+                    PlaybookPlan(2, ["C4", "C4", "C3"], [32, 33, 5], 4708.9, 0.0),
+                    PlaybookPlan(1, ["C3", "C4"], [24, 46], 4710.7, 1.8),
+                    PlaybookPlan(3, ["C4", "C4", "C3", "C3"], [12, 18, 20, 20], 4731.6, 22.7),
+                ],
+                n_plans_enumerated=155278,
+                recommended_stops=2,
+                margin_s=1.8,
+                confidence=0.18,
+                crossover_pit_loss_s=24.5,
+                actual_stop_counts={"1": 2, "2": 14, "3": 4},
+                actual_median_stops=2,
+                n_retired_before_stop=2,
+            ),
+            PlaybookEvent(
+                event="Belgian Grand Prix",
+                race_laps=44,
+                pit_loss_s=23.0,
+                n_green_stops=3,
+                compounds=[
+                    PlaybookCompound("C2", "HARD", _iv(0.031, 0.018), 41),
+                    PlaybookCompound("C3", "MEDIUM", _iv(0.049, 0.022), 33),
+                    PlaybookCompound("C4", "SOFT", _iv(0.058, 0.041), 30),
+                ],
+                plans=[
+                    PlaybookPlan(1, ["C3", "C2"], [22, 22], 3021.4, 0.0),
+                    PlaybookPlan(2, ["C4", "C3", "C2"], [14, 15, 15], 3034.1, 12.7),
+                ],
+                n_plans_enumerated=41230,
+                recommended_stops=1,
+                margin_s=12.7,
+                confidence=0.95,
+                # No flip between 15s and 35s: the answer is not close.
+                crossover_pit_loss_s=None,
+                actual_stop_counts={"1": 16, "2": 1},
+                actual_median_stops=1,
+                n_retired_before_stop=3,
+            ),
+        ],
+    )
+
+
 def management() -> ManagementArtifact:
     """Shaped like the real five-season finding: ordered and significant.
 
@@ -279,4 +347,5 @@ def bundle() -> dict:
         "transfer": transfer(),
         "strategy": strategy(),
         "management": management(),
+        "playbook": playbook(),
     }

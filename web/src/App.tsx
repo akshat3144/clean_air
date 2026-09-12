@@ -1,30 +1,42 @@
 import { useState } from "react";
 import { DegradationChart } from "./DegradationChart";
 import { EvidenceView } from "./EvidenceView";
+import { RacePlanView } from "./RacePlanView";
 import { StrategyView } from "./StrategyView";
 import { ValidationView } from "./ValidationView";
 import { useBundle } from "./useBundle";
 import { COMPOUND_COLOR, width } from "./types/artifacts";
 
 /**
- * Shell. The four views are the four beats of the pitch, in the order the brief
- * asks for them: its own deliverables first, our evidence second.
+ * Shell.
  *
- * Only Degradation is built out. The rest land in Step 7, now that the data
- * contract is frozen and this can be built without waiting for the model.
+ * ORDER MATTERS HERE, so it is worth saying why it changed.
+ *
+ * This used to open on the degradation curves, with three tabs of statistics
+ * behind them. That ordering answers "is this method sound?" first, which is a
+ * reviewer's question, and it left the reader to assemble the story from four
+ * screens of evidence.
+ *
+ * A strategist has one question: what do we do on Sunday. So the answer comes
+ * first, the Friday-to-Sunday prediction that produces it comes second, the
+ * measurement underneath comes third, and the proof that the measurement is
+ * sound comes last -- one click away rather than the front door.
+ *
+ * Nothing was deleted. Every panel that existed still exists.
  */
 
-type ViewId = "curves" | "validation" | "evidence" | "strategy";
+type ViewId = "plan" | "friday" | "curves" | "evidence" | "strategy";
 
 const VIEWS: { id: ViewId; label: string; hint: string }[] = [
-  { id: "curves", label: "Degradation", hint: "Clean tyre curves by physical compound" },
-  { id: "validation", label: "Validation", hint: "Predicted vs actual race pace" },
-  { id: "evidence", label: "Evidence", hint: "Deconfounding, benchmark, calibration, power" },
-  { id: "strategy", label: "Strategy", hint: "Stint length and stop count" },
+  { id: "plan", label: "Race Plan", hint: "The call, and how wrong we can be before it changes" },
+  { id: "friday", label: "Friday → Sunday", hint: "Predicted from practice, checked against the race" },
+  { id: "curves", label: "Tyre Curves", hint: "Clean degradation by physical compound" },
+  { id: "evidence", label: "Proof", hint: "Deconfounding, benchmark, calibration, power" },
+  { id: "strategy", label: "Optimiser", hint: "One event in full detail" },
 ];
 
 export default function App() {
-  const [view, setView] = useState<ViewId>("curves");
+  const [view, setView] = useState<ViewId>("plan");
   const state = useBundle();
   const active = VIEWS.find((v) => v.id === view)!;
 
@@ -90,7 +102,9 @@ export default function App() {
           )}
         </div>
 
-        {view === "curves" ? (
+        {view === "plan" ? (
+          <RacePlanView playbook={state.bundle.playbook} />
+        ) : view === "curves" ? (
           <>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {degradation.curves.map((c) => (
@@ -151,7 +165,7 @@ export default function App() {
               )}
             </p>
           </>
-        ) : view === "validation" ? (
+        ) : view === "friday" ? (
           <ValidationView bundle={state.bundle} />
         ) : view === "evidence" ? (
           <EvidenceView bundle={state.bundle} />

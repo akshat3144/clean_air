@@ -52,6 +52,7 @@ FILES = (
     "transfer",
     "strategy",
     "management",
+    "playbook",
 )
 
 
@@ -324,6 +325,89 @@ class StrategyArtifact:
     confidence: float
     #: Optimal stint length per compound given the pit loss. Keyed by C-number.
     optimal_stint: dict[str, Interval] = field(default_factory=dict)
+
+
+# ---------------------------------------------------------------------------
+# playbook.json -- the per-event decision surface
+# ---------------------------------------------------------------------------
+#
+# strategy.json holds one event, because it was built to demonstrate that the
+# optimiser works. That is a proof, not a product: nobody can use a tool that
+# answers for Hungary when they are at Monza. This artifact is the same layer
+# computed for every event we have, plus the two things that make a
+# recommendation usable rather than merely correct -- what it costs to be wrong,
+# and what the teams actually did.
+
+
+@dataclass
+class PlaybookCompound:
+    """One nominated tyre at one event."""
+
+    compound: Compound
+    #: The weekend's relative nomination. Included because a strategist thinks
+    #: in HARD/MEDIUM/SOFT while the model works in C1-C5, and conflating the
+    #: two across events is the error this whole project exists to avoid.
+    label: Label
+    rate: Interval
+    #: Best stint length in laps at this circuit's measured pit loss.
+    optimal_stint: int
+    #: True when the fitted degradation was not positive, so the optimiser was
+    #: not allowed to use it. An optimiser handed a tyre that never wears will
+    #: run it to the flag.
+    excluded: bool = False
+
+
+@dataclass
+class PlaybookPlan:
+    n_stops: int
+    compounds: list[Compound]
+    stint_lengths: list[int]
+    total_time: float
+    #: Seconds behind the best plan overall. Zero for the recommendation.
+    delta_s: float
+
+
+@dataclass
+class PlaybookEvent:
+    event: str
+    race_laps: int
+    pit_loss_s: float
+    #: Green-flag stops the pit loss was measured from. A pit loss from two
+    #: stops is a guess wearing a decimal point.
+    n_green_stops: int
+    compounds: list[PlaybookCompound]
+    #: Best plan at each stop count, cheapest first.
+    plans: list[PlaybookPlan]
+    n_plans_enumerated: int
+    recommended_stops: int
+    #: Seconds between the recommendation and the best plan at a different stop
+    #: count. This is the number that says whether the call is close.
+    margin_s: float
+    confidence: float
+    #: Pit loss at which the recommendation would flip, in seconds. None when
+    #: no flip occurs between 15s and 35s, meaning the answer is not close.
+    #: This is the sensitivity a strategist actually needs: our pit loss is
+    #: measured with error, and this says how much error the call survives.
+    crossover_pit_loss_s: float | None = None
+    #: How many cars ran each stop count, keyed by stop count as a string.
+    #: The recommendation is checkable against it.
+    actual_stop_counts: dict[str, int] = field(default_factory=dict)
+    actual_median_stops: int | None = None
+    #: Cars that never pitted. A dry race requires two compounds, so these
+    #: retired before their first stop -- they did not run a strategy, and
+    #: counting them among the strategies would drag the median. Reported
+    #: separately rather than dropped silently.
+    n_retired_before_stop: int = 0
+
+
+@dataclass
+class PlaybookArtifact:
+    events: list[PlaybookEvent]
+    #: Pace gap assumed between adjacent compounds on fresh tyres, seconds.
+    #: Surfaced because it is assumed rather than fitted, and it is the weakest
+    #: input in the layer -- a reader should be able to see it without reading
+    #: the source.
+    pace_step_s: float
 
 
 # ---------------------------------------------------------------------------

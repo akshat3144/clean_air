@@ -1,0 +1,701 @@
+{
+  "events": [
+    {
+      "event": "Australian Grand Prix",
+      "race_laps": 58,
+      "pit_loss_s": 22.68,
+      "n_green_stops": 8,
+      "compounds": [
+        {
+          "compound": "C3",
+          "label": "HARD",
+          "rate": {
+            "mean": 0.0542,
+            "lo": 0.05001,
+            "hi": 0.05839
+          },
+          "optimal_stint": 29,
+          "excluded": false
+        },
+        {
+          "compound": "C4",
+          "label": "MEDIUM",
+          "rate": {
+            "mean": 0.02766,
+            "lo": 0.02069,
+            "hi": 0.03463
+          },
+          "optimal_stint": 40,
+          "excluded": false
+        },
+        {
+          "compound": "C5",
+          "label": "SOFT",
+          "rate": {
+            "mean": -0.00426,
+            "lo": -0.01154,
+            "hi": 0.00301
+          },
+          "optimal_stint": 0,
+          "excluded": true
+        }
+      ],
+      "plans": [
+        {
+          "n_stops": 1,
+          "compounds": [
+            "C4",
+            "C3"
+          ],
+          "stint_lengths": [
+            46,
+            12
+          ],
+          "total_time": 29.21,
+          "delta_s": 0.0
+        },
+        {
+          "n_stops": 2,
+          "compounds": [
+            "C4",
+            "C3",
+            "C4"
+          ],
+          "stint_lengths": [
+            26,
+            5,
+            27
+          ],
+          "total_time": 34.54,
+          "delta_s": 5.33
+        },
+        {
+          "n_stops": 3,
+          "compounds": [
+            "C3",
+            "C4",
+            "C4",
+            "C4"
+          ],
+          "stint_lengths": [
+            5,
+            17,
+            18,
+            18
+          ],
+          "total_time": 50.75,
+          "delta_s": 21.54
+        }
+      ],
+      "n_plans_enumerated": 155278,
+      "recommended_stops": 1,
+      "margin_s": 5.33,
+      "confidence": 0.533,
+      "crossover_pit_loss_s": 17.5,
+      "actual_stop_counts": {
+        "1": 10,
+        "2": 7,
+        "3": 1
+      },
+      "actual_median_stops": 1,
+      "n_retired_before_stop": 2
+    },
+    {
+      "event": "Austrian Grand Prix",
+      "race_laps": 71,
+      "pit_loss_s": 22.02,
+      "n_green_stops": 35,
+      "compounds": [
+        {
+          "compound": "C3",
+          "label": "HARD",
+          "rate": {
+            "mean": 0.0542,
+            "lo": 0.05001,
+            "hi": 0.05839
+          },
+          "optimal_stint": 29,
+          "excluded": false
+        },
+        {
+          "compound": "C4",
+          "label": "MEDIUM",
+          "rate": {
+            "mean": 0.02766,
+            "lo": 0.02069,
+            "hi": 0.03463
+          },
+          "optimal_stint": 40,
+          "excluded": false
+        },
+        {
+          "compound": "C5",
+          "label": "SOFT",
+          "rate": {
+            "mean": -0.00426,
+            "lo": -0.01154,
+            "hi": 0.00301
+          },
+          "optimal_stint": 0,
+          "excluded": true
+        }
+      ],
+      "plans": [
+        {
+          "n_stops": 2,
+          "compounds": [
+            "C4",
+            "C3",
+            "C4"
+          ],
+          "stint_lengths": [
+            33,
+            5,
+            33
+          ],
+          "total_time": 36.29,
+          "delta_s": 0.0
+        },
+        {
+          "n_stops": 1,
+          "compounds": [
+            "C4",
+            "C3"
+          ],
+          "stint_lengths": [
+            55,
+            16
+          ],
+          "total_time": 38.99,
+          "delta_s": 2.7
+        },
+        {
+          "n_stops": 3,
+          "compounds": [
+            "C3",
+            "C4",
+            "C4",
+            "C4"
+          ],
+          "stint_lengths": [
+            5,
+            22,
+            22,
+            22
+          ],
+          "total_time": 48.27,
+          "delta_s": 11.98
+        }
+      ],
+      "n_plans_enumerated": 357298,
+      "recommended_stops": 2,
+      "margin_s": 2.7,
+      "confidence": 0.27,
+      "crossover_pit_loss_s": 25.0,
+      "actual_stop_counts": {
+        "1": 2,
+        "2": 15,
+        "3": 3
+      },
+      "actual_median_stops": 2,
+      "n_retired_before_stop": 0
+    },
+    {
+      "event": "Barcelona Grand Prix",
+      "race_laps": 61,
+      "pit_loss_s": 25.23,
+      "n_green_stops": 42,
+      "compounds": [
+        {
+          "compound": "C2",
+          "label": "HARD",
+          "rate": {
+            "mean": 0.06179,
+            "lo": 0.05032,
+            "hi": 0.07326
+          },
+          "optimal_stint": 29,
+          "excluded": false
+        },
+        {
+          "compound": "C3",
+          "label": "MEDIUM",
+          "rate": {
+            "mean": 0.0542,
+            "lo": 0.05001,
+            "hi": 0.05839
+          },
+          "optimal_stint": 31,
+          "excluded": false
+        },
+        {
+          "compound": "C4",
+          "label": "SOFT",
+          "rate": {
+            "mean": 0.02766,
+            "lo": 0.02069,
+            "hi": 0.03463
+          },
+          "optimal_stint": 43,
+          "excluded": false
+        }
+      ],
+      "plans": [
+        {
+          "n_stops": 1,
+          "compounds": [
+            "C4",
+            "C3"
+          ],
+          "stint_lengths": [
+            48,
+            13
+          ],
+          "total_time": -2.71,
+          "delta_s": 0.0
+        },
+        {
+          "n_stops": 2,
+          "compounds": [
+            "C4",
+            "C3",
+            "C4"
+          ],
+          "stint_lengths": [
+            28,
+            5,
+            28
+          ],
+          "total_time": 3.53,
+          "delta_s": 6.24
+        },
+        {
+          "n_stops": 3,
+          "compounds": [
+            "C3",
+            "C4",
+            "C4",
+            "C4"
+          ],
+          "stint_lengths": [
+            5,
+            18,
+            19,
+            19
+          ],
+          "total_time": 21.54,
+          "delta_s": 24.25
+        }
+      ],
+      "n_plans_enumerated": 1060416,
+      "recommended_stops": 1,
+      "margin_s": 6.24,
+      "confidence": 0.624,
+      "crossover_pit_loss_s": 19.0,
+      "actual_stop_counts": {
+        "1": 3,
+        "2": 13,
+        "3": 4
+      },
+      "actual_median_stops": 2,
+      "n_retired_before_stop": 1
+    },
+    {
+      "event": "Belgian Grand Prix",
+      "race_laps": 44,
+      "pit_loss_s": 22.96,
+      "n_green_stops": 10,
+      "compounds": [
+        {
+          "compound": "C2",
+          "label": "HARD",
+          "rate": {
+            "mean": 0.06179,
+            "lo": 0.05032,
+            "hi": 0.07326
+          },
+          "optimal_stint": 27,
+          "excluded": false
+        },
+        {
+          "compound": "C3",
+          "label": "MEDIUM",
+          "rate": {
+            "mean": 0.0542,
+            "lo": 0.05001,
+            "hi": 0.05839
+          },
+          "optimal_stint": 29,
+          "excluded": false
+        },
+        {
+          "compound": "C4",
+          "label": "SOFT",
+          "rate": {
+            "mean": 0.02766,
+            "lo": 0.02069,
+            "hi": 0.03463
+          },
+          "optimal_stint": 41,
+          "excluded": false
+        }
+      ],
+      "plans": [
+        {
+          "n_stops": 1,
+          "compounds": [
+            "C4",
+            "C3"
+          ],
+          "stint_lengths": [
+            37,
+            7
+          ],
+          "total_time": -4.68,
+          "delta_s": 0.0
+        },
+        {
+          "n_stops": 2,
+          "compounds": [
+            "C4",
+            "C3",
+            "C4"
+          ],
+          "stint_lengths": [
+            19,
+            5,
+            20
+          ],
+          "total_time": 8.0,
+          "delta_s": 12.67
+        },
+        {
+          "n_stops": 3,
+          "compounds": [
+            "C3",
+            "C4",
+            "C4",
+            "C4"
+          ],
+          "stint_lengths": [
+            5,
+            13,
+            13,
+            13
+          ],
+          "total_time": 27.44,
+          "delta_s": 32.12
+        }
+      ],
+      "n_plans_enumerated": 239520,
+      "recommended_stops": 1,
+      "margin_s": 12.67,
+      "confidence": 0.95,
+      "crossover_pit_loss_s": null,
+      "actual_stop_counts": {
+        "1": 16,
+        "2": 1
+      },
+      "actual_median_stops": 1,
+      "n_retired_before_stop": 3
+    },
+    {
+      "event": "Hungarian Grand Prix",
+      "race_laps": 70,
+      "pit_loss_s": 22.33,
+      "n_green_stops": 37,
+      "compounds": [
+        {
+          "compound": "C3",
+          "label": "HARD",
+          "rate": {
+            "mean": 0.0542,
+            "lo": 0.05001,
+            "hi": 0.05839
+          },
+          "optimal_stint": 29,
+          "excluded": false
+        },
+        {
+          "compound": "C4",
+          "label": "MEDIUM",
+          "rate": {
+            "mean": 0.02766,
+            "lo": 0.02069,
+            "hi": 0.03463
+          },
+          "optimal_stint": 40,
+          "excluded": false
+        },
+        {
+          "compound": "C5",
+          "label": "SOFT",
+          "rate": {
+            "mean": -0.00426,
+            "lo": -0.01154,
+            "hi": 0.00301
+          },
+          "optimal_stint": 0,
+          "excluded": true
+        }
+      ],
+      "plans": [
+        {
+          "n_stops": 2,
+          "compounds": [
+            "C4",
+            "C3",
+            "C4"
+          ],
+          "stint_lengths": [
+            32,
+            5,
+            33
+          ],
+          "total_time": 36.6,
+          "delta_s": 0.0
+        },
+        {
+          "n_stops": 1,
+          "compounds": [
+            "C4",
+            "C3"
+          ],
+          "stint_lengths": [
+            54,
+            16
+          ],
+          "total_time": 38.38,
+          "delta_s": 1.78
+        },
+        {
+          "n_stops": 3,
+          "compounds": [
+            "C3",
+            "C4",
+            "C4",
+            "C4"
+          ],
+          "stint_lengths": [
+            5,
+            21,
+            22,
+            22
+          ],
+          "total_time": 49.19,
+          "delta_s": 12.59
+        }
+      ],
+      "n_plans_enumerated": 337662,
+      "recommended_stops": 2,
+      "margin_s": 1.78,
+      "confidence": 0.178,
+      "crossover_pit_loss_s": 24.5,
+      "actual_stop_counts": {
+        "1": 2,
+        "2": 14,
+        "3": 4
+      },
+      "actual_median_stops": 2,
+      "n_retired_before_stop": 2
+    },
+    {
+      "event": "Japanese Grand Prix",
+      "race_laps": 53,
+      "pit_loss_s": 24.44,
+      "n_green_stops": 10,
+      "compounds": [
+        {
+          "compound": "C1",
+          "label": "HARD",
+          "rate": {
+            "mean": 0.01629,
+            "lo": -0.01772,
+            "hi": 0.0503
+          },
+          "optimal_stint": 55,
+          "excluded": false
+        },
+        {
+          "compound": "C2",
+          "label": "MEDIUM",
+          "rate": {
+            "mean": 0.06179,
+            "lo": 0.05032,
+            "hi": 0.07326
+          },
+          "optimal_stint": 28,
+          "excluded": false
+        },
+        {
+          "compound": "C3",
+          "label": "SOFT",
+          "rate": {
+            "mean": 0.0542,
+            "lo": 0.05001,
+            "hi": 0.05839
+          },
+          "optimal_stint": 30,
+          "excluded": false
+        }
+      ],
+      "plans": [
+        {
+          "n_stops": 1,
+          "compounds": [
+            "C3",
+            "C2"
+          ],
+          "stint_lengths": [
+            33,
+            20
+          ],
+          "total_time": 16.22,
+          "delta_s": 0.0
+        },
+        {
+          "n_stops": 2,
+          "compounds": [
+            "C3",
+            "C2",
+            "C3"
+          ],
+          "stint_lengths": [
+            22,
+            9,
+            22
+          ],
+          "total_time": 20.89,
+          "delta_s": 4.66
+        },
+        {
+          "n_stops": 3,
+          "compounds": [
+            "C2",
+            "C3",
+            "C3",
+            "C3"
+          ],
+          "stint_lengths": [
+            5,
+            16,
+            16,
+            16
+          ],
+          "total_time": 35.76,
+          "delta_s": 19.54
+        }
+      ],
+      "n_plans_enumerated": 575904,
+      "recommended_stops": 1,
+      "margin_s": 4.66,
+      "confidence": 0.466,
+      "crossover_pit_loss_s": 20.0,
+      "actual_stop_counts": {
+        "1": 20
+      },
+      "actual_median_stops": 1,
+      "n_retired_before_stop": 2
+    },
+    {
+      "event": "Monaco Grand Prix",
+      "race_laps": 78,
+      "pit_loss_s": 22.52,
+      "n_green_stops": 19,
+      "compounds": [
+        {
+          "compound": "C3",
+          "label": "HARD",
+          "rate": {
+            "mean": 0.0542,
+            "lo": 0.05001,
+            "hi": 0.05839
+          },
+          "optimal_stint": 29,
+          "excluded": false
+        },
+        {
+          "compound": "C4",
+          "label": "MEDIUM",
+          "rate": {
+            "mean": 0.02766,
+            "lo": 0.02069,
+            "hi": 0.03463
+          },
+          "optimal_stint": 40,
+          "excluded": false
+        },
+        {
+          "compound": "C5",
+          "label": "SOFT",
+          "rate": {
+            "mean": -0.00426,
+            "lo": -0.01154,
+            "hi": 0.00301
+          },
+          "optimal_stint": 0,
+          "excluded": true
+        }
+      ],
+      "plans": [
+        {
+          "n_stops": 2,
+          "compounds": [
+            "C4",
+            "C3",
+            "C4"
+          ],
+          "stint_lengths": [
+            35,
+            7,
+            36
+          ],
+          "total_time": 39.81,
+          "delta_s": 0.0
+        },
+        {
+          "n_stops": 1,
+          "compounds": [
+            "C4",
+            "C3"
+          ],
+          "stint_lengths": [
+            59,
+            19
+          ],
+          "total_time": 46.38,
+          "delta_s": 6.57
+        },
+        {
+          "n_stops": 3,
+          "compounds": [
+            "C3",
+            "C4",
+            "C4",
+            "C4"
+          ],
+          "stint_lengths": [
+            5,
+            24,
+            24,
+            25
+          ],
+          "total_time": 50.16,
+          "delta_s": 10.35
+        }
+      ],
+      "n_plans_enumerated": 516478,
+      "recommended_stops": 2,
+      "margin_s": 6.57,
+      "confidence": 0.657,
+      "crossover_pit_loss_s": 29.5,
+      "actual_stop_counts": {
+        "1": 4,
+        "2": 12
+      },
+      "actual_median_stops": 2,
+      "n_retired_before_stop": 5
+    }
+  ],
+  "pace_step_s": 0.6
+}

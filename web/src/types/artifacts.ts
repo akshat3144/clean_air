@@ -38,6 +38,7 @@ export const ARTIFACT_FILES = [
   "transfer",
   "strategy",
   "management",
+  "playbook",
 ] as const;
 
 /** A value with an uncertainty band. Seconds unless the field says otherwise. */
@@ -272,6 +273,69 @@ export interface ManagementArtifact {
   stability: ManagementStability[];
 }
 
+/* ---------------------------------------------------------------------------
+ * playbook.json -- the per-event decision surface
+ *
+ * strategy.json answers one event, which is enough to prove the optimiser works
+ * and not enough to be useful. This is the same layer for every event, plus the
+ * two fields that make a call actionable: what it costs to be wrong
+ * (crossover_pit_loss_s) and what the teams actually did (actual_stop_counts).
+ * ------------------------------------------------------------------------- */
+
+export interface PlaybookCompound {
+  compound: Compound;
+  /** This weekend's relative nomination. A strategist thinks in HARD/MEDIUM/
+   *  SOFT; the model works in C1-C5. Both are carried so neither is guessed. */
+  label: Label;
+  rate: Interval;
+  /** Best stint length in laps at this circuit's measured pit loss. */
+  optimal_stint: number;
+  /** Fitted degradation was not positive, so the optimiser could not use it. */
+  excluded: boolean;
+}
+
+export interface PlaybookPlan {
+  n_stops: number;
+  compounds: Compound[];
+  stint_lengths: number[];
+  total_time: number;
+  /** Seconds behind the best plan overall. Zero for the recommendation. */
+  delta_s: number;
+}
+
+export interface PlaybookEvent {
+  event: string;
+  race_laps: number;
+  pit_loss_s: number;
+  /** Green-flag stops the pit loss was measured from. Two is a guess. */
+  n_green_stops: number;
+  compounds: PlaybookCompound[];
+  plans: PlaybookPlan[];
+  n_plans_enumerated: number;
+  recommended_stops: number;
+  /** Seconds to the best plan at a different stop count. Says if it is close. */
+  margin_s: number;
+  confidence: number;
+  /** Pit loss at which the call flips. null means no flip between 15s and 35s,
+   *  i.e. the answer is not close. Our pit loss is measured with error, so this
+   *  is how much error the recommendation survives. */
+  crossover_pit_loss_s: number | null;
+  /** Cars per stop count, keyed by stop count as a string. */
+  actual_stop_counts: Record<string, number>;
+  actual_median_stops: number | null;
+  /** Cars that never pitted, so retired before their first stop. Held out of
+   *  the distribution above -- a DNF did not run a strategy -- but reported,
+   *  because "five cars never pitted" says something about the race. */
+  n_retired_before_stop: number;
+}
+
+export interface PlaybookArtifact {
+  events: PlaybookEvent[];
+  /** Assumed fresh-tyre pace gap between adjacent compounds, seconds. Surfaced
+   *  because it is assumed rather than fitted -- the weakest input here. */
+  pace_step_s: number;
+}
+
 export interface Bundle {
   meta: Meta;
   degradation: DegradationArtifact;
@@ -282,6 +346,7 @@ export interface Bundle {
   transfer: TransferArtifact;
   strategy: StrategyArtifact;
   management: ManagementArtifact;
+  playbook: PlaybookArtifact;
 }
 
 /** Official Pirelli colours, keyed by physical compound rather than by label. */
