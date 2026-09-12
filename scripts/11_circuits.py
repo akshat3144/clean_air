@@ -29,6 +29,25 @@ that ran to the flag.
 Pit loss is the median across seasons, with the spread reported. A circuit whose
 pit loss moved between seasons -- resurfacing, a pit-lane change -- shows it, and
 a wide spread is a reason to distrust the number rather than something to hide.
+
+MATCHING A 2026 ROUND TO ITS OWN PAST
+
+Race names move between circuits. In 2026 the SPANISH Grand Prix is at Madrid, a
+circuit that has never held a race, while the Barcelona track it used to name
+appears as the BARCELONA Grand Prix. Keying history on the event name alone gave
+Madrid four seasons of Barcelona's pit lane -- a confident, precise, wrong
+number for the one race this system exists to forecast.
+
+Location alone does not work either, because the strings drift: Monaco is
+"Monaco" in 2022 and "Monte Carlo" in 2026, Abu Dhabi moves from "Yas Island" to
+"Yas Marina", and the 2026 row for Bahrain reads "Kuala Lumpur", which is simply
+wrong. Trusting it blindly would delete history from three circuits to fix one.
+
+So: match on Location first, since that is the real identity of a pit lane. Fall
+back to the event name -- but VETO that match if the circuit the old race was
+held at belongs to a DIFFERENT round of the 2026 calendar. That is exactly the
+rename case and nothing else. Madrid ends up with no history and says so, which
+is the honest answer and the one the UI is built to show.
 """
 
 from __future__ import annotations
@@ -38,6 +57,7 @@ import json
 import logging
 import warnings
 
+import fastf1
 import numpy as np
 import pandas as pd
 
@@ -69,6 +89,27 @@ def race_distance(season: int, event: str) -> int | None:
     return int(g["LapNumber"].max()) if not g.empty else None
 
 
+def season_index(season: int) -> tuple[dict[str, str], dict[str, str]]:
+    """One season's calendar, indexed both ways.
+
+    Returns ``(event_at_location, location_of_event)``, both keyed casefolded.
+    Two indexes because neither key is trustworthy on its own -- see the module
+    docstring.
+    """
+    try:
+        sched = fastf1.get_event_schedule(season, include_testing=False)
+    except Exception:  # noqa: BLE001 -- no network is a normal state here
+        return {}, {}
+    at_location, of_event = {}, {}
+    for _, r in sched.iterrows():
+        name = str(r["EventName"])
+        loc = str(r.get("Location", "")).strip()
+        if loc:
+            at_location[loc.casefold()] = name
+            of_event[name.casefold()] = loc.casefold()
+    return at_location, of_event
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--season", type=int, default=2026)
@@ -76,19 +117,41 @@ def main() -> None:
 
     # Every round, not just conventional ones: pit loss and race distance are
     # properties of the circuit and the race, and a sprint weekend races too.
-    wanted = sorted({r.event for r in rounds(args.season)})
+    # Keyed by 2026 event name, because that is what the API looks up -- but
+    # resolved by location, because that is what a pit loss belongs to.
+    wanted = {r.event: r.location for r in rounds(args.season)}
     print(f"{len(wanted)} events on the {args.season} calendar")
 
+    history = {season: season_index(season) for season in HISTORY_SEASONS}
+
+    # Which 2026 round owns which circuit. This is what vetoes a name match:
+    # if an old race was held somewhere that a DIFFERENT 2026 round now
+    # occupies, its history belongs to that round and not to this one.
+    owner = {loc.strip().casefold(): ev for ev, loc in wanted.items() if loc.strip()}
+
     out: dict[str, dict] = {}
-    for event in wanted:
+    for event in sorted(wanted):
+        here = wanted[event].strip().casefold()
         losses, distances, seen = [], [], []
         for season in HISTORY_SEASONS:
-            dist = race_distance(season, event)
+            at_location, of_event = history[season]
+            # The name this circuit raced under THAT season, which is often not
+            # the name it carries now.
+            past = at_location.get(here)
+            if not past:
+                past = next((n for n in at_location.values() if n.casefold() == event.casefold()), None)
+                if past:
+                    then = of_event.get(past.casefold(), "")
+                    if owner.get(then, event) != event:
+                        past = None  # the rename case: it is another round's past
+            if not past:
+                continue
+            dist = race_distance(season, past)
             if dist:
                 distances.append(dist)
             try:
-                s = load_session(event, "R", season, telemetry=False, weather=False)
-                pl = estimate(s.laps, event)
+                s = load_session(past, "R", season, telemetry=False, weather=False)
+                pl = estimate(s.laps, past)
             except Exception:  # noqa: BLE001 -- a circuit we have never raced is normal
                 pl = None
             if pl:
@@ -96,10 +159,10 @@ def main() -> None:
                 seen.append(season)
 
         if not losses and not distances:
-            print(f"  {event:28s} no history")
+            print(f"  {event:28s} no history  ({wanted[event] or 'unknown location'})")
             continue
 
-        row: dict = {"event": event, "seasons": seen}
+        row: dict = {"event": event, "location": wanted[event], "seasons": seen}
         if losses:
             row["pit_loss_s"] = round(float(np.median(losses)), 2)
             row["pit_loss_spread_s"] = round(float(max(losses) - min(losses)), 2)
