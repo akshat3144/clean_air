@@ -10,9 +10,9 @@
           "compound": "C3",
           "label": "HARD",
           "rate": {
-            "mean": 0.04403,
-            "lo": -0.01033,
-            "hi": 0.0984
+            "mean": 0.04843,
+            "lo": -0.00594,
+            "hi": 0.1028
           },
           "optimal_stint": 31,
           "excluded": false
@@ -21,9 +21,9 @@
           "compound": "C4",
           "label": "MEDIUM",
           "rate": {
-            "mean": 0.02891,
-            "lo": -0.02551,
-            "hi": 0.08334
+            "mean": 0.03331,
+            "lo": -0.02112,
+            "hi": 0.08773
           },
           "optimal_stint": 37,
           "excluded": false
@@ -32,9 +32,9 @@
           "compound": "C5",
           "label": "SOFT",
           "rate": {
-            "mean": 0.01098,
-            "lo": -0.0436,
-            "hi": 0.06556
+            "mean": 0.01537,
+            "lo": -0.03921,
+            "hi": 0.06995
           },
           "optimal_stint": 54,
           "excluded": false
@@ -469,9 +469,9 @@
           "compound": "C3",
           "label": "HARD",
           "rate": {
-            "mean": 0.04403,
-            "lo": -0.01033,
-            "hi": 0.0984
+            "mean": 0.07401,
+            "lo": 0.01965,
+            "hi": 0.12838
           },
           "optimal_stint": 24,
           "excluded": false
@@ -480,9 +480,9 @@
           "compound": "C4",
           "label": "MEDIUM",
           "rate": {
-            "mean": 0.02891,
-            "lo": -0.02551,
-            "hi": 0.08334
+            "mean": 0.05889,
+            "lo": 0.00447,
+            "hi": 0.11332
           },
           "optimal_stint": 27,
           "excluded": false
@@ -491,9 +491,9 @@
           "compound": "C5",
           "label": "SOFT",
           "rate": {
-            "mean": 0.01098,
-            "lo": -0.0436,
-            "hi": 0.06556
+            "mean": 0.04096,
+            "lo": -0.01362,
+            "hi": 0.09554
           },
           "optimal_stint": 33,
           "excluded": false
@@ -1005,9 +1005,9 @@
           "compound": "C2",
           "label": "HARD",
           "rate": {
-            "mean": 0.0503,
-            "lo": -0.00431,
-            "hi": 0.10491
+            "mean": 0.13184,
+            "lo": 0.07724,
+            "hi": 0.18645
           },
           "optimal_stint": 20,
           "excluded": false
@@ -1016,9 +1016,9 @@
           "compound": "C3",
           "label": "MEDIUM",
           "rate": {
-            "mean": 0.04403,
-            "lo": -0.01033,
-            "hi": 0.0984
+            "mean": 0.12558,
+            "lo": 0.07121,
+            "hi": 0.17995
           },
           "optimal_stint": 20,
           "excluded": false
@@ -1027,9 +1027,9 @@
           "compound": "C4",
           "label": "SOFT",
           "rate": {
-            "mean": 0.02891,
-            "lo": -0.02551,
-            "hi": 0.08334
+            "mean": 0.11046,
+            "lo": 0.05603,
+            "hi": 0.16488
           },
           "optimal_stint": 21,
           "excluded": false
@@ -1590,9 +1590,9 @@
           "compound": "C2",
           "label": "HARD",
           "rate": {
-            "mean": 0.0503,
-            "lo": -0.00431,
-            "hi": 0.10491
+            "mean": 0.04892,
+            "lo": -0.00569,
+            "hi": 0.10353
           },
           "optimal_stint": 31,
           "excluded": false
@@ -1601,9 +1601,9 @@
           "compound": "C3",
           "label": "MEDIUM",
           "rate": {
-            "mean": 0.04403,
-            "lo": -0.01033,
-            "hi": 0.0984
+            "mean": 0.04265,
+            "lo": -0.01171,
+            "hi": 0.09702
           },
           "optimal_stint": 33,
           "excluded": false
@@ -1612,9 +1612,9 @@
           "compound": "C4",
           "label": "SOFT",
           "rate": {
-            "mean": 0.02891,
-            "lo": -0.02551,
-            "hi": 0.08334
+            "mean": 0.02753,
+            "lo": -0.02689,
+            "hi": 0.08196
           },
           "optimal_stint": 41,
           "excluded": false
@@ -1985,9 +1985,9 @@
           "compound": "C1",
           "label": "HARD",
           "rate": {
-            "mean": 0.0843,
-            "lo": 0.02719,
-            "hi": 0.14142
+            "mean": 0.07841,
+            "lo": 0.02129,
+            "hi": 0.13553
           },
           "optimal_stint": 23,
           "excluded": false
@@ -1996,9 +1996,9 @@
           "compound": "C2",
           "label": "MEDIUM",
           "rate": {
-            "mean": 0.0503,
-            "lo": -0.00431,
-            "hi": 0.10491
+            "mean": 0.04441,
+            "lo": -0.0102,
+            "hi": 0.09902
           },
           "optimal_stint": 31,
           "excluded": false
@@ -2007,9 +2007,9 @@
           "compound": "C3",
           "label": "SOFT",
           "rate": {
-            "mean": 0.04403,
-            "lo": -0.01033,
-            "hi": 0.0984
+            "mean": 0.03814,
+            "lo": -0.01623,
+            "hi": 0.09251
           },
           "optimal_stint": 33,
           "excluded": false
@@ -2457,9 +2457,9 @@
           "compound": "C2",
           "label": "HARD",
           "rate": {
-            "mean": 0.0503,
-            "lo": -0.00431,
-            "hi": 0.10491
+            "mean": 0.02803,
+            "lo": -0.02658,
+            "hi": 0.08264
           },
           "optimal_stint": 45,
           "excluded": false
@@ -2468,9 +2468,9 @@
           "compound": "C3",
           "label": "MEDIUM",
           "rate": {
-            "mean": 0.04403,
-            "lo": -0.01033,
-            "hi": 0.0984
+            "mean": 0.02177,
+            "lo": -0.0326,
+            "hi": 0.07613
           },
           "optimal_stint": 51,
           "excluded": false
@@ -2479,9 +2479,9 @@
           "compound": "C4",
           "label": "SOFT",
           "rate": {
-            "mean": 0.02891,
-            "lo": -0.02551,
-            "hi": 0.08334
+            "mean": 0.00664,
+            "lo": -0.04778,
+            "hi": 0.06107
           },
           "optimal_stint": 60,
           "excluded": false
@@ -2802,9 +2802,9 @@
           "compound": "C2",
           "label": "HARD",
           "rate": {
-            "mean": 0.0503,
-            "lo": -0.00431,
-            "hi": 0.10491
+            "mean": 0.05537,
+            "lo": 0.00077,
+            "hi": 0.10998
           },
           "optimal_stint": 27,
           "excluded": false
@@ -2813,9 +2813,9 @@
           "compound": "C3",
           "label": "MEDIUM",
           "rate": {
-            "mean": 0.04403,
-            "lo": -0.01033,
-            "hi": 0.0984
+            "mean": 0.04911,
+            "lo": -0.00526,
+            "hi": 0.10348
           },
           "optimal_stint": 28,
           "excluded": false
@@ -2824,9 +2824,9 @@
           "compound": "C4",
           "label": "SOFT",
           "rate": {
-            "mean": 0.02891,
-            "lo": -0.02551,
-            "hi": 0.08334
+            "mean": 0.03399,
+            "lo": -0.02044,
+            "hi": 0.08841
           },
           "optimal_stint": 34,
           "excluded": false
@@ -3345,9 +3345,9 @@
           "compound": "C3",
           "label": "HARD",
           "rate": {
-            "mean": 0.04403,
-            "lo": -0.01033,
-            "hi": 0.0984
+            "mean": 0.08366,
+            "lo": 0.02929,
+            "hi": 0.13803
           },
           "optimal_stint": 23,
           "excluded": false
@@ -3356,9 +3356,9 @@
           "compound": "C4",
           "label": "MEDIUM",
           "rate": {
-            "mean": 0.02891,
-            "lo": -0.02551,
-            "hi": 0.08334
+            "mean": 0.06854,
+            "lo": 0.01411,
+            "hi": 0.12296
           },
           "optimal_stint": 26,
           "excluded": false
@@ -3367,9 +3367,9 @@
           "compound": "C5",
           "label": "SOFT",
           "rate": {
-            "mean": 0.01098,
-            "lo": -0.0436,
-            "hi": 0.06556
+            "mean": 0.0506,
+            "lo": -0.00398,
+            "hi": 0.10518
           },
           "optimal_stint": 30,
           "excluded": false
@@ -3909,9 +3909,9 @@
           "compound": "C3",
           "label": "HARD",
           "rate": {
-            "mean": 0.04403,
-            "lo": -0.01033,
-            "hi": 0.0984
+            "mean": 0.02542,
+            "lo": -0.02895,
+            "hi": 0.07979
           },
           "optimal_stint": 45,
           "excluded": false
@@ -3920,9 +3920,9 @@
           "compound": "C4",
           "label": "MEDIUM",
           "rate": {
-            "mean": 0.02891,
-            "lo": -0.02551,
-            "hi": 0.08334
+            "mean": 0.0103,
+            "lo": -0.04413,
+            "hi": 0.06472
           },
           "optimal_stint": 60,
           "excluded": false
@@ -3931,9 +3931,9 @@
           "compound": "C5",
           "label": "SOFT",
           "rate": {
-            "mean": 0.01098,
-            "lo": -0.0436,
-            "hi": 0.06556
+            "mean": -0.00764,
+            "lo": -0.06222,
+            "hi": 0.04694
           },
           "optimal_stint": 0,
           "excluded": true
@@ -4296,9 +4296,9 @@
           "compound": "C3",
           "label": "HARD",
           "rate": {
-            "mean": 0.04403,
-            "lo": -0.01033,
-            "hi": 0.0984
+            "mean": 0.0532,
+            "lo": -0.00117,
+            "hi": 0.10757
           },
           "optimal_stint": 27,
           "excluded": false
@@ -4307,9 +4307,9 @@
           "compound": "C4",
           "label": "MEDIUM",
           "rate": {
-            "mean": 0.02891,
-            "lo": -0.02551,
-            "hi": 0.08334
+            "mean": 0.03808,
+            "lo": -0.01634,
+            "hi": 0.0925
           },
           "optimal_stint": 32,
           "excluded": false
@@ -4318,9 +4318,9 @@
           "compound": "C5",
           "label": "SOFT",
           "rate": {
-            "mean": 0.01098,
-            "lo": -0.0436,
-            "hi": 0.06556
+            "mean": 0.02014,
+            "lo": -0.03444,
+            "hi": 0.07472
           },
           "optimal_stint": 44,
           "excluded": false
@@ -4698,9 +4698,9 @@
           "compound": "C3",
           "label": "HARD",
           "rate": {
-            "mean": 0.04403,
-            "lo": -0.01033,
-            "hi": 0.0984
+            "mean": 0.04089,
+            "lo": -0.01348,
+            "hi": 0.09526
           },
           "optimal_stint": 33,
           "excluded": false
@@ -4709,9 +4709,9 @@
           "compound": "C4",
           "label": "MEDIUM",
           "rate": {
-            "mean": 0.02891,
-            "lo": -0.02551,
-            "hi": 0.08334
+            "mean": 0.02577,
+            "lo": -0.02865,
+            "hi": 0.08019
           },
           "optimal_stint": 42,
           "excluded": false
@@ -4720,9 +4720,9 @@
           "compound": "C5",
           "label": "SOFT",
           "rate": {
-            "mean": 0.01098,
-            "lo": -0.0436,
-            "hi": 0.06556
+            "mean": 0.00784,
+            "lo": -0.04674,
+            "hi": 0.06242
           },
           "optimal_stint": 60,
           "excluded": false

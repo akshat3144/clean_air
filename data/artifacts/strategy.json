@@ -6,71 +6,76 @@
     {
       "n_stops": 1,
       "compounds": [
-        "C3",
-        "C4"
+        "C4",
+        "C5"
       ],
       "stint_lengths": [
-        9,
-        61
+        25,
+        45
       ],
       "total_time": {
-        "mean": 19.33,
-        "lo": 16.33,
-        "hi": 22.33
+        "mean": 27.98,
+        "lo": 24.98,
+        "hi": 30.98
       }
     },
     {
       "n_stops": 2,
       "compounds": [
-        "C3",
         "C4",
-        "C4"
+        "C5",
+        "C5"
       ],
       "stint_lengths": [
-        5,
-        32,
-        33
+        12,
+        29,
+        29
       ],
       "total_time": {
-        "mean": 24.51,
-        "lo": 21.51,
-        "hi": 27.51
+        "mean": 17.23,
+        "lo": 14.23,
+        "hi": 20.23
       }
     },
     {
       "n_stops": 3,
       "compounds": [
-        "C3",
         "C4",
-        "C4",
-        "C4"
+        "C5",
+        "C5",
+        "C5"
       ],
       "stint_lengths": [
-        5,
+        7,
         21,
-        22,
-        22
+        21,
+        21
       ],
       "total_time": {
-        "mean": 40.97,
-        "lo": 37.97,
-        "hi": 43.97
+        "mean": 24.18,
+        "lo": 21.18,
+        "hi": 27.18
       }
     }
   ],
-  "recommended_stops": 1,
-  "rationale": "1-stop: C3 x9 + C4 x61 is 5.2s faster than the best 2-stop alternative at a measured pit loss of 22.3s. The crossover sits at 17.5s.",
-  "confidence": 0.52,
+  "recommended_stops": 2,
+  "rationale": "2-stop: C4 x12 + C5 x29 + C5 x29 is 6.9s faster than the best 3-stop alternative at a measured pit loss of 22.3s. The crossover sits at 33.5s.",
+  "confidence": 0.69,
   "optimal_stint": {
     "C3": {
-      "mean": 31.0,
-      "lo": 29.0,
-      "hi": 34.0
+      "mean": 23.0,
+      "lo": 21.0,
+      "hi": 25.0
     },
     "C4": {
-      "mean": 52.0,
-      "lo": 48.0,
-      "hi": 55.0
+      "mean": 26.0,
+      "lo": 24.0,
+      "hi": 27.0
+    },
+    "C5": {
+      "mean": 30.0,
+      "lo": 27.0,
+      "hi": 32.0
     }
   }
 }
