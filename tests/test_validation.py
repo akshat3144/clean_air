@@ -20,7 +20,6 @@ from cleanair.validation.scoring import (
     stint_rmse_total,
 )
 
-
 # --- power ------------------------------------------------------------------
 
 
@@ -30,7 +29,7 @@ def test_power_rises_with_sample_size():
     # Monotone within noise. This caught a real bug: using 1.96 as the critical
     # value instead of the t quantile gave more apparent power at 4 stints than
     # at 8, because with 1 degree of freedom the true critical value is 12.7.
-    assert all(b >= a - 0.06 for a, b in zip(pc.power, pc.power[1:]))
+    assert all(b >= a - 0.06 for a, b in zip(pc.power, pc.power[1:], strict=False))
 
 
 def test_a_tiny_design_has_almost_no_power():
@@ -175,7 +174,7 @@ def test_calibration_detects_overconfidence():
 
 def test_coverage_increases_with_the_nominal_level():
     cal = leave_one_run_out(_runs(n_runs=25))
-    assert all(b >= a - 1e-9 for a, b in zip(cal.empirical, cal.empirical[1:]))
+    assert all(b >= a - 1e-9 for a, b in zip(cal.empirical, cal.empirical[1:], strict=False))
 
 
 def test_calibration_refuses_when_there_is_nothing_to_fit_on():

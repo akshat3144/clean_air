@@ -17,7 +17,12 @@ import warnings
 import pandas as pd
 
 from cleanair.artifacts import schema
-from cleanair.artifacts.schema import CalibrationArtifact, CalibrationPoint, PowerArtifact, PowerPoint
+from cleanair.artifacts.schema import (
+    CalibrationArtifact,
+    CalibrationPoint,
+    PowerArtifact,
+    PowerPoint,
+)
 from cleanair.config import PROCESSED
 from cleanair.models.design import prepare
 from cleanair.models.mixed import fit_degradation

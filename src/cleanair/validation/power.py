@@ -41,6 +41,10 @@ DEFAULT_NOISE = 0.55
 #: Laps per stint. The benchmark's stints were "around 20 laps".
 DEFAULT_STINT_LAPS = 20
 
+#: Effect sizes scanned by ``detectable_effect``. Module-level so it is not
+#: recomputed on every call and not a mutable default argument.
+EFFECT_GRID = np.linspace(0.001, 0.10, 40)
+
 
 @dataclass
 class PowerCurve:
@@ -151,7 +155,7 @@ def detectable_effect(
     noise: float = DEFAULT_NOISE,
     stint_laps: int = DEFAULT_STINT_LAPS,
     target: float = 0.80,
-    grid=np.linspace(0.001, 0.10, 40),
+    grid=EFFECT_GRID,
     n_sims: int = 300,
     seed: int = 1,
 ) -> float | None:
