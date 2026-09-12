@@ -1,5 +1,8 @@
 import { useState } from "react";
 import { DegradationChart } from "./DegradationChart";
+import { EvidenceView } from "./EvidenceView";
+import { StrategyView } from "./StrategyView";
+import { ValidationView } from "./ValidationView";
 import { useBundle } from "./useBundle";
 import { COMPOUND_COLOR, width } from "./types/artifacts";
 
@@ -148,13 +151,12 @@ export default function App() {
               )}
             </p>
           </>
+        ) : view === "validation" ? (
+          <ValidationView bundle={state.bundle} />
+        ) : view === "evidence" ? (
+          <EvidenceView bundle={state.bundle} />
         ) : (
-          <div className="panel flex min-h-64 items-center justify-center p-6">
-            <p className="text-xs text-fg-faint">
-              {active.label} — built in Step 7. The data contract is frozen, so this can be
-              built without waiting for the model.
-            </p>
-          </div>
+          <StrategyView bundle={state.bundle} />
         )}
       </main>
 
