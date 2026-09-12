@@ -2,19 +2,42 @@
 
 > **This is the last job, not the first.** Nothing here should be built until the model works and the artifact format is frozen. Deployment shapes itself around what the pipeline produces, so building it early means building it twice.
 >
-> Two paths are written up below. **Path B is the recommendation.**
+> Two paths are written up below. **Path A is now the recommendation.** It used to be Path B; see *What changed* immediately below.
 
 ---
 
-## Two things both paths share
+## What changed: the API is no longer read-only
 
-### The rule: the model never runs inside a web request
+This document was written assuming the API only serves precomputed rows. That was right for a dashboard and is wrong for what the product became.
 
-A worker fits models on a schedule and writes results to the database. The API only *reads*.
+The front end is a **strategy console**: you move a pit-loss slider, toggle a safety car, drag a degradation rate, and the recommendation is recomputed. That means real compute behind an HTTP request, and it changes the hosting decision.
 
-This matters because a model fit takes seconds to minutes and an F1 data pull takes up to a minute. If that happened during a request, the demo would show a spinner or a timeout while judges watched. Reading a finished row takes milliseconds and cannot fail in an interesting way.
+The rule below still holds, with a sharper line drawn through it.
 
-If you ever feel tempted to add `POST /fit`, don't. Add a job the worker picks up instead.
+### The rule: FITTING never runs inside a web request. Optimising does.
+
+Measured on this dataset:
+
+| work | cost | where |
+|---|---|---|
+| fit the degradation model | 0.10s | at API startup, cached for the process |
+| enumerate strategies, coarse (`step=3`) | 0.07–0.3s | **every request** |
+| enumerate strategies, exact (`step=1`) | 0.35–6.6s | **every request** |
+| hierarchical MCMC, one race | ~6 min | offline only, never behind a request |
+| pull a session from the F1 API | up to a minute | scheduled worker only |
+
+So the optimiser is a live endpoint and the sampler is not. `POST /fit` is still a bad idea; `POST /strategy` is the product.
+
+**The consequence for hosting:** the exact enumeration at Barcelona is 1,060,416 plans and 6.6s on a developer laptop. On 0.1 CPU that is tens of seconds, which destroys the one interaction the demo is built around. Compute for *serving* now matters as much as compute for fitting.
+
+The console mitigates this itself — it requests the coarse grid while a slider moves and the exact answer once it settles, and a test pins that both pick the same stop count — but a slow box still shows.
+
+### Two things the deployed API needs from the environment
+
+| variable | why |
+|---|---|
+| `CORS_ORIGINS` | comma-separated front-end origins. The React app is on a different host in every shape, so this is read from the environment rather than compiled in. |
+| `VITE_API_BASE` | build-time, on the front end. Unset in dev, where Vite proxies `/api` to port 8000. |
 
 ### What updates itself
 
@@ -35,23 +58,28 @@ If you ever feel tempted to add `POST /fit`, don't. Add a job the worker picks u
 | Servers to manage | 1 (you patch it) | 0 |
 | Certificates | Caddy, automatic | included |
 | CPU for model fitting | 1–2 cores on the box | **4 cores, 16 GB** on a GitHub runner |
+| **CPU for serving the optimiser** | **1–2 dedicated cores** | **0.1 CPU** |
 | Persistent cache | yes, a disk | yes, GitHub Actions cache |
 | Cost | free 12 months, then ~₹1,100/mo | **₹0, permanently** |
 | Setup time | a few hours | under an hour |
 | Cold starts | none | ~1 min on the API unless kept warm |
 
-**Path B wins on the thing that matters most: compute for the fitting.** Render's free tier gives 0.1 CPU, which is unusable for MCMC — so in Path B the fitting moves to GitHub Actions, which hands you a 4-core, 16 GB runner for free. That is more than the AWS free tier gives you (`t3.micro`, 1 GB).
+**Path A now wins, on the row that was added.** When the API only read rows, 0.1 CPU was plenty and Path B was free — that was the right call for that design. Now that a slider drag is a request, serving CPU is the binding constraint, and 0.1 CPU turns a 350ms answer into several seconds.
 
-Path A is only better if you specifically want one box that does everything and are happy to maintain it.
+Cold starts matter for the same reason. A judge clicking Race Plan on a Render free instance that has slept waits about a minute before anything appears.
+
+Both paths still push the heavy fitting to GitHub Actions — a free 4-core, 16 GB runner beats anything either host gives you. That part of Path B was always right and is kept in Path A.
+
+**Take Path B instead if** the console is dropped in favour of the precomputed playbook, which the app already falls back to when the API is unreachable. That is a genuine fallback and not a broken state, so Path B remains a defensible cheaper answer — it just gives up the interaction.
 
 ---
 
-# Path A — AWS EC2 (one box)
+# Path A — AWS EC2 (one box)  ← recommended
 
 ```
 ┌─ EC2, docker compose ───────────────────────────┐
 │  caddy      HTTPS, certs auto-renew              │
-│  fastapi    read-only API                        │
+│  fastapi    playbook reads + live optimiser      │
 │  postgres   results as JSONB                     │
 │  worker     timer: pull, fit, write              │
 └──────────────────────────────────────────────────┘
@@ -142,12 +170,12 @@ GitHub Actions: run tests → build ARM images → push to `ghcr.io` → SSH to 
 
 ---
 
-# Path B — Render + Neon + GitHub Actions  ← recommended
+# Path B — Render + Neon + GitHub Actions  ← cheaper, gives up the live console
 
 ```
 GitHub Actions (cron)          Render                 Vercel
   pull data                     FastAPI                React app
-  fit models          ───▶      read-only      ◀───    fetch
+  fit models          ───▶      0.1 CPU        ◀───    fetch
   write rows                       │
         │                          │
         └──────────▶  Neon Postgres  ◀───────────────┘
@@ -176,7 +204,9 @@ New Web Service from the repo:
 
 Environment: `DATABASE_URL` (from Neon), `CORS_ORIGINS=https://cleanair.vercel.app`.
 
-Free tier is 512 MB and 0.1 CPU. That is fine here **because the API only reads rows** — no fitting ever happens in this process.
+Free tier is 512 MB and 0.1 CPU. **This is the constraint that moved the recommendation to Path A.** No fitting happens in this process — that is still true and still the rule — but the optimiser does, and 0.1 CPU turns a 350ms answer into several seconds.
+
+Take this path only if you accept the console degrading to the precomputed playbook, which the app already falls back to cleanly.
 
 ### B3. ⚠ Keeping it warm without burning Neon
 

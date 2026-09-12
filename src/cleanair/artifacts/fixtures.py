@@ -39,6 +39,7 @@ from .schema import (
     PlaybookPlan,
     PowerArtifact,
     PowerPoint,
+    RaceScore,
     StrategyArtifact,
     StrategyPlan,
     TransferArtifact,
@@ -147,21 +148,33 @@ def benchmark() -> BenchmarkArtifact:
         # would question on a screenshot, so it is the last one that should be
         # invented. The real figure is worse than their best, and the fixture
         # says so too.
-        BenchmarkScore("Clean Air pooled", 1.250, 0.238, "ours"),
+        BenchmarkScore("Clean Air pooled", 1.250, 0.241, "ours"),
     ]
-    # season_2025 is left EMPTY, matching what the real pipeline can produce.
-    # Their repository publishes a season mean, not per-race numbers, so their
-    # side of a per-race table does not exist. This fixture used to invent it --
-    # nineteen races of random opponent scores, with us winning most of them --
-    # and a plausible-looking win rate is exactly the kind of number that walks
-    # into a screenshot and never gets checked. What we can compare is the two
-    # season means, so that is what is filled in.
+    # season_2025 was empty here for a long time, on the stated grounds that
+    # their side of a per-race table did not exist. It does -- their repo
+    # publishes per-race CRPS -- so the fixture now carries a few real-shaped
+    # rows.
+    #
+    # The rows are LOSING, and mostly losing, because that is what the real
+    # table says: 2 wins from 15. An earlier version of this fixture invented
+    # nineteen races with us winning most of them, and a plausible-looking win
+    # rate is exactly the number that walks into a screenshot unchecked.
+    season = [
+        RaceScore("Italian Grand Prix", 0.1114, 0.1284, True),
+        RaceScore("Spanish Grand Prix", 0.2569, 0.2645, True),
+        RaceScore("Austrian Grand Prix", 0.2409, 0.2022, False),
+        RaceScore("Bahrain Grand Prix", 0.3822, 0.1447, False),
+        RaceScore("Singapore Grand Prix", 3.8275, 0.2398, False),
+    ]
     return BenchmarkArtifact(
         austria_2025=austria,
-        ours_season_crps=0.6058,
-        ours_season_crps_median=0.3240,
+        season_2025=season,
+        n_wins=sum(r.ours_wins for r in season),
+        n_races=len(season),
+        ours_season_crps=0.5471,
+        ours_season_crps_median=0.3116,
         theirs_season_crps=BENCHMARK_SEASON_2025["skewt_crps_mean"],
-        ours_season_races=16,
+        ours_season_races=18,
         theirs_season_races=BENCHMARK_SEASON_2025["n_races"],
         r_crosscheck_max_diff=2.48e-11,
     )

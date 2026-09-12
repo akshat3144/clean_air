@@ -97,7 +97,25 @@ Caveat to state honestly: 0.3–0.35 s/lap per 10 kg is a circuit-agnostic rule 
 
 `Cross_Validation_Results/All_CV_results1.csv` — a **19-race 2025 cross-validation** (Hamilton, skew-t vs ARIMA), 51 stints. Season means: skew-t CRPS 0.238 vs ARIMA 0.2997; skew-t RMSPE 0.4088 vs 0.4786. Skew-t wins CRPS in 16 of 19 races, losing at China, Singapore and the USA.
 
-This is a far richer target than the single 0.202 figure. We can report a win rate across 19 races instead of one number.
+This is a far richer target than the single 0.202 figure, and it is now used:
+`config.BENCHMARK_SEASON_2025_PER_RACE` transcribes it and `scripts/08_benchmark.py`
+prints the head-to-head.
+
+**The result: we win 2 of the 15 races we both scored** (Italy, Spain). Their mean
+0.2203 against our 0.5471, medians 0.2022 against 0.3116.
+
+Two checks that this is like-for-like rather than two different schemes: their
+Austria figure here is 0.2022 against the paper's published 0.202, and our
+reconstructed stint counts match theirs at **14 of 15 races** — which is the best
+evidence we have that the fold scheme transcribed from `CV_Functions.R` is the
+one they actually ran.
+
+⚠️ We asserted for a while that these per-race numbers did *not* exist and that a
+win/loss table could not be built without inventing their side of it. That claim
+was written into `08_benchmark.py` and into the README while this file already
+said otherwise, three lines up. The lesson is cheap and worth recording: the
+flattering comparison we used instead (our median against their mean, over
+different race sets) survived precisely because nobody opened the file.
 
 ⚠️ Their repo's ARIMA figures differ slightly from the paper's Table 1 (repo Austria: 0.457/0.773/0.249; paper: 0.613/0.727/0.180) — a different run. Cite the paper's numbers; mention the repo only if asked.
 

@@ -12,11 +12,16 @@ Two comparisons are made, and they are not the same thing.
    scheme, scored with the same CRPS estimator. This is a direct, like-for-like
    comparison against their Table 1 and Table 2.
 
-2. THE 2025 SEASON. Their repository reports a season mean CRPS across 19
-   races, but not the per-race numbers. So a per-race win/loss table cannot be
-   built without inventing their side of it, and we do not build one. What we
-   report instead is our season mean next to theirs, with both race counts
-   shown, because we scored 18 races and they used 19.
+2. THE 2025 SEASON, RACE BY RACE. Their repo publishes per-race CRPS in
+   ``Cross_Validation_Results/All_CV_results1.csv``, so this is a real
+   head-to-head rather than a comparison of two season averages over different
+   race sets.
+
+   This docstring previously said their per-race numbers were not published and
+   that a win/loss table therefore could not be built. That was wrong, and it
+   was wrong in the direction that flattered us: the table says we win 2 of the
+   15 races we both scored, where comparing our median against their mean had
+   looked far closer. The file was in the repo the whole time.
 
 We do not include a "reproduced" row for their state-space model. We verified
 their published parameter estimates, not a re-run of their sampler, and a row
@@ -30,8 +35,14 @@ import warnings
 import pandas as pd
 
 from cleanair.artifacts import schema
-from cleanair.artifacts.schema import BenchmarkArtifact, BenchmarkScore
-from cleanair.config import BENCHMARK_CRPS, BENCHMARK_RMSPE, BENCHMARK_SEASON_2025, PROCESSED
+from cleanair.artifacts.schema import BenchmarkArtifact, BenchmarkScore, RaceScore
+from cleanair.config import (
+    BENCHMARK_CRPS,
+    BENCHMARK_RMSPE,
+    BENCHMARK_SEASON_2025,
+    BENCHMARK_SEASON_2025_PER_RACE,
+    PROCESSED,
+)
 from cleanair.data.cache import season_completeness
 from cleanair.validation.benchmark import score
 from cleanair.validation.scoring import crosscheck_against_r
@@ -104,25 +115,52 @@ def main() -> None:
 
     print()
     print("=" * 72)
-    print("2. the 2025 season -- season means, because per-race numbers are not published")
+    print("2. the 2025 season -- race by race, against their own published numbers")
     print("=" * 72)
 
     season = season_scores(races)
     ours_mean = float(season["crps"].mean())
     ours_median = float(season["crps"].median())
     theirs_mean = BENCHMARK_SEASON_2025["skewt_crps_mean"]
-    print(f"  ours    mean {ours_mean:.4f}  median {ours_median:.4f}  across {len(season)} races")
-    print(f"  theirs  mean {theirs_mean:.4f}              across "
-          f"{BENCHMARK_SEASON_2025['n_races']} races")
-    print("  NOTE different race sets, so this is indicative, not a head-to-head.")
-    print("  NOTE the mean is dominated by one race. At Singapore Hamilton lost 32s on a")
+
+    # Their per-race CRPS, from All_CV_results1.csv in their repo. This section
+    # used to print "season means, because per-race numbers are not published",
+    # which was false -- the file was there and we had not opened it. The
+    # comparison it enabled is considerably worse for us, which is the point.
+    season["theirs"] = season["event"].map(
+        lambda e: BENCHMARK_SEASON_2025_PER_RACE.get(e, (None, None))[0]
+    )
+    season["their_stints"] = season["event"].map(
+        lambda e: BENCHMARK_SEASON_2025_PER_RACE.get(e, (None, None))[1]
+    )
+    matched = season[season["theirs"].notna()].copy()
+    matched["win"] = matched["crps"] < matched["theirs"]
+
+    print(f"  {'race':30s}{'ours':>8s}{'theirs':>9s}{'stints':>9s}{'win':>6s}")
+    for _, r in matched.sort_values("crps").iterrows():
+        stints = f"{int(r['n_stints'])}/{int(r['their_stints'])}"
+        print(
+            f"  {r['event']:30s}{r['crps']:8.4f}{r['theirs']:9.4f}"
+            f"{stints:>9s}{'YES' if r['win'] else '':>6s}"
+        )
+
+    n_wins = int(matched["win"].sum())
+    same_stints = int((matched["n_stints"] == matched["their_stints"]).sum())
+    print()
+    print(f"  WE WIN {n_wins} OF {len(matched)} races we both scored.")
+    print(f"  ours   mean {matched['crps'].mean():.4f}  median {matched['crps'].median():.4f}")
+    print(f"  theirs mean {matched['theirs'].mean():.4f}  median {matched['theirs'].median():.4f}")
+    print()
+    print("  Like-for-like check: our reconstructed stint count matches theirs at")
+    print(f"  {same_stints} of {len(matched)} races, and their Austria figure here is")
+    print(f"  {BENCHMARK_SEASON_2025_PER_RACE['Austrian Grand Prix'][0]} against the paper's 0.202.")
+    print()
+    print("  NOTE our mean is dominated by one race. At Singapore Hamilton lost 32s on a")
     print("       single green-flag lap while the field's median was unchanged, so it was")
     print("       his car, not the track. The lap is KEPT: dropping the laps we predict")
     print("       worst would flatter the score. The median is reported beside the mean.")
-    print()
-    print(f"  {'race':34s}{'CRPS':>8s}{'RMSE tot':>10s}{'stints':>8s}")
-    for _, r in season.sort_values("crps").iterrows():
-        print(f"  {r['event']:34s}{r['crps']:8.4f}{r['rmse_total']:10.4f}{r['n_stints']:8.0f}")
+    print(f"  NOTE we scored {len(season)} races to their "
+          f"{BENCHMARK_SEASON_2025['n_races']}; unmatched races are ours only.")
 
     print()
     print("=" * 72)
@@ -152,10 +190,26 @@ def main() -> None:
         ),
     ]
 
+    # season_2025 was left empty for a long time on the belief that their side
+    # of a per-race table did not exist. It does, so this is now populated and
+    # the app can render the head-to-head instead of two season averages.
+    per_race = [
+        RaceScore(
+            race=str(r["event"]),
+            ours_crps=round(float(r["crps"]), 4),
+            theirs_crps=round(float(r["theirs"]), 4),
+            ours_wins=bool(r["win"]),
+        )
+        for _, r in matched.sort_values("crps").iterrows()
+    ]
+
     schema.write(
         "benchmark",
         BenchmarkArtifact(
             austria_2025=rows,
+            season_2025=per_race,
+            n_wins=n_wins,
+            n_races=len(matched),
             ours_season_crps=round(ours_mean, 4),
             ours_season_crps_median=round(ours_median, 4),
             theirs_season_crps=theirs_mean,
@@ -169,9 +223,15 @@ def main() -> None:
     print("VERDICT")
     print("=" * 72)
     print("  We do NOT beat them at forecasting one driver's next lap:")
-    print(f"    Austria  ours {austria.crps:.3f}        vs their best {BENCHMARK_CRPS['skew_t']:.3f}")
-    print(f"    season   ours {ours_median:.3f} median vs their {theirs_mean:.3f} mean")
+    print(f"    Austria  ours {austria.crps:.3f} vs their best {BENCHMARK_CRPS['skew_t']:.3f}")
+    print(f"    season   we win {n_wins} of {len(matched)} races scored by both")
     print("  Their model is built for exactly that job and does it better.")
+    print()
+    print("  One qualifier that is real and is not an excuse: their scheme scores")
+    print("  16 predictions at Austria, and a bootstrap over those laps puts our")
+    print("  95% interval at [0.151, 0.365] -- their 0.202 sits inside it. One lap")
+    print("  carries 28% of our score there. The race-by-race table above is the")
+    print("  stronger evidence, and it is the one that says we lose.")
     print()
     print("  What it cannot do is separate the compounds. Their own compound-specific")
     print("  model scored WORSE than their base model, and their best model has no")

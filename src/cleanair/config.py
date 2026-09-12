@@ -120,8 +120,18 @@ FUEL_RACE_KG_LEGACY = 110.0     # what the benchmark paper assumed (correct for 
 #: Lap-time sensitivity to car mass, seconds per lap per kg.
 #: From the widely used 0.3-0.35 s/lap per 10 kg rule of thumb. Circuit-agnostic,
 #: so treat as a prior to check a fitted value against, never as a fixed input.
-#: The benchmark's model fits only ~0.016 -- about half -- because its latent
-#: state absorbs the rest. That gap is our headline evidence of confounding.
+#:
+#: The benchmark's model fits only ~0.016, about half. This comment used to call
+#: that "our headline evidence of confounding", and that claim is withdrawn: our
+#: own hierarchical state-space model reads ~0.043, about 30% HIGH, for the
+#: mirror-image reason. Fuel burn and track evolution are both functions of lap
+#: number and therefore collinear at field level, so any model estimating a
+#: LEVEL must split two effects that move together and will split them wrong.
+#:
+#: What the design actually buys is that it never has to: the within-
+#: transformation subtracts the (event, lap) mean, removing fuel and track
+#: evolution together. So this constant is a sanity check on any level-based
+#: fit -- theirs or ours -- and not a scoreboard.
 MASS_SENSITIVITY_S_PER_KG = 0.033
 MASS_SENSITIVITY_RANGE = (0.030, 0.035)
 
@@ -177,6 +187,51 @@ BENCHMARK_SEASON_2025 = {
     "skewt_rmspe_mean": 0.4088,
     "arima_rmspe_mean": 0.4786,
     "skewt_crps_wins": 16,
+}
+
+#: Their skew-t CRPS per race, and the stint count behind each, from
+#: ``Cross_Validation_Results/All_CV_results1.csv`` in their repo. Values are
+#: (crps, n_stints).
+#:
+#: WHY THIS IS HERE AND WHY IT MATTERS
+#:
+#: We spent a while asserting that their repository published only a season
+#: mean, so a per-race comparison "cannot be built without inventing their side
+#: of it". That was simply wrong -- the per-race numbers are in their repo, and
+#: writing the claim down instead of opening the file is the mistake.
+#:
+#: It matters because the honest comparison is much harder on us. Comparing our
+#: median to their mean over different race sets flattered us; a race-by-race
+#: table says we win 2 of the 15 races we both scored.
+#:
+#: Austria here is 0.2022 against the paper's Table 2 figure of 0.202, and our
+#: reconstructed stint counts match theirs at 12 of 15 races, which is the
+#: evidence that this is like-for-like rather than two different schemes.
+#:
+#: Transcribed rather than read from ``benchmark/upstream/``, which is fetched
+#: locally and never committed because their repo carries no license. Nineteen
+#: published numbers cited with attribution is a different thing from
+#: redistributing their code.
+BENCHMARK_SEASON_2025_PER_RACE = {
+    "Abu Dhabi Grand Prix": (0.1768, 3),
+    "Austrian Grand Prix": (0.2022, 3),
+    "Azerbaijan Grand Prix": (0.2872, 2),
+    "Bahrain Grand Prix": (0.1447, 3),
+    "Canadian Grand Prix": (0.2158, 3),
+    "Chinese Grand Prix": (0.1438, 3),
+    "Emilia Romagna Grand Prix": (0.2064, 3),
+    "Hungarian Grand Prix": (0.3111, 2),
+    "Italian Grand Prix": (0.1284, 2),
+    "Japanese Grand Prix": (0.1654, 2),
+    "Las Vegas Grand Prix": (0.1991, 2),
+    "Mexico City Grand Prix": (0.1985, 3),
+    "Monaco Grand Prix": (0.4021, 3),
+    "Qatar Grand Prix": (0.2470, 3),
+    "Saudi Arabian Grand Prix": (0.1620, 2),
+    "Singapore Grand Prix": (0.2398, 3),
+    "Spanish Grand Prix": (0.2645, 4),
+    "Sao Paulo Grand Prix": (0.2524, 3),
+    "United States Grand Prix": (0.5750, 2),
 }
 
 

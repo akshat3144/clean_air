@@ -40,7 +40,11 @@ We did not take their paper's word for any of it. We ran their code.
 
 - **Their result reproduces.** Our run: Hard 0.0550 [0.0032, 0.1339], Medium 0.0555 [0.0068, 0.1165].
 - **Their null result is genuine, not a bug.** We found a defect in their fuel calculation, fixed it, and re-ran. It changed nothing (separation probability 0.522 → 0.515). So the tyres really are indistinguishable from one car's data, and we have the control to prove it.
-- **Their fitted fuel coefficient is about half the physical value** — 0.016 s/kg against the 0.030–0.035 that mass sensitivity implies. Half the fuel effect is being absorbed into the latent tyre-pace state. That is the confounding, caught in the act, using their own model on their own data.
+- **Their fitted fuel coefficient is about half the physical value** — 0.016 s/kg against the 0.030–0.035 that mass sensitivity implies. Half the fuel effect is being absorbed into the latent tyre-pace state.
+
+We used to call that last point "the confounding, caught in the act." It is a real observation about their fit and we no longer present it as a scoreboard, because **we built a state-space model of our own and it has the same problem in the other direction** — it reads 0.043 s/kg, about 30% high. Fuel burn and track evolution are both functions of lap number, so at field level they are collinear; any model that estimates a *level* has to split two effects that move together, and it will get the split wrong. Theirs did, ours did.
+
+What survives is the reason it does not affect our degradation result: the **within-transformation subtracts the (event, lap) mean**, which removes fuel and track evolution *together*, so it never has to separate them at all. That is the argument for the design — not that we estimate fuel better than they do.
 
 ---
 
@@ -56,8 +60,10 @@ We did not take their paper's word for any of it. We ran their code.
 | Power analysis | ✅ 512 driver-stints needed; they had 3, we have 417 |
 | Calibration | ✅ 80% intervals cover 80.5% |
 | Practice → race | ✅ MAE 0.048 s/lap, +52% over the naive prediction |
-| Scored against the benchmark | ⚠️ CRPS 0.241 vs their best 0.202 — **we lose** |
+| Scored against the benchmark | ❌ **we win 2 of 15 races** they also scored |
 | Strategy layer | ✅ pit loss measured per circuit, every legal plan enumerated |
+| Matches the field's actual call | ✅ **6 of 7 races**, against what the teams really ran |
+| Strategy console | ✅ live FastAPI optimiser, answers recomputed per request |
 | Softer compounds degrade faster | ❌ **not in races — and we found why** |
 
 **The last row is the honest headline.** Pooling the field buys precision the
@@ -173,18 +179,101 @@ rather than asserted here.
 | model | RMSE (s) | CRPS | |
 |---|---|---|---|
 | ARIMA(2,1,2) | 1.520 | 0.324 | published |
-| **Clean Air pooled** | **1.250** | **0.241** | **ours** |
+| Clean Air hierarchical SSM | 1.274 | 0.242 | ours |
+| **Clean Air pooled** | **1.250** | **0.241** | **ours, best** |
 | SSM compound-specific | 1.187 | 0.236 | published |
 | SSM base | 1.169 | 0.230 | published |
 | SSM skew-t | 1.082 | 0.202 | published, their best |
 
-**We lose.** We beat ARIMA and nothing else. Across the 2025 season our median
-race scores 0.315 against their 0.238 season mean, on 18 races to their 19.
+**We do not beat their best.** On the point estimate we beat ARIMA and nothing
+else.
+
+### Race by race across 2025: we win 2 of 15
+
+Their repo publishes per-race CRPS in
+`Cross_Validation_Results/All_CV_results1.csv`, so this is a head-to-head rather
+than two season averages over different race sets.
+
+| | ours | theirs |
+|---|---|---|
+| races won | **2** | 13 |
+| mean CRPS | 0.5471 | 0.2203 |
+| median CRPS | 0.3116 | 0.2022 |
+
+We win at Italy (0.111 vs 0.128) and Spain (0.257 vs 0.265). We lose the other
+thirteen, badly at Bahrain (0.382 vs 0.145) and catastrophically at Singapore
+(3.83 vs 0.240, one 32-second lap).
+
+**This corrects a claim we made for a while.** `08_benchmark.py` used to state
+that their per-race numbers were not published and that a win/loss table
+therefore could not be built without inventing their side of it. The file was in
+their repo the whole time; we wrote the claim down instead of opening it. The
+comparison it was standing in for — our *median* against their *mean* — flattered
+us, and the real table is much worse for us.
+
+Two things make it genuinely like-for-like: their Austria figure here is 0.2022
+against the paper's published 0.202, and **our reconstructed stint counts match
+theirs at 14 of 15 races**. That is the strongest evidence we have that the fold
+scheme we transcribed from `CV_Functions.R` is the one they ran.
+
+### Their single-race evaluation cannot tell these models apart
+
+Their scheme scores **16 predictions** from one driver in one race. Bootstrapping
+our per-lap CRPS over those 16 laps:
+
+| | |
+|---|---|
+| our score | 0.237 (per-lap mean) |
+| 95% CI | **[0.151, 0.365]** |
+| their best | 0.202 — **inside our interval** |
+| P(we beat 0.202 on a resample) | 0.30 |
+| share of our score from one lap | **28%** |
+
+One lap carries 28% of the total: Hamilton lost 1.31s to the field median on lap
+48, a +2.8σ event on his car alone while the field was unaffected. No model
+forecasts that lap.
+
+So on **Austria alone** we are statistically indistinguishable from the published
+best, and so is every other model in that table. This is the same criticism as
+the power analysis in a second place: their three-stint design was underpowered
+to separate compounds, and a 16-lap evaluation is underpowered to rank
+forecasters.
+
+But that argument only covers the single race. **Across fifteen races we lose
+thirteen**, and no sample-size objection rescues that. The bootstrap is the right
+caveat on the headline 0.241-versus-0.202 figure; it is not a defence of the
+model.
 
 Our per-stint CRPS at Austria is 0.178, 0.380, 0.157 -- competitive on the first
-and third stints, and dragged by the second.
+and third stints, and dragged by the second, which is the stint containing lap 48.
+
+### We built their model with our pooling, and it did not win either
+
+`models/stan/hier_race.stan` is their state-space structure -- a latent pace
+state per car that resets at a pit stop -- with the one change our data allows:
+their single scalar slope `v` becomes `v[compound]`, **shared across all twenty
+cars**. Twenty cars on different compounds at different tyre ages identify what
+one car cannot.
+
+It is genuinely the better forecaster *across* races: on a 2024 development set
+it beat our simpler model at 14 of 18 events, mean CRPS 0.4615 against 0.5169
+(sign test p = 0.015). Adding Student-t observation errors -- their own ablation
+attributes a 12% gain to robustness, not tyre physics -- took Austria from 0.268
+to 0.242.
+
+On Austria itself it ties with the simpler model and loses to 0.202. We report
+both rather than picking whichever looked better on the test race.
+
+One defect in their code worth noting: `full_race_1driver_and_fuel_base_t.stan`
+fits with `skew_t` and then forecasts with `normal_rng`, so its predictive
+intervals are thinner-tailed than the model it fitted. Ours uses the same
+Student-t in both places.
 
 ### An earlier version of this table said we won, and it was wrong
+
+The number in this table has moved three times, all downward, and every move was
+a bug we found ourselves: **0.210 → 0.238 → 0.241**. The history is here because
+a reader who opens `CV_Functions.R` will check the first one.
 
 It reported CRPS 0.210 on 35 predictions. Their scheme gives 16. The fold
 builder was passing each stint's last *global lap number* where a stint *length*
@@ -200,8 +289,17 @@ a whole stint 4.7 seconds slow. Requiring a real tyre-age spread first, the same
 rule already used in `transfer.py`, cut that race from 2.10 to 0.188 and the
 season mean from 0.816 to 0.606. Both failures are pinned by tests.
 
-Neither number is one we would have found without scoring the whole season, and
-both are recorded here because a reader who opens `CV_Functions.R` will check.
+Neither number is one we would have found without scoring the whole season.
+
+The third move, 0.238 to 0.241, is the only one that made the score **worse on
+purpose**. The predictive spread was estimated from a different construction
+than the forecast being scored, and from the field's *actual* pace where the
+forecast has to extrapolate — so it excluded the extrapolation error and left us
+badly overconfident: the nominal 90% interval covered 67.6%. Fixing it put
+coverage at 90.2% and cost 0.0025 of CRPS. That trade is not close, and the
+0.0025 is 1% of the interval width anyway.
+
+All three failures are pinned by tests.
 
 ### So what is the claim?
 
@@ -210,6 +308,70 @@ at that than we are. What it cannot do is separate the compounds -- their own
 compound-specific model scored *worse* than their base model, and their best
 model has no compound structure at all. That is the question this project
 answers, and the power analysis shows their three-stint design could not have.
+
+## The product
+
+A **strategy console**. You set the state of the race and it tells you what to
+do, and how wrong the inputs can be before the answer changes.
+
+This is a deliberate change of shape. The app used to open on degradation curves
+with three tabs of statistics behind them, which answers *"is this method
+sound?"* — a reviewer's question. Every screen it could show was one of seven
+precomputed pictures. A strategist has one question: what do we do on Sunday.
+
+Four controls, and each is there because a measured quantity has error worth
+exploring rather than because a slider looks good:
+
+| control | why it exists |
+|---|---|
+| **pit loss** | measured from a handful of green-flag stops, so it carries real error |
+| **safety car** | changes what a stop costs, using a *measured* fraction (see below) |
+| **degradation** | draggable across the model's own 95% interval; outside it, the UI says the number is yours and not the model's |
+| **race laps** | a shortened race is a different problem |
+
+Plus **pit now or later**: give it a lap, a tyre age and a compound, and it
+prices every stop lap in the next few.
+
+Everything is computed per request by Python. There is deliberately **no
+TypeScript reimplementation of the optimiser** — two copies of the same
+arithmetic can disagree, and disagreeing in front of an audience is the one
+failure with no recovery.
+
+**What the controls actually do**, at Hungary:
+
+| pit loss | call | margin |
+|---|---|---|
+| 22.5s | 2 stops | 1.6s |
+| 24.0s | 2 stops | **0.1s** |
+| 25.0s | **1 stop** | 0.9s |
+| 30.0s | 1 stop | 5.9s |
+
+The call flips between 24 and 25s — exactly the 24.5s crossover the optimiser
+reports independently. Two calculations that have to agree, and a test pins that
+they do.
+
+If the API is unreachable the console **falls back to the published playbook**
+with a banner saying so, rather than an error screen. The live version answers
+questions nobody precomputed; the fallback still shows seven real races.
+
+### Two numbers in here are assumptions, and they are labelled
+
+- **The compound pace offset is 0.6s per step, assumed not fitted.** Surfaced in
+  the UI as the weakest input on the screen. Two attempts to measure it failed
+  (see open questions).
+- **A neutralised stop costs 0.84× a green one.** That *is* measured — 48 VSC
+  stops against 163 green ones, both against the non-pitting field on the same
+  laps. The first version asserted 0.45 from folk intuition and was wrong.
+
+A full safety car is **not measurable** from our data: 23 stops across two
+events, and they disagree by 15 seconds (Monaco 35.4s, Japan 20.1s — one above
+the green number, one below). `scripts/10_pit_loss_by_status.py` prints that
+rather than hiding it.
+
+And the limitation no number fixes: teams pit under a safety car for **track
+position**, and this optimiser minimises total time. It has no concept of
+position, so a perfect pit-loss ratio would still not make it a safety-car
+strategist.
 
 ## Open questions
 
@@ -237,10 +399,12 @@ confident story.
 ```
 src/cleanair/         the package
   config.py           verified constants: 2026 regs, calendar, benchmark targets
+  api.py              FastAPI strategy console -- the only thing computed live
   data/               FastF1 caching, clean-lap dataset, fuel model
   models/             MixedLM (fast, interpretable) + Stan (hierarchical Bayesian)
+    stan/hier_race    their state-space model with our field-wide pooling
   validation/         cross-validation, CRPS scoring, calibration, power analysis
-  strategy/           pit-stop and stint-length decisions
+  strategy/           pit-stop and stint-length decisions, pit loss by track status
   artifacts/          the JSON contract the web app reads
 
 benchmark/            R. Verification only, never part of the product.
@@ -249,9 +413,14 @@ benchmark/            R. Verification only, never part of the product.
   upstream/           their repo — fetched locally, not committed (no license)
 
 scripts/              numbered, run in order
+  01 cache  02 publish  03 fit  04 validate  05 transfer  06 strategy
+  07 management  08 benchmark  09 playbook  10 pit loss by status
 app/                  Streamlit lab bench (internal — we look at fits here, never demoed)
-web/                  the demo. Vite + React + TypeScript, reads static JSON
-data/artifacts/       JSON the web app reads
+web/                  the demo. Vite + React + TypeScript
+  api.ts              client for the live optimiser
+  ConsoleView.tsx     the strategy console -- the front door
+  useStrategy.ts      coarse-while-dragging, exact-on-settle, generation-guarded
+data/artifacts/       JSON the web app reads for everything NOT computed live
 docs/reference/       the benchmark paper, plus licensing notes on every source
 tests/
 ```
@@ -284,11 +453,22 @@ export PATH="/c/rtools45/x86_64-w64-mingw32.static.posix/bin:/c/rtools45/usr/bin
 
 R 4.6.1 + Rtools45. Packages in `%LOCALAPPDATA%/R/win-library/4.6`: `cmdstanr`, `scoringRules`, `scoringutils`, `sgt`, `posterior`, `tidyverse`. Note `cmdstanr` is not on CRAN; install from `https://stan-dev.r-universe.dev`.
 
-**Web**
+**The strategy console** (two processes)
+
+```bash
+python -m uvicorn cleanair.api:app --reload --port 8000
+```
 
 ```bash
 cd web && npm install && npm run dev
 ```
+
+Vite proxies `/api` to port 8000, so the browser sees one origin and CORS never
+comes up in development. In production `VITE_API_BASE` points at the deployed
+service and `CORS_ORIGINS` lists the front end — no hostname is compiled in.
+
+The Tyre Curves and Proof views read published artifacts and work with the API
+stopped. Race Plan needs it, and says so if it is missing.
 
 ---
 
@@ -308,11 +488,22 @@ That pulls the authors' code repo (which carries **no license**, so we have no r
 
 ## How we validate
 
-1. **Can it separate the compounds?** Non-overlapping credible intervals where the benchmark could not. Falsifiable, and the headline.
-2. **Does it beat the benchmark?** Same metrics (RMSPE, CRPS), same cross-validation scheme, same CRPS estimator — we use `scoringrules`, the Python port of the R library they used, and cross-check the two agree. Reported whether or not we win.
-3. **Is the uncertainty honest?** Empirical coverage of the stated intervals.
+1. **Can it separate the compounds?** Non-overlapping intervals where the benchmark could not. Falsifiable, and the headline.
+2. **Does it beat the benchmark?** Same metrics, same cross-validation scheme, same CRPS estimator — `scoringrules`, the Python port of the R library they used, cross-checked against R itself to 2.5e-11. **We report the race-by-race table, and it says we lose 13 of 15.**
+3. **Is the uncertainty honest?** Empirical coverage of the stated intervals — 80% intervals cover 80.5%, and the one-step forecaster's coverage was 67.6% until we fixed it.
 4. **How much data does this actually need?** A power analysis, which answers the open question the benchmark paper leaves.
 5. **Practice → race.** Fit on Friday long runs, predict Sunday pace. The benchmark does not attempt this, and it is what the brief asks for.
+6. **Does the strategy call match reality?** Our recommendation against the stop count the teams actually ran, at every event. **6 of 7.** The only claim here a viewer can check against a race they watched.
+
+### Things we deliberately did not do
+
+Recorded because the discipline is the point, and because each was tempting.
+
+- **Did not drop 2024** from the management test, though it is the season that disagrees and dropping it turns p = 0.062 into significance. We added seasons instead: 97 cells, p = 0.0034, with 2024 still in.
+- **Did not keep a better-scoring predictive spread** that described a different forecast than the one being scored. Fixing it cost 0.0025 CRPS and moved coverage from 67.6% to 90.2%.
+- **Did not pick between our two models on the test race.** The hierarchical model wins the 2024 development set and ties on Austria; both are reported.
+- **Did not develop against Austria.** Every choice — fold minimum, fuel load, parameterisation, error distribution — was made on 2024 and Austria was scored once.
+- **Did not keep an invented safety-car constant.** 0.45 came from folk intuition; measurement said 0.84 for VSC and that a full safety car is not measurable from 23 stops.
 
 ---
 
