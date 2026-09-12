@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { DegradationChart } from "./DegradationChart";
+import { HorizonTable } from "./HorizonTable";
 import { ConsoleView } from "./ConsoleView";
 import { NextRaceView } from "./NextRaceView";
 import { EvidenceView } from "./EvidenceView";
@@ -187,6 +188,10 @@ export default function App() {
 
             <div className="panel mt-4 p-4">
               <DegradationChart curves={degradation.curves} />
+            </div>
+
+            <div className="mt-4">
+              <HorizonTable curves={degradation.curves} />
             </div>
 
             <p className="mt-3 text-xs text-fg-dim">
