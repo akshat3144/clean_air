@@ -58,7 +58,7 @@ We answer this four ways rather than asserting it once:
 | | |
 | --- | --- |
 | **Are the intervals honest?** | **80.6%** of actual values land inside the nominal **80%** band |
-| **Does Friday predict Sunday?** | **0.081 s/lap** mean absolute error, leave-one-event-out — the event being predicted never contributes to its own correction |
+| **Does Friday predict Sunday?** | **0.063 s/lap** mean absolute error, leave-one-event-out — the event being predicted never contributes to its own correction |
 | **Does the call match reality?** | the stop count agrees with what real teams ran at **10 of 11** races |
 | **Does it know when to shut up?** | at **2** races the evidence was too thin, and it refuses to call them rather than guessing |
 
@@ -178,12 +178,12 @@ compound nomination — is one click in the UI.
 | **Interval precision**        | ✅ **4.4× tighter** median, up to **9.1×**, race for race                             |
 | **Statistical power**         | ✅ **820 driver-stints** vs the 512 needed and the 3 they had                         |
 | **Uncertainty is honest**     | ✅ 80% intervals cover **80.6%** empirically                                          |
-| **Practice → race**          | ✅ MAE **0.081 s/lap**, a **29.0% error reduction** over assuming Sunday = Friday |
+| **Practice → race**          | ✅ MAE **0.063 s/lap**, a **38.0% error reduction** over assuming Sunday = Friday |
 | **Benchmark reproduced**      | ✅ their Table 3 recovered by running their own code                                       |
 | **Driver management effect**  | ✅ **p = 0.0020** across 5 seasons, 98 cells                                          |
 | **Strategy call vs reality**  | ✅ **10 of 11 races** match the stop count teams actually ran                         |
 | **Forecasts an unraced race** | ✅ Madrid predicted from FP1, a day out                                                    |
-| **Test suite**                | ✅ **283 tests**                                                                      |
+| **Test suite**                | ✅ **285 tests**                                                                      |
 
 ### The track effect — the finding we did not expect
 
@@ -275,36 +275,70 @@ The mechanism was predicted in the benchmark paper and never tested. We tested i
 
 ### Practice → race, the deliverable the brief names
 
-Friday is not Sunday. Assuming it is costs **0.114 s/lap** of error across 12
+Friday is not Sunday. Assuming it is costs **0.101 s/lap** of error across 13
 held-out event-compound cells. Calibrating by the measured practice→race factor
-— **0.380**, a race degrading at about **38%** of its practice rate — cuts that
-to **0.081 s/lap**, a **29.0% reduction**, leave-one-event-out throughout.
+— **0.349**, a race degrading at about **35%** of its practice rate — cuts that
+to **0.063 s/lap**, a **38.0% reduction**, leave-one-event-out throughout.
 
 **The three practice sessions are not worth the same, and we measured by how
-much.** Scoring each session's degradation against the race that followed, over
-every cell we can measure in both:
+much — but not the way you would expect, and the first attempt was wrong.**
 
-| Session | Cells | Correlation with the race | Median run size |
-| --- | --- | --- | --- |
-| **FP2** | 11 | **0.84** | 5 runs · 33 laps |
-| FP1 | 9 | 0.05 | 2 runs · 12 laps |
-| FP3 | 1 | — | — |
+The obvious test is to score each session's degradation against the race that
+followed and rank the correlations. We did, FP2 won by a mile, and we weighted
+it accordingly. Then the design changed and **FP1 went from 0.05 to 0.78** — it
+had never been uninformative, it had been full of warm-up laps.
 
-FP1 carries almost no signal. Part of that is thinness, and part is what the
-session is for: teams change the car between FP1 runs, so a slope fitted across
-them measures setup work as much as tyre wear — Monaco's FP1 medium reads
-**−0.807 s/lap** against a race value of 0.056. FP2 is where the setup is frozen
-and the heavy-fuel race simulations run.
+That comparison is unsound and the reversal exposed it: each session scores a
+different set of cells (FP1 six, FP2 ten), so ranking their correlations rewards
+whichever one skipped the hard ones. What decides the weighting is the error of
+the **blend**, which every scheme computes over the same cells, through the
+pipeline that ships:
 
-So FP2 carries twice the weight of the other two, by weighted least squares over
-the practice design. Nothing is weighted to zero: nine cells is not enough to
-retire a session, and this weekend's worst session still beats another circuit's
-best. The weights are constants rather than a live fit, and
-[`scripts/12_session_skill.py`](scripts/12_session_skill.py) re-measures the
-table — a test fails if FP2 ever stops being the best predictor.
+| Weighting | Practice → race MAE | Cells |
+| --- | --- | --- |
+| **FP2 heavy — what we use** | **0.0627** | 13 |
+| FP3 down only | 0.0630 | 13 |
+| FP1 + FP2 equal | 0.0646 | 13 |
+| all three equal | 0.0661 | 13 |
+| FP1 heavy | 0.0667 | 13 |
 
-That change alone moved the forecast from **0.083 to 0.081 s/lap**, and the
-error reduction from 25.6% to **29.0%**.
+FP2 still wins, so the weights stand — now for a reason that survives the next
+design change. Nothing is weighted to zero: this weekend's worst session still
+beats another circuit's best.
+[`scripts/12_session_skill.py`](scripts/12_session_skill.py) regenerates the
+table and a test fails if any scheme ever beats the one we ship.
+
+### The warm-up lap, and 66 laps that should have been 139
+
+A tyre is not at temperature on its out-lap. Over the opening laps of a run it
+gets **faster** as it comes in, so degradation fitted across them reads
+negative. Cappello & Hoegh find exactly this in their own model — their fitted
+rate is below zero for the first laps of every stint.
+
+It bites hardest on short runs, which is where we have least to spare. Two
+changes, both measured rather than argued:
+
+- **Drop the first lap of every practice run.**
+- **Stop shattering runs.** Unrepresentative laps get removed from the middle of
+  stints, and we used to re-detect runs afterwards — so one dropped lap split a
+  stint into two sub-five-lap fragments and discarded both. The design regresses
+  on *tyre age*, which a hole in the lap numbering does not disturb. Now a run
+  survives a gap of up to three laps and splits on anything larger.
+
+Together they take the practice → race error from **0.0819 to 0.0491 s/lap** on
+the cells both designs can score, while answering **more** cells, not fewer —
+and that gain is measured entirely on circuits that have already raced.
+
+At Madrid the effect is the whole story: 462 representative laps had been
+collapsing to 66, with FP1 and FP3 contributing nothing at all. The circuit now
+has **two measured compounds instead of one**, and only the hard — which nobody
+put on a long run in any session — is still borrowed.
+
+[`scripts/13_design_sweep.py`](scripts/13_design_sweep.py) runs the comparison.
+It scores every variant on a common cell set and refuses to recommend one that
+wins by answering fewer questions, which is how three tempting variants were
+rejected: they posted lower errors by discarding every run short enough to be
+hard.
 
 The blend is not hidden. **Session by session** appears on both the Next Race
 and Strategy tabs: each session's own fitted rate, its run and lap counts, its
@@ -617,6 +651,7 @@ scripts/                         numbered, run in order
   10_pit_loss_by_status.py       what a stop costs under a safety car
   11_circuits.py                 per-circuit pit loss and distance, for races not yet run
   12_session_skill.py            which practice session actually predicts the race
+  13_design_sweep.py             how much practice data we discard, and whether keeping it helps
   run_pipeline.py                run everything, in order, with one command
   fetch_reference.sh             pull reference material we cannot redistribute
 
@@ -650,7 +685,7 @@ data/
 app/lab.py                       Streamlit lab bench — internal, never demoed
 docs/DEPLOYMENT.md               how this ships
 docs/reference/                  the benchmark paper, plus licensing notes on every source
-tests/                           283 tests
+tests/                           285 tests
 ```
 
 ---
