@@ -59,6 +59,17 @@ TRAIN_FRACTION = 0.75
 #: sharply to 2 and is flat after, so this sits on the plateau rather than at a
 #: point picked for its score.
 
+#: One-step-ahead forecast errors needed before the out-of-sample spread is
+#: believed. Below this we have no track record to measure, so the fallback
+#: applies.
+MIN_OOS_ERRORS = 4
+
+#: Fallback predictive spread, in seconds, when a fold has too little history
+#: for an out-of-sample estimate. Deliberately wide: the first prediction in a
+#: race is the one we know least about, and a narrow guess there is punished by
+#: CRPS far harder than a wide one.
+FALLBACK_SIGMA = 0.9
+
 
 @dataclass
 class BenchmarkResult:
@@ -140,13 +151,17 @@ def score(
             compound label. If None, they are refitted inside every fold from
             the field's laps up to that point, which is the honest version.
         heavy_tails: score against a Student-t predictive distribution rather
-            than a normal one. Their best model gained from heavy-tailed errors,
-            so this was worth trying. Across the 2025 season it wins 11 races of
-            16 but moves the mean only from 0.6058 to 0.5982 -- consistent, and
-            far too small to matter. The default stays normal: switching to
-            whichever scored better would be tuning, and a 0.008 gain does not
-            pay for the extra assumption. Kept so the negative result can be
-            reproduced rather than taken on trust.
+            than a normal one. There were two reasons to expect a gain: their
+            best model used skewed-t errors, and our own coverage diagnostic
+            leaves a mean squared z-score of 2.31 while every central interval
+            lands on its nominal level, which is the signature of fat tails
+            rather than a wrong width.
+
+            It does not deliver. On the 2024 DEVELOPMENT set -- chosen so the
+            decision never touches Austria -- it wins 10 races of 18, moves the
+            median from 0.4173 to 0.4100 and the mean the wrong way, 0.5169 to
+            0.5197. That is a wash, so the default stays normal. Kept so the
+            negative result is reproducible rather than taken on trust.
         mode: "hybrid" tracks the driver's own pace level and projects it at the
             field-fitted degradation rate. "field" extrapolates the field mean
             instead -- kept so the two can be compared, since the difference
@@ -171,60 +186,34 @@ def score(
     stint_of = dict(zip(subject["LapNumber"], subject["Stint"], strict=True))
     results: dict[float, list[tuple[float, float, float]]] = {}
 
-    for train_to, test_lap in folds:
-        actual_row = subject[subject["LapNumber"] == test_lap]
-        if actual_row.empty:
-            continue
-        actual = float(actual_row["LapTimeSeconds"].iloc[0])
-        age = float(actual_row["TyreLife"].iloc[0])
-        compound = str(actual_row["Compound"].iloc[0])
+    cache: dict[tuple[int, int], tuple[float, float] | None] = {}
 
-        # Everything below uses laps <= train_to only.
-        hist = df[df["LapNumber"] <= train_to]
-        if len(hist) < 40:
-            continue
+    def predict(train_to: int, test_lap: int) -> tuple[float, float] | None:
+        """One-lap-ahead forecast of test_lap from laps <= train_to.
 
-        rate = (
-            compound_rates.get(compound)
-            if compound_rates
-            else _fit_rate(hist, compound)
+        Extracted so the scored prediction and the out-of-sample spread cannot
+        be different constructions -- which is exactly the bug that was here.
+        Memoised because the nested rolling origin in _oos_sigma re-requests the
+        same (train_to, test_lap) pairs across folds.
+        """
+        key = (int(train_to), int(test_lap))
+        if key in cache:
+            return cache[key]
+        cache[key] = out = _predict_once(
+            df, subject, train_to, test_lap, mode, compound_rates, field_pace, field_age
         )
-        if rate is None or not np.isfinite(rate):
+        return out
+
+    for train_to, test_lap in folds:
+        got = predict(train_to, test_lap)
+        if got is None:
             continue
+        actual, pred = got
 
-        pace_hat = _extrapolate(field_pace.loc[:train_to], test_lap)
-        age_hat = _extrapolate(field_age.loc[:train_to], test_lap)
-        if not np.isfinite(pace_hat) or not np.isfinite(age_hat):
-            continue
-
-        if mode == "field":
-            # Field pace plus the tyre-age difference between this driver and the
-            # field, priced at the fitted rate. Simple, and it turned out to be
-            # the weak link: extrapolating the field mean is a crude forecaster.
-            pred = pace_hat + rate * (age - age_hat)
-        else:
-            # HYBRID. Their model's strength is a latent state tracking THIS
-            # driver's pace; ours is a degradation rate estimated from the whole
-            # field instead of from twenty laps. Combine them: strip the tyre
-            # effect out of his recent laps to get a clean pace level, then
-            # project that level forward at the field-fitted rate.
-            own = subject[
-                (subject["LapNumber"] <= train_to)
-                & (subject["LapNumber"] > train_to - TREND_WINDOW)
-            ]
-            if len(own) < 3:
-                continue
-            level = float(np.mean(own["LapTimeSeconds"] - rate * own["TyreLife"]))
-            # Carry the field's pace trend so fuel burn and track evolution,
-            # which the level cannot see going forward, are still accounted for.
-            drift = pace_hat - _extrapolate(field_pace.loc[:train_to], train_to)
-            pred = level + rate * age + drift
-
-        # Predictive spread: how far this driver's laps have sat from the same
-        # construction over the training window. Empirical, not assumed.
-        resid = _training_residuals(df, subject, driver, train_to, rate, field_pace, field_age)
-        sigma = float(np.std(resid, ddof=1)) if len(resid) > 2 else 0.5
-        sigma = max(sigma, 0.05)
+        # This same forecaster's own track record, from laps strictly before
+        # train_to, so it uses nothing the point forecast could not have used.
+        # The measured bias is deliberately NOT applied -- see _oos_bias_sigma.
+        _bias, sigma = _oos_bias_sigma(predict, subject, train_to)
 
         results.setdefault(stint_of[test_lap], []).append((actual, pred, sigma))
 
@@ -293,24 +282,132 @@ def _fit_rate(hist: pd.DataFrame, compound: str) -> float | None:
     return float(x @ y / denom) if denom > 1e-9 else 0.0
 
 
-def _training_residuals(
+def _predict_once(
     df: pd.DataFrame,
     subject: pd.DataFrame,
-    driver: str,
     train_to: int,
-    rate: float,
+    test_lap: int,
+    mode: str,
+    compound_rates: dict[str, float] | None,
     field_pace: pd.Series,
     field_age: pd.Series,
-) -> np.ndarray:
-    """How well this construction fitted the driver's recent laps."""
-    recent = subject[
-        (subject["LapNumber"] <= train_to) & (subject["LapNumber"] > train_to - 15)
-    ]
-    out = []
-    for _, r in recent.iterrows():
-        lap = r["LapNumber"]
-        if lap not in field_pace.index or lap not in field_age.index:
+) -> tuple[float, float] | None:
+    """Forecast one lap from laps <= train_to. Returns (actual, prediction).
+
+    None when the fold cannot be forecast honestly: no such lap, too little
+    history, or no identifiable degradation rate.
+    """
+    actual_row = subject[subject["LapNumber"] == test_lap]
+    if actual_row.empty:
+        return None
+    actual = float(actual_row["LapTimeSeconds"].iloc[0])
+    age = float(actual_row["TyreLife"].iloc[0])
+    compound = str(actual_row["Compound"].iloc[0])
+
+    # Everything below uses laps <= train_to only.
+    hist = df[df["LapNumber"] <= train_to]
+    if len(hist) < 40:
+        return None
+
+    rate = (
+        compound_rates.get(compound) if compound_rates else _fit_rate(hist, compound)
+    )
+    if rate is None or not np.isfinite(rate):
+        return None
+
+    pace_hat = _extrapolate(field_pace.loc[:train_to], test_lap)
+    age_hat = _extrapolate(field_age.loc[:train_to], test_lap)
+    if not np.isfinite(pace_hat) or not np.isfinite(age_hat):
+        return None
+
+    if mode == "field":
+        # Field pace plus the tyre-age difference between this driver and the
+        # field, priced at the fitted rate. Simple, and it turned out to be the
+        # weak link: extrapolating the field mean is a crude forecaster.
+        pred = pace_hat + rate * (age - age_hat)
+    else:
+        # HYBRID. Their model's strength is a latent state tracking THIS
+        # driver's pace; ours is a degradation rate estimated from the whole
+        # field instead of from twenty laps. Combine them: strip the tyre effect
+        # out of his recent laps to get a clean pace level, then project that
+        # level forward at the field-fitted rate.
+        own = subject[
+            (subject["LapNumber"] <= train_to)
+            & (subject["LapNumber"] > train_to - TREND_WINDOW)
+        ]
+        if len(own) < 3:
+            return None
+        level = float(np.mean(own["LapTimeSeconds"] - rate * own["TyreLife"]))
+        # Carry the field's pace trend so fuel burn and track evolution, which
+        # the level cannot see going forward, are still accounted for.
+        drift = pace_hat - _extrapolate(field_pace.loc[:train_to], train_to)
+        pred = level + rate * age + drift
+
+    if not np.isfinite(pred):
+        return None
+    return actual, float(pred)
+
+
+def _oos_bias_sigma(
+    predict,
+    subject: pd.DataFrame,
+    train_to: int,
+) -> tuple[float, float]:
+    """Forecast bias and predictive spread, both measured out of sample.
+
+    This replaces an estimator that was wrong in two ways at once. It built its
+    residuals from the "field" construction while the scored prediction used the
+    "hybrid" one, so the spread described a different forecast than the one being
+    made; and it read the field's ACTUAL mean pace at each lap, while a real
+    forecast has to extrapolate it. Excluding the extrapolation error is what
+    made us overconfident: on the 2024 development set the mean squared z-score
+    was 4.02 against a target of 1, and the nominal 90% interval covered 67.6%.
+    CRPS punishes that hard, so most of the loss was the spread, not the point.
+
+    What replaces it is a nested rolling origin. For every earlier lap in the
+    race we re-run the identical forecaster on laps up to the lap before it, and
+    take the spread of those one-step-ahead errors. It is the procedure's own
+    track record so far, so estimated-parameter error and extrapolation error are
+    both inside it by construction rather than by correction.
+
+    Pooled across the driver's stints rather than within the current one, because
+    a stint's first fold would otherwise have almost nothing to measure. The
+    quantity being estimated is the accuracy of the forecaster, which does not
+    reset at a pit stop.
+
+    THE BIAS TERM
+
+    The same errors also expose a systematic offset. On the 2024 development set
+    the raw forecaster ran 0.274 s SLOW on average -- it under-credits how much
+    the car gains as fuel burns off, because the drift term reads that gain from
+    a noisy field mean rather than from the car in front of it.
+
+    Correcting a forecast by its own measured past error is standard, so we
+    tried it, on the 2024 development set and never on Austria. It is REJECTED
+    and the bias is returned but not applied. It helps the "field" mode a lot
+    (0.730 -> 0.606) and hurts the default "hybrid" mode (0.516 -> 0.531),
+    because hybrid already re-reads the driver's own pace level over the last
+    eight laps, so a race-long average offset fights the thing that makes it
+    work. Kept and reported so the negative result is reproducible rather than
+    something a reader has to take on trust.
+    """
+    errs = []
+    for lap in subject["LapNumber"]:
+        lap = int(lap)
+        if lap > train_to:
+            break
+        got = predict(lap - 1, lap)
+        if got is None:
             continue
-        pred = field_pace.loc[lap] + rate * (r["TyreLife"] - field_age.loc[lap])
-        out.append(r["LapTimeSeconds"] - pred)
-    return np.array(out)
+        actual, pred = got
+        errs.append(actual - pred)
+
+    if len(errs) < MIN_OOS_ERRORS:
+        # No track record yet: correct nothing and stay wide.
+        return 0.0, FALLBACK_SIGMA
+
+    e = np.asarray(errs, dtype=float)
+    bias = float(e.mean())
+    # Spread about the CORRECTED forecast, since that is what gets scored.
+    sigma = max(float(e.std(ddof=1)), 0.05)
+    return bias, sigma

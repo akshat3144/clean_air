@@ -56,7 +56,7 @@ We did not take their paper's word for any of it. We ran their code.
 | Power analysis | ✅ 512 driver-stints needed; they had 3, we have 417 |
 | Calibration | ✅ 80% intervals cover 80.5% |
 | Practice → race | ✅ MAE 0.048 s/lap, +52% over the naive prediction |
-| Scored against the benchmark | ⚠️ CRPS 0.238 vs their best 0.202 — **we lose** |
+| Scored against the benchmark | ⚠️ CRPS 0.241 vs their best 0.202 — **we lose** |
 | Strategy layer | ✅ pit loss measured per circuit, every legal plan enumerated |
 | Softer compounds degrade faster | ❌ **not in races — and we found why** |
 
@@ -103,6 +103,49 @@ fact, because picking the test that likes your data is the same error as picking
 the seasons. And this explains why the race ordering is absent -- it does not
 recover the ordering itself. See [the open questions](#open-questions).
 
+### We tried to beat their best and did not
+
+Three attempts, all developed on **2024** so the decisions never touched Austria,
+which is the benchmark race. Austria was scored once, at the end.
+
+1. **Predictive spread — kept.** The old estimator was wrong twice over: it built
+   residuals from the `field` construction while the scored forecast used
+   `hybrid`, so the spread described a different prediction than the one being
+   made; and it read the field's *actual* mean pace at each lap, while a real
+   forecast has to extrapolate it. Excluding that extrapolation error made us
+   badly overconfident. Replaced with a nested rolling origin: re-run the
+   identical forecaster on earlier laps and take the spread of its own
+   one-step-ahead errors.
+
+   | interval | before | after | target |
+   |---|---|---|---|
+   | 50% | 33.8% | 49.3% | 50% |
+   | 80% | 59.1% | 80.4% | 80% |
+   | 90% | 67.6% | 90.2% | 90% |
+
+   **It made Austria very slightly worse — 0.2384 to 0.2409 — and it stays.**
+   The old number came from an uncertainty that described a forecast we were not
+   making. Keeping it for 0.0025 of CRPS would be the same trade as dropping an
+   inconvenient season.
+
+2. **Bias correction — rejected.** The same backtest shows the forecaster runs
+   0.274 s slow on average. Correcting a forecast by its own measured past error
+   is standard and helps `field` a lot (0.730 → 0.606), but it *hurts* the
+   default `hybrid` (0.516 → 0.531), because hybrid already re-reads the
+   driver's pace level over the last eight laps and a race-long offset fights
+   it. Measured, reported, not applied.
+
+3. **Student-t errors — rejected.** Coverage is right in the body but mean
+   z² = 2.31, which says fat tails, and their best model used skewed-t. On the
+   dev set it wins 10 of 18 and moves the mean the wrong way. A wash.
+
+**The honest conclusion:** their model is a purpose-built state-space forecaster
+for one driver's next lap, with a latent pace state and MCMC. Ours is a pooled
+design built to separate compounds, and we are scoring it on a job it was not
+designed for. Closing the gap properly means their structure *plus* our pooling
+— the hierarchical Stan model in [open questions](#open-questions) — not more
+tinkering with this predictor.
+
 ### These numbers were wrong once, because three seasons had silently truncated
 
 The F1 API caps at 500 calls an hour. When the cap is hit mid-pull the script
@@ -130,13 +173,13 @@ rather than asserted here.
 | model | RMSE (s) | CRPS | |
 |---|---|---|---|
 | ARIMA(2,1,2) | 1.520 | 0.324 | published |
-| **Clean Air pooled** | **1.250** | **0.238** | **ours** |
+| **Clean Air pooled** | **1.250** | **0.241** | **ours** |
 | SSM compound-specific | 1.187 | 0.236 | published |
 | SSM base | 1.169 | 0.230 | published |
 | SSM skew-t | 1.082 | 0.202 | published, their best |
 
 **We lose.** We beat ARIMA and nothing else. Across the 2025 season our median
-race scores 0.324 against their 0.238 season mean, on 18 races to their 19.
+race scores 0.315 against their 0.238 season mean, on 18 races to their 19.
 
 Our per-stint CRPS at Austria is 0.178, 0.380, 0.157 -- competitive on the first
 and third stints, and dragged by the second.
