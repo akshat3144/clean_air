@@ -10,9 +10,15 @@ the tyre, they push it. The benchmark paper suggested the same mechanism without
 testing it.
 
 If that is right, the ratio of race degradation to practice degradation should
-be smaller for softer compounds. That is a directional, ordered prediction, and
-it was written down in Step 3 before any pre-2026 data was pulled -- which is why
-a trend test rather than an omnibus test is the honest choice here.
+be smaller for softer compounds. That is a directional, ordered prediction,
+which is why a trend test rather than an omnibus test is the right choice here.
+
+The direction is not ours to claim credit for and not something we chose after
+looking: it is stated in the benchmark paper's own section 4.3, which offers
+driver management as an explanation for their null result without testing it.
+Anyone can check that the prediction predates our data by reading their paper.
+We report the omnibus Kruskal-Wallis alongside anyway, so the choice of test is
+visible rather than load-bearing.
 
 WHY THE LABEL IS THE RIGHT KEY HERE, UNUSUALLY
 
@@ -23,10 +29,19 @@ across events mixes different rubber.
 A ratio is the exception. Within ONE event, the label is the same physical tyre
 in practice and in the race, so practice-to-race ratios are comparable even
 though the underlying compounds differ between events. That is what lets this
-analysis use 2024 and 2025, for which we have no allocation table.
+analysis use 2022 through 2025, for which we have no allocation table.
 
 The ordering claim does still assume that within an event the SOFT nomination is
 softer than the MEDIUM one, which is true by construction of the nomination.
+
+WHAT THIS TEST STILL DOES NOT DO
+
+It pools all cells into one Spearman, which treats a 2022 cell and a 2026 cell
+as exchangeable. They are not: the seasons plainly disagree, with 2023 at
+rho -0.47 and 2024 at -0.04. A season-blocked test would respect that structure
+and is the obvious next refinement. It is left undone deliberately rather than
+silently -- switching tests after seeing which one the data prefers is the same
+error as switching seasons.
 """
 
 from __future__ import annotations
@@ -81,9 +96,15 @@ class ManagementResult:
 
         Deliberately strict. Calling a result significant on the one-sided p
         while the two-sided p sits above 0.05 puts the whole claim on a choice
-        the reader may not share, and that is precisely the case we ran into:
-        adding 2024 moved the two-sided p from 0.042 to 0.062 while the
-        one-sided stayed under 0.05.
+        the reader may not share, and that is precisely the case we sat in for a
+        while: at three seasons the one-sided p was 0.031 but the two-sided was
+        0.062, so this property returned False and the verdict said "marginal".
+
+        It only cleared once 2023 and 2022 were added -- 93 cells, two-sided
+        0.0062. The strictness is the reason that is a real result rather than a
+        threshold we walked up to. Note the fix was MORE data; dropping 2024,
+        the season that disagrees, would have bought the same p-value by
+        choosing the data for its answer.
         """
         return self.p_value < 0.05 and self.p_two_sided < 0.05
 

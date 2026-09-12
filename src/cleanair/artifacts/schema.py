@@ -225,7 +225,7 @@ class BenchmarkArtifact:
     #: worst would flatter the score -- and the median is shown so the reader
     #: can see both the typical race and the damage one bad one does.
     ours_season_crps_median: float | None = None
-    #: Race counts behind each mean. They differ (they had 19, we cached 16),
+    #: Race counts behind each mean. They differ (they had 19, we scored 18),
     #: which is exactly why both are carried rather than just the difference.
     ours_season_races: int | None = None
     theirs_season_races: int | None = None

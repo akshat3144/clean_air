@@ -214,32 +214,41 @@ def strategy(event: str = "Hungarian Grand Prix") -> StrategyArtifact:
 
 
 def management() -> ManagementArtifact:
-    """Shaped like the real finding: ordering holds, significance is marginal."""
+    """Shaped like the real five-season finding: ordered and significant.
+
+    The stability list keeps every cumulative step, including the single-season
+    row that fails the two-sided test, so the UI can be built against the case
+    where the claim does not hold rather than only the case where it does.
+    """
     rows = [
-        ManagementRow("HARD", 9, 0.523, 0.0656, 0.1349),
-        ManagementRow("MEDIUM", 25, 0.355, 0.0263, 0.1384),
-        ManagementRow("SOFT", 16, 0.190, 0.0313, 0.1806),
+        ManagementRow("HARD", 16, 0.506, 0.0597, 0.1307),
+        ManagementRow("MEDIUM", 50, 0.394, 0.0371, 0.1432),
+        ManagementRow("SOFT", 31, 0.173, 0.0346, 0.1820),
     ]
     return ManagementArtifact(
         rows=rows,
-        n_cells=50,
-        n_events=16,
-        n_seasons=3,
-        seasons=[2024, 2025, 2026],
-        rho=-0.266,
-        p_one_sided=0.0311,
-        p_two_sided=0.0621,
-        p_kruskal=0.1635,
+        n_cells=97,
+        n_events=20,
+        n_seasons=5,
+        seasons=[2022, 2023, 2024, 2025, 2026],
+        rho=-0.2952,
+        p_one_sided=0.0017,
+        p_two_sided=0.0034,
+        p_kruskal=0.0155,
         ordered=True,
-        significant=False,
-        verdict="marginal: ordering holds but the two-sided p is above 0.05",
+        significant=True,
+        verdict="supported: ratio falls with softness, significant either way",
         stability=[
-            {"seasons": [2026], "n_cells": 13, "rho": -0.375,
+            {"seasons": [2026], "n_cells": 13, "rho": -0.3751,
              "p_one_sided": 0.1033, "p_two_sided": 0.2067, "ordered": True},
-            {"seasons": [2025, 2026], "n_cells": 26, "rho": -0.402,
-             "p_one_sided": 0.0210, "p_two_sided": 0.0419, "ordered": True},
-            {"seasons": [2024, 2025, 2026], "n_cells": 50, "rho": -0.266,
-             "p_one_sided": 0.0311, "p_two_sided": 0.0621, "ordered": True},
+            {"seasons": [2025, 2026], "n_cells": 29, "rho": -0.4157,
+             "p_one_sided": 0.0124, "p_two_sided": 0.0249, "ordered": True},
+            {"seasons": [2024, 2025, 2026], "n_cells": 54, "rho": -0.2953,
+             "p_one_sided": 0.0152, "p_two_sided": 0.0305, "ordered": True},
+            {"seasons": [2023, 2024, 2025, 2026], "n_cells": 72, "rho": -0.3288,
+             "p_one_sided": 0.0024, "p_two_sided": 0.0047, "ordered": True},
+            {"seasons": [2022, 2023, 2024, 2025, 2026], "n_cells": 97, "rho": -0.2952,
+             "p_one_sided": 0.0017, "p_two_sided": 0.0034, "ordered": True},
         ],
     )
 

@@ -188,9 +188,12 @@ function Management({ m }: { m: ManagementArtifact }) {
           <Row label="p, ignoring the ordering" value={m.p_kruskal.toFixed(3)} />
         </dl>
 
-        {/* Our own effect SHRANK as seasons were added. Showing that is the
-            point -- a result that weakens as evidence grows is something the
-            reader is entitled to see rather than discover later. */}
+        {/* This table is the audit trail, not decoration. At three seasons the
+            two-sided p was 0.062 and this claim did NOT hold; it cleared only
+            after 2023 and 2022 were added. Both failing rows stay visible, in
+            warn colour, because the alternative -- dropping the season that
+            disagreed -- would have reached significance by choosing the data
+            for its answer. rho is not monotone either, and that shows here. */}
         <div>
           <div className="label mb-1">as seasons were added</div>
           <table className="w-full text-micro">
@@ -205,7 +208,14 @@ function Management({ m }: { m: ManagementArtifact }) {
             <tbody className="num">
               {m.stability.map((s, i) => (
                 <tr key={i} className="border-t border-ink-700/60">
-                  <td className="py-0.5">{s.seasons.join("+")}</td>
+                  {/* Five seasons joined by "+" is 24 characters and wrapped
+                      the column. The sets are always contiguous, so a range
+                      says the same thing. */}
+                  <td className="py-0.5 whitespace-nowrap">
+                    {s.seasons.length > 2
+                      ? `${s.seasons[0]}–${s.seasons[s.seasons.length - 1]}`
+                      : s.seasons.join("+")}
+                  </td>
                   <td className="py-0.5 text-right">{s.n_cells}</td>
                   <td className="py-0.5 text-right">{s.rho.toFixed(3)}</td>
                   <td className={`py-0.5 text-right ${s.p_two_sided < 0.05 ? "text-signal-good" : "text-signal-warn"}`}>

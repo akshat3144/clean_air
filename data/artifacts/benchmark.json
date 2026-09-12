@@ -34,10 +34,10 @@
   "season_2025": [],
   "n_wins": 0,
   "n_races": 0,
-  "ours_season_crps": 0.6058,
+  "ours_season_crps": 0.5729,
   "theirs_season_crps": 0.238,
   "ours_season_crps_median": 0.324,
-  "ours_season_races": 16,
+  "ours_season_races": 18,
   "theirs_season_races": 19,
   "r_crosscheck_max_diff": 2.4787283336991095e-11
 }

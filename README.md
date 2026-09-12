@@ -58,14 +58,66 @@ We did not take their paper's word for any of it. We ran their code.
 | Practice → race | ✅ MAE 0.048 s/lap, +52% over the naive prediction |
 | Scored against the benchmark | ⚠️ CRPS 0.238 vs their best 0.202 — **we lose** |
 | Strategy layer | ✅ pit loss measured per circuit, every legal plan enumerated |
-| Softer compounds degrade faster | ❌ **not what the data says. Unresolved.** |
+| Softer compounds degrade faster | ❌ **not in races — and we found why** |
 
 **The last row is the honest headline.** Pooling the field buys precision the
 published model could not get -- intervals 15x tighter, and enough power to
 resolve a 0.006 s/lap difference. What it does *not* do is reproduce the
-expected compound ordering. Two explanations survive testing (statistical power,
-and drivers managing softer tyres harder in races) and we have not separated
-them. See [the open questions](#open-questions).
+expected compound ordering in race data.
+
+The explanation is behavioural, and it is now tested rather than asserted. In
+practice sessions softer tyres *do* degrade faster. The share of that practice
+degradation which survives into the race falls as the tyre softens -- hard
+0.506, medium 0.394, soft 0.173 -- across 97 event-compound cells over five
+seasons. Spearman rho -0.295, one-sided p 0.0017, two-sided p 0.0034,
+Kruskal-Wallis 0.016. Significant on every convention, ordering intact. Drivers
+nurse the fragile tyre, and they nurse it hardest when it is softest.
+
+The mechanism was proposed in the benchmark paper's own section 4.3 and left
+untested there, so the prediction is theirs and the direction was fixed before
+we touched the data.
+
+**The seasons disagree, and we show that rather than average over it.** 2024 is
+the largest single contributor at 25 cells and shows no effect at all (rho
+-0.066). Dropping it lifts rho and shaves the p-value, so it stays in. The whole
+cumulative trail lives in the `stability` block of `management.json` and is
+rendered in the app, both to make the claim checkable and because the row where
+it does not hold is part of the result:
+
+| seasons | cells | rho | p 2-sided |
+|---|---|---|---|
+| 2026 | 13 | −0.375 | 0.207 ❌ |
+| 2025–2026 | 29 | −0.416 | 0.025 |
+| 2024–2026 | 54 | −0.295 | 0.031 |
+| 2023–2026 | 72 | −0.329 | 0.0047 |
+| 2022–2026 | 97 | −0.295 | **0.0034** ✅ |
+
+Per season alone: 2023 −0.472, 2025 −0.479, 2026 −0.375, 2022 −0.257, 2024
+−0.066. Only 2023 clears on its own, which is what an effect of this size looks
+like at 13–25 cells a season and is the reason the pooled test exists.
+
+Two caveats we do not paper over. The pooled Spearman treats a 2022 cell and a
+2026 cell as exchangeable, and the seasons plainly disagree; a season-blocked
+test is the obvious refinement and is deliberately not swapped in after the
+fact, because picking the test that likes your data is the same error as picking
+the seasons. And this explains why the race ordering is absent -- it does not
+recover the ordering itself. See [the open questions](#open-questions).
+
+### These numbers were wrong once, because three seasons had silently truncated
+
+The F1 API caps at 500 calls an hour. When the cap is hit mid-pull the script
+logged the failures to the console and wrote a parquet holding whatever had
+arrived, which on disk is indistinguishable from a complete season. 2022 landed
+9 of 19 events, then 17, then 19. 2024 was missing Abu Dhabi and Las Vegas.
+2025 was missing Abu Dhabi. Abu Dhabi is the final round, so it is last in fetch
+order and first to be lost -- a systematic bias toward dropping late-season
+races, not random loss.
+
+`scripts/01_cache_sessions.py` now writes a `laps_YYYY.manifest.json` beside
+each parquet recording sessions requested, loaded and failed, and
+`season_completeness` in `cleanair/data/cache.py` makes both `07` and `08`
+refuse an incomplete season instead of pooling or scoring it. 2026 and 2023 were
+verified complete and unchanged.
 
 ## Where we stand against the benchmark
 
@@ -84,7 +136,7 @@ rather than asserted here.
 | SSM skew-t | 1.082 | 0.202 | published, their best |
 
 **We lose.** We beat ARIMA and nothing else. Across the 2025 season our median
-race scores 0.324 against their 0.238 season mean, on 16 races to their 19.
+race scores 0.324 against their 0.238 season mean, on 18 races to their 19.
 
 Our per-stint CRPS at Austria is 0.178, 0.380, 0.157 -- competitive on the first
 and third stints, and dragged by the second.
