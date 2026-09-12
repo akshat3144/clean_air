@@ -468,3 +468,51 @@ def test_practice_sessions_thin_cells_are_flagged_not_hidden(client):
 def test_practice_sessions_404s_for_an_event_with_no_practice(client):
     r = client.get("/practice-sessions", params={"event": "Nowhere Grand Prix"})
     assert r.status_code == 404
+
+
+def test_forecast_answers_without_circuit_inputs(client):
+    """A missing pit loss must not blank the tyre work.
+
+    Madrid is a new circuit, so it has no pit loss and no race distance to
+    carry forward and both have to be typed in. This used to 422 until they
+    were, and the screen showed two empty boxes and NOTHING else -- no
+    degradation rates, no session breakdown, no compound table -- on the one
+    race the project exists to demo. None of that needs a pit lane.
+    """
+    r = client.post("/forecast", json={"event": "Spanish Grand Prix"})
+    assert r.status_code == 200
+    d = r.json()
+    assert d["can_plan"] is False
+    assert set(d["needs_inputs"]) == {"pit_loss_s", "race_laps"}
+    assert d["compounds"], "the compound table does not depend on the pit loss"
+    assert d["pit_loss_s"] is None
+    assert d["race_laps"] is None
+    # Best stint DOES need the pit loss, so it must stay blank rather than
+    # report a confident zero.
+    assert all(c["optimal_stint"] == 0 for c in d["compounds"])
+
+
+def test_forecast_plans_once_the_inputs_arrive(client):
+    """And the same request with the two numbers produces a real plan."""
+    d = client.post(
+        "/forecast",
+        json={"event": "Spanish Grand Prix", "pit_loss_s": 21.0, "race_laps": 56},
+    ).json()
+    assert d["can_plan"] is True
+    assert not d.get("needs_inputs")
+    assert d["recommended_stops"] >= 1
+    assert any(c["optimal_stint"] > 0 for c in d["compounds"])
+
+
+def test_forecast_marks_borrowed_compounds_as_stand_ins(client):
+    """Madrid ran no hard on a race simulation in any of the three sessions.
+    The rate is borrowed, and the response has to say so or the screen cannot."""
+    d = client.post(
+        "/forecast",
+        json={"event": "Spanish Grand Prix", "pit_loss_s": 21.0, "race_laps": 56},
+    ).json()
+    by_c = {c["compound"]: c for c in d["compounds"]}
+    assert by_c["C2"]["source"] == "stand-in"
+    assert by_c["C2"]["n_runs"] == 0
+    assert by_c["C3"]["source"] == "measured"
+    assert by_c["C3"]["n_runs"] > 0

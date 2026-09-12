@@ -1064,12 +1064,25 @@ def forecast(req: ForecastRequest) -> dict:
     hist = _circuits().get(req.event, {})
     pit = req.pit_loss_s if req.pit_loss_s is not None else hist.get("pit_loss_s")
     laps = req.race_laps if req.race_laps is not None else hist.get("race_laps")
-    if pit is None or laps is None:
-        raise HTTPException(
-            422,
-            f"no pit-loss or distance history for {req.event!r}; supply pit_loss_s "
-            "and race_laps explicitly",
-        )
+
+    # A missing pit loss is NOT a 422, for the same reason a missing compound
+    # is not: the tyre work does not depend on it.
+    #
+    # Madrid is a new circuit, so it has no pit loss and no race distance to
+    # carry forward and both have to be typed in. This used to refuse the whole
+    # request until they were, and the screen showed two empty boxes and
+    # nothing else -- no degradation rates, no session-by-session breakdown, no
+    # compound table, on the one race the project exists to demo. All of that
+    # is computed from practice alone and none of it needs a pit lane.
+    #
+    # So: compute everything that does not need the inputs, say plainly which
+    # inputs are missing, and let the screen ask for them next to a plan rather
+    # than in place of the whole page.
+    missing = [
+        name
+        for name, val in (("pit_loss_s", pit), ("race_laps", laps))
+        if val is None
+    ]
 
     # The practice-to-race factor, learned from events that HAVE raced. The
     # event being forecast contributes nothing to its own correction.
@@ -1145,29 +1158,40 @@ def forecast(req: ForecastRequest) -> dict:
     # planned -- which is exactly the state this screen spends most of a weekend
     # in, and "C5 is good for 29 laps" is useful even when the plan is not.
     for c in out_compounds:
-        if not c["excluded"]:
+        # Best stint length needs the pit loss and nothing else, so it is the
+        # one field that stays blank while the inputs are missing.
+        if not c["excluded"] and pit is not None:
             c["optimal_stint"] = int(optimal_stint(c["compound"], usable[c["compound"]], pit))
 
-    if len(usable) < 2:
+    if missing or len(usable) < 2:
         # NOT a 422. The compound table and the reason are the useful part of
         # this answer -- "we cannot plan Monza yet, and here is exactly which
         # tyre is missing and why" beats a bare error, and it is the state the
         # screen will legitimately be in for most of a race weekend.
+        if missing:
+            reason = (
+                "This circuit has no pit loss or race distance to carry forward, so "
+                "the plan needs both supplied. Everything above is measured from "
+                "this weekend's practice and does not depend on them."
+            )
+        else:
+            reason = (
+                "Fewer than two nominated compounds have a usable degradation rate. "
+                "A dry race needs two, so no legal plan exists yet."
+            )
         return {
             "event": req.event,
             "is_forecast": True,
             "can_plan": False,
-            "reason": (
-                "Fewer than two nominated compounds have a usable degradation rate. "
-                "A dry race needs two, so no legal plan exists yet."
-            ),
+            "reason": reason,
+            "needs_inputs": missing,
             "compounds": out_compounds,
             "practice_sessions": (
                 r.long_run_sessions_run() if (r := sched.find(req.event, SEASON)) else []
             ),
             "practice_to_race_factor": round(factor, 4),
-            "race_laps": int(laps),
-            "pit_loss_s": round(float(pit), 2),
+            "race_laps": int(laps) if laps is not None else None,
+            "pit_loss_s": round(float(pit), 2) if pit is not None else None,
             "compute_ms": int((time.perf_counter() - t0) * 1000),
         }
 
