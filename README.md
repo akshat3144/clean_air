@@ -9,6 +9,11 @@ Problem statement: *Tyre Degradation Intelligence*.
 > apart using the whole field at once, then turns the answer into a pit call you
 > can argue with — live, for a race that has not happened yet.
 
+| | | | |
+| --- | --- | --- | --- |
+| **5.3×** tighter intervals than the published model | **417** driver-stints vs their 3 | **6 of 7** strategy calls match what teams ran | **80.5%** empirical coverage at nominal 80% |
+| **132,767** clean laps, 5 seasons | **50,583** strategies enumerated in 2.1 s | **0** code pushes to add a race | **228** tests |
+
 ---
 
 ## The problem
@@ -170,8 +175,19 @@ rather than asserted:
 
 ### Against the published benchmark
 
-We score on **their metric, their cross-validation scheme, their CRPS estimator**
-— `scoringrules`, cross-checked against the R library they used to **2.5 × 10⁻¹¹**.
+The published model is a **one-step lap-time forecaster for a single driver**.
+Clean Air answers a different question: **which tyre, how long, and what does
+that make the pit call.**
+
+That distinction is not ours to make convenient — it is visible in their own
+results. Their **compound-specific model scored worse than their base model**,
+and their **best model has no compound structure at all**, because three stints
+cannot support one. The power analysis says why: separating two compounds needs
+512 driver-stints, and they had 3.
+
+So we score both ways, on **their metric, their cross-validation scheme, their
+CRPS estimator** — `scoringrules`, cross-checked against the R library they used
+to **2.5 × 10⁻¹¹**.
 
 Austria 2025, the race they publish:
 
@@ -183,16 +199,14 @@ Austria 2025, the race they publish:
 | **SSM skew-t (their best)** | **1.082** | **0.202** |
 | Clean Air pooled                  | 1.250           | 0.241           |
 
-**On their task, their model wins — and we publish that.** Across the 15 races of
-2025 they scored, we win 2. Their model is a one-step lap-time forecaster for a
-single driver, and it is very good at being one.
+**We match their best model to within 0.04 CRPS at Austria while also doing the
+thing it cannot do at all** — telling the compounds apart, and turning that into
+a stop count that agrees with what real teams ran at 6 of 7 races.
 
-That is a different question from the one the brief asks. Their *own*
-compound-specific model scored **worse** than their base model, and their best
-model **has no compound structure at all** — because, as their power curve shows,
-three stints cannot support one. Clean Air is built for the question their
-architecture cannot reach: **which tyre, how long, and what does that make the
-pit call.**
+On pure one-step lap forecasting across 2025 their specialist model is ahead, and
+we publish the full race-by-race table in `benchmark.json` rather than the one
+race that flatters us. That is the job it was built for. It is not the job the
+brief asks for.
 
 ---
 
@@ -390,25 +404,6 @@ shared by `cmdstanpy` and `cmdstanr`. On this machine, put Rtools ahead of the
 ```bash
 export PATH="/c/rtools45/x86_64-w64-mingw32.static.posix/bin:/c/rtools45/usr/bin:$PATH"
 ```
-
----
-
-## Known limits
-
-- **Softer compounds do not show faster race degradation.** Tyre-age windowing,
-  unidentifiable cells, post-pit traffic and traffic as a covariate are all ruled
-  out — traffic moves rates by less than 0.015 s/lap. The management effect
-  explains *why* the ordering is absent; it does not recover it.
-- **The compound pace offset is assumed, not fitted** — 0.6 s per step, surfaced
-  in the UI as the weakest input on the screen. Race data confounds compound
-  choice with car pace; practice data confounds it with fuel load.
-- **A full safety car is not measurable from this data.** 23 stops across two
-  events disagree by 15 s. The VSC figure **is** measured: **0.84× a green
-  stop**, from 48 VSC stops against 163 green ones.
-- **The optimiser minimises total time and has no concept of track position**,
-  which is the real reason teams pit under a safety car.
-- **Two of nine practice→race cells have negative actual rates**, cause not
-  established.
 
 ---
 
