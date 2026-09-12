@@ -71,6 +71,24 @@ class Fit:
         """
         return self.rates[compound].mean + self.circuit_slope.get(event or "", 0.0)
 
+    def interval_for(self, compound: str, event: str | None = None) -> Interval:
+        """``rate_for``, with its band, so a screen can show what it optimised.
+
+        The strategy layer used to optimise on the per-circuit rate and display
+        the global one beside it. Both playbook and API did it, in opposite
+        directions, and the result was a compound table whose numbers could not
+        produce the plan printed underneath -- Hungary and Australia both
+        reading 0.044 s/lap while their circuit slopes differ by 0.035.
+
+        The band is SHIFTED, not rescaled. The circuit offset is a fitted mean
+        shift, so it moves the whole interval; what it does not do is tell us
+        the per-circuit slope is as well determined as the global one, which is
+        why nothing here narrows.
+        """
+        d = self.circuit_slope.get(event or "", 0.0)
+        iv = self.rates[compound]
+        return Interval(mean=iv.mean + d, lo=iv.lo + d, hi=iv.hi + d)
+
     @property
     def ordered(self) -> list[str]:
         return [c for c in C_ORDER if c in self.rates]

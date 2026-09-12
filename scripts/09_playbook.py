@@ -180,7 +180,12 @@ def build_event(
     for c in sorted(nominated, key=lambda x: ("C1", "C2", "C3", "C4", "C5").index(x)):
         if c not in fit.rates:
             continue
-        r = fit.rates[c]
+        # The SAME number the optimiser used, not the global one. This block
+        # displayed `fit.rates[c]` while the plan above was built from
+        # `rate_for(c, event)`, so the compound table could not produce the
+        # plan printed beneath it -- Hungary and Australia both showed 0.044
+        # s/lap for C3 while their circuit slopes differ by 0.035.
+        r = fit.interval_for(c, event)
         excluded = c not in usable
         compounds.append(
             PlaybookCompound(

@@ -176,7 +176,12 @@ def _load() -> State:
     laps = pd.read_parquet(PROCESSED / "laps.parquet")
     all_events = set(laps["event"].unique())
     race = prepare(laps, "race")
-    fit = fit_degradation(race, quadratic=False, context="race")
+    # circuit_effects=True is not optional here, whatever the default says.
+    # Without it `circuit_slope` is empty, `rate_for` silently returns the
+    # global rate, and every circuit is handed the season average -- which is
+    # how the live app came to recommend one stop at all eleven events while
+    # the offline playbook said two at four of them.
+    fit = fit_degradation(race, quadratic=False, context="race", circuit_effects=True)
 
     try:
         practice = prepare(laps, "practice")
@@ -346,6 +351,14 @@ class WhatIfRequest(BaseModel):
     tyre_age: int = Field(ge=0, le=60)
     compound: str
     pit_loss_s: float | None = Field(default=None, ge=5.0, le=60.0)
+    #: The same three overrides ``/strategy`` takes, and for the same reason:
+    #: both panels are driven by one set of controls on one screen. Without
+    #: them this endpoint silently answered a different race -- the console
+    #: shortened Hungary to 50 laps, the plan above updated, and "pit now or
+    #: later" went on optimising 70 laps behind it.
+    race_laps: int | None = Field(default=None, ge=5, le=100)
+    rates: dict[str, float] | None = None
+    pace_step_s: float = Field(default=PACE_STEP_S, ge=0.0, le=3.0)
     #: A safety car is out NOW.
     safety_car: bool = False
     #: How many more laps the reduced pit loss is available for.
@@ -362,6 +375,12 @@ class WhatIfRequest(BaseModel):
     #: How many laps ahead to evaluate staying out.
     horizon: int = Field(default=8, ge=1, le=25)
     step: int = Field(default=3, ge=1, le=5)
+    #: Laps costing less than this than the best are reported as an equally
+    #: good window rather than as losses. Not derived from the model -- it is
+    #: an operational threshold, and the screen states it. Half a second is
+    #: below the execution spread of the stop itself, so a difference smaller
+    #: than this is not a call anybody can make on purpose.
+    window_tolerance_s: float = Field(default=0.5, ge=0.0, le=5.0)
 
 
 class WhatIfOption(BaseModel):
@@ -378,8 +397,17 @@ class WhatIfResponse(BaseModel):
     tyre_age: int
     compound: str
     pit_loss_s: float
+    #: Echoed so the screen can prove it answered the race the controls asked
+    #: for, rather than the calendar's default.
+    race_laps: int
     safety_car: bool
     best_pit_lap: int
+    #: The contiguous run of laps around ``best_pit_lap`` that cost less than
+    #: ``window_tolerance_s``. Equal to ``best_pit_lap`` twice when the call is
+    #: genuinely sharp.
+    window_from: int
+    window_to: int
+    window_tolerance_s: float
     options: list[WhatIfOption]
     compute_ms: int
 
@@ -402,7 +430,12 @@ def _rates_for(st: State, event: str, overrides: dict[str, float] | None):
     for c in [x for x in C_ORDER if x in nominated]:
         if c not in st.fit.rates:
             continue
-        iv = st.fit.rates[c]
+        # PER-CIRCUIT, not the season average. Fitted circuit slopes run from
+        # -0.081 s/lap at Suzuka to +0.082 at Barcelona, a spread wider than
+        # the one separating C1 from C5. Optimising on the global rate
+        # understates wear everywhere it matters and recommends the same stop
+        # count at every track, which is exactly what it did.
+        iv = st.fit.interval_for(c, event)
         overridden = bool(overrides and c in overrides)
         rate = float(overrides[c]) if overridden else float(iv.mean)
         # A tyre that does not wear will be run to the flag by any optimiser,
@@ -604,8 +637,8 @@ def whatif(req: WhatIfRequest) -> WhatIfResponse:
             return base_pit * req.neutralised_fraction
         return base_pit
 
-    race_laps = st.race_laps[req.event]
-    usable, _ = _rates_for(st, req.event, None)
+    race_laps = req.race_laps or st.race_laps[req.event]
+    usable, _ = _rates_for(st, req.event, req.rates)
     if req.compound not in usable:
         raise HTTPException(
             422,
@@ -616,7 +649,7 @@ def whatif(req: WhatIfRequest) -> WhatIfResponse:
         raise HTTPException(422, "the race is over")
 
     order = [c for c in C_ORDER if c in usable]
-    offsets = {c: -PACE_STEP_S * i for i, c in enumerate(order)}
+    offsets = {c: -req.pace_step_s * i for i, c in enumerate(order)}
     current_rate = usable[req.compound]
 
     options: list[WhatIfOption] = []
@@ -665,14 +698,38 @@ def whatif(req: WhatIfRequest) -> WhatIfResponse:
         )
     best_lap = min(raw, key=lambda r: r[1])[0]
 
+    # The window, not just the winner.
+    #
+    # "Best stop is lap 20" reads as a decision. It is often not one: at
+    # Hungary on a mid-race medium the first four options come out 0.00, 0.03,
+    # 0.03 and 0.16 seconds apart, which is far below the 2.2s median spread in
+    # what a stop costs at the same circuit from one season to the next. A pit
+    # wall told "lap 20" will burn a call defending it; told "anywhere in 20-23
+    # is free, it starts costing at 25" it can wait for track position, or
+    # traffic, or a safety car -- the things the optimiser does not model and
+    # the strategist does.
+    #
+    # Contiguous from the best lap outward, deliberately. A cheap lap on the
+    # far side of an expensive one is not somewhere you can drift to.
+    by_lap = {lap: total - top for lap, total, _ in raw}
+    lo = hi = best_lap
+    while (lo - 1) in by_lap and by_lap[lo - 1] <= req.window_tolerance_s:
+        lo -= 1
+    while (hi + 1) in by_lap and by_lap[hi + 1] <= req.window_tolerance_s:
+        hi += 1
+
     return WhatIfResponse(
         event=req.event,
         current_lap=req.current_lap,
         tyre_age=req.tyre_age,
         compound=req.compound,
         pit_loss_s=round(pit_loss_on(req.current_lap), 2),
+        race_laps=race_laps,
         safety_car=req.safety_car,
         best_pit_lap=best_lap,
+        window_from=lo,
+        window_to=hi,
+        window_tolerance_s=req.window_tolerance_s,
         options=options,
         compute_ms=int((time.perf_counter() - t0) * 1000),
     )

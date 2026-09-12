@@ -59,7 +59,10 @@ def main() -> None:
 
     laps = pd.read_parquet(PROCESSED / "laps.parquet")
     race = prepare(laps, "race")
-    fit = fit_degradation(race, quadratic=False, context="race")
+    # circuit_effects=True, because this script answers ONE named event. The
+    # global fit hands every track the season average, which is how both this
+    # and the API came to recommend the same stop count everywhere.
+    fit = fit_degradation(race, quadratic=False, context="race", circuit_effects=True)
 
     ev = race[race["event"] == args.event]
     race_laps = args.laps or int(ev["LapNumber"].max())
@@ -78,9 +81,9 @@ def main() -> None:
 
     # And only compounds whose fitted degradation is positive can be optimised on.
     rates = {
-        c: fit.rates[c].mean
+        c: fit.rate_for(c, args.event)
         for c in fit.ordered
-        if c in nominated and fit.rates[c].mean > 0
+        if c in nominated and fit.rate_for(c, args.event) > 0
     }
     order = [c for c in ("C1", "C2", "C3", "C4", "C5") if c in rates]
     offsets = {c: -PACE_STEP_S * i for i, c in enumerate(order)}
@@ -94,7 +97,7 @@ def main() -> None:
         print(f"   {c:10s}{rates[c]:+14.4f}{offsets[c]:+13.2f}"
               f"{optimal_stint(c, rates[c], pit_loss):11d} laps")
 
-    rejected = [c for c in fit.ordered if c in nominated and fit.rates[c].mean <= 0]
+    rejected = [c for c in fit.ordered if c in nominated and fit.rate_for(c, args.event) <= 0]
     if rejected:
         print(f"\n   excluded, fitted degradation not positive: {rejected}")
         print("   An optimiser handed a tyre that never wears will run it to the flag.")
