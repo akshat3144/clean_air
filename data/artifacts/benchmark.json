@@ -25,19 +25,19 @@
       "source": "published"
     },
     {
-      "model": "SSM compound-specific (we ran their code)",
-      "rmspe": null,
-      "crps": null,
-      "source": "reproduced"
-    },
-    {
       "model": "Clean Air pooled",
-      "rmspe": 1.145,
-      "crps": 0.21,
+      "rmspe": 1.2502,
+      "crps": 0.2384,
       "source": "ours"
     }
   ],
   "season_2025": [],
   "n_wins": 0,
-  "n_races": 0
+  "n_races": 0,
+  "ours_season_crps": 0.6058,
+  "theirs_season_crps": 0.238,
+  "ours_season_crps_median": 0.324,
+  "ours_season_races": 16,
+  "theirs_season_races": 19,
+  "r_crosscheck_max_diff": 2.4787283336991095e-11
 }

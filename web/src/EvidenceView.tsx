@@ -1,7 +1,7 @@
 import { scaleLinear } from "d3-scale";
 import { line } from "d3-shape";
 import { AblationChart } from "./AblationChart";
-import type { Bundle, CalibrationPoint, PowerPoint } from "./types/artifacts";
+import type { Bundle, CalibrationPoint, ManagementArtifact, PowerPoint } from "./types/artifacts";
 
 /**
  * How do you know it is right?
@@ -12,7 +12,7 @@ import type { Bundle, CalibrationPoint, PowerPoint } from "./types/artifacts";
  */
 
 export function EvidenceView({ bundle }: { bundle: Bundle }) {
-  const { ablation, power, calibration, benchmark } = bundle;
+  const { ablation, power, calibration, benchmark, management } = bundle;
 
   return (
     <div className="space-y-5">
@@ -66,11 +66,23 @@ export function EvidenceView({ bundle }: { bundle: Bundle }) {
         </section>
       </div>
 
+      <Management m={management} />
+
       <section className="panel p-4">
         <h3 className="label mb-1">Scored against the published benchmark</h3>
         <p className="mb-3 text-xs text-fg-dim">
-          Same metrics, same cross-validation scheme, same CRPS estimator &mdash; verified to agree
-          with the R reference implementation to 1e-11. Lower is better.
+          Their race, their cross-validation scheme (last quarter of each stint, one lap ahead),
+          their CRPS estimator
+          {benchmark.r_crosscheck_max_diff != null && (
+            <>
+              {" "}
+              &mdash; which agrees with R&apos;s <span className="num">scoringRules</span> to{" "}
+              <span className="num">
+                {benchmark.r_crosscheck_max_diff.toExponential(0)}
+              </span>
+            </>
+          )}
+          . Lower is better.
         </p>
         <table className="w-full text-xs">
           <thead>
@@ -104,15 +116,24 @@ export function EvidenceView({ bundle }: { bundle: Bundle }) {
             ))}
           </tbody>
         </table>
-        {benchmark.austria_2025.some((s) => s.source === "ours" && s.crps === null) && (
-          <p className="mt-3 rounded border border-signal-warn/30 bg-signal-warn/5 px-3 py-2 text-xs leading-relaxed text-signal-warn">
-            Our own score is <strong>not yet computed</strong>. Their cross-validation is a
-            single driver&apos;s stints, and our design needs the whole field at the same lap, so
-            scoring like-for-like means fitting the 2025 field and evaluating on their exact test
-            laps. Until that runs, the row stays empty &mdash; we have verified their parameter
-            estimates reproduce, not that we beat their scores.
-          </p>
-        )}
+        <p className="mt-3 rounded border border-signal-warn/30 bg-signal-warn/5 px-3 py-2 text-xs leading-relaxed text-signal-warn">
+          <strong>We do not beat them at this.</strong> Their model forecasts one driver&apos;s
+          next lap and does it better than ours does.
+          {benchmark.ours_season_crps_median != null && benchmark.theirs_season_crps != null && (
+            <>
+              {" "}
+              Across the season our median race scores{" "}
+              <span className="num">{benchmark.ours_season_crps_median.toFixed(3)}</span> against
+              their <span className="num">{benchmark.theirs_season_crps.toFixed(3)}</span> mean
+              &mdash; on {benchmark.ours_season_races} races to their{" "}
+              {benchmark.theirs_season_races}, so it is indicative rather than head-to-head.
+            </>
+          )}{" "}
+          What their model cannot do is separate the compounds: their own compound-specific
+          version scored <em>worse</em> than their base model, and their best model has no
+          compound structure at all. That is the question this project answers, and the power
+          analysis above shows their three-stint design could not have.
+        </p>
         <p className="mt-3 text-xs leading-relaxed text-fg-dim">
           Their &quot;RMSPE&quot; is a plain RMSE in seconds despite the name, and their total is a
           sum across stints while the CRPS total is a mean. Both traps are pinned by tests that
@@ -120,6 +141,91 @@ export function EvidenceView({ bundle }: { bundle: Bundle }) {
         </p>
       </section>
     </div>
+  );
+}
+
+function Management({ m }: { m: ManagementArtifact }) {
+  const max = Math.max(...m.rows.map((r) => Math.abs(r.ratio)), 1);
+  return (
+    <section className="panel p-4">
+      <h3 className="label mb-1">Why softer compounds do not look faster-wearing</h3>
+      <p className="mb-4 text-xs leading-relaxed text-fg-dim">
+        Softer tyres <em>do</em> degrade faster &mdash; in practice. In a race a driver nurses a
+        fragile tyre to hit a target lap time, so the measured degradation is suppressed, and the
+        softer the tyre the harder it is nursed. Across {m.n_cells} event-compound cells over{" "}
+        {m.n_seasons} seasons:
+      </p>
+
+      <div className="space-y-2">
+        {m.rows.map((r) => (
+          <div key={r.label} className="flex items-center gap-3 text-xs">
+            <span className="num w-16 text-fg-dim">{r.label.toLowerCase()}</span>
+            <div className="relative h-5 flex-1 overflow-hidden rounded-sm bg-ink-700">
+              <div
+                className="h-5 rounded-sm bg-brand/40"
+                style={{ width: `${(Math.max(0, r.ratio) / max) * 100}%` }}
+              />
+              <span className="num absolute left-2 top-0 leading-5 text-fg">
+                {(r.ratio * 100).toFixed(0)}%
+              </span>
+            </div>
+            <span className="num w-14 text-right text-fg-faint">n={r.n_cells}</span>
+          </div>
+        ))}
+      </div>
+      <p className="mt-1 text-micro text-fg-faint">
+        share of a tyre&apos;s practice degradation that still shows up in the race
+      </p>
+
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <dl className="space-y-1 text-xs">
+          <Row label="ordering holds" value={m.ordered ? "yes" : "no"} tone={m.ordered ? "good" : "bad"} />
+          <Row label="Spearman rho" value={m.rho.toFixed(3)} />
+          <Row label="p, direction predicted" value={m.p_one_sided.toFixed(3)}
+               tone={m.p_one_sided < 0.05 ? "good" : "warn"} />
+          <Row label="p, two-sided" value={m.p_two_sided.toFixed(3)}
+               tone={m.p_two_sided < 0.05 ? "good" : "warn"} />
+          <Row label="p, ignoring the ordering" value={m.p_kruskal.toFixed(3)} />
+        </dl>
+
+        {/* Our own effect SHRANK as seasons were added. Showing that is the
+            point -- a result that weakens as evidence grows is something the
+            reader is entitled to see rather than discover later. */}
+        <div>
+          <div className="label mb-1">as seasons were added</div>
+          <table className="w-full text-micro">
+            <thead>
+              <tr className="text-left text-fg-faint">
+                <th className="font-normal">seasons</th>
+                <th className="text-right font-normal">cells</th>
+                <th className="text-right font-normal">rho</th>
+                <th className="text-right font-normal">p 2-sided</th>
+              </tr>
+            </thead>
+            <tbody className="num">
+              {m.stability.map((s, i) => (
+                <tr key={i} className="border-t border-ink-700/60">
+                  <td className="py-0.5">{s.seasons.join("+")}</td>
+                  <td className="py-0.5 text-right">{s.n_cells}</td>
+                  <td className="py-0.5 text-right">{s.rho.toFixed(3)}</td>
+                  <td className={`py-0.5 text-right ${s.p_two_sided < 0.05 ? "text-signal-good" : "text-signal-warn"}`}>
+                    {s.p_two_sided.toFixed(3)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <p className={`mt-3 rounded border px-3 py-2 text-xs leading-relaxed ${
+        m.significant
+          ? "border-signal-good/30 bg-signal-good/5 text-signal-good"
+          : "border-signal-warn/30 bg-signal-warn/5 text-signal-warn"
+      }`}>
+        {m.verdict}
+      </p>
+    </section>
   );
 }
 
