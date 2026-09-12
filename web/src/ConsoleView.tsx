@@ -1,3 +1,4 @@
+import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import {
   ApiError,
@@ -10,27 +11,29 @@ import {
 } from "./api";
 import { RacePlanView } from "./RacePlanView";
 import { COMPOUND_COLOR, type Compound, type PlaybookArtifact } from "./types/artifacts";
+import { Animated, Dot, EASE, Panel, Pill, Row, Skeleton } from "./ui";
 import { useStrategy } from "./useStrategy";
 
 /**
  * The strategy console.
  *
- * This replaced a read-only version of the same panels. The difference is that
- * every number here is computed by Python from the controls on the left, so the
- * screen can answer questions nobody precomputed -- which is the whole gap
+ * Every number here is computed by Python from the controls on the left, so the
+ * screen can answer questions nobody precomputed. That is the difference
  * between a tool and a slideshow.
  *
- * The controls are the ones a strategist would actually reach for, and each is
- * here because a measurement has error worth exploring rather than because a
- * slider looks impressive:
+ * ON THE LAYOUT
  *
- *   pit loss     measured from a handful of green stops, so it has real error
- *   safety car   changes what a stop costs, using a MEASURED fraction
- *   degradation  draggable across the model's own confidence interval
- *   race laps    a shortened race is a different problem
+ * The first version made all five panels identical -- `panel p-4`, a label,
+ * some content -- which meant the recommendation had no more presence than the
+ * footnote about the assumed pace gap. The call is now a hero panel with an
+ * 88px readout and everything else is explicitly support. If a viewer takes one
+ * thing off this screen it should be the number of stops.
  *
- * If the API is unreachable the view says so plainly and points at the command
- * to start it, rather than showing an empty frame.
+ * ON THE MOTION
+ *
+ * Only changes that already happened get animated, and only where the change
+ * carries meaning: the stop count flipping, the crossover marker crossing the
+ * measured pit loss, a value replacing another. Nothing spins to imply work.
  */
 export function ConsoleView({ playbook }: { playbook: PlaybookArtifact }) {
   const [events, setEvents] = useState<ApiEvent[] | null>(null);
@@ -60,8 +63,8 @@ export function ConsoleView({ playbook }: { playbook: PlaybookArtifact }) {
 
   const event = events?.find((e) => e.event === eventName) ?? null;
 
-  // Reset the controls to the event's own measurements whenever it changes, so
-  // switching races never silently carries Monaco's pit loss to Spa.
+  // Reset to the event's own measurements whenever it changes, so switching
+  // races never silently carries Monaco's pit loss to Spa.
   useEffect(() => {
     if (!event) return;
     setPitLoss(event.pit_loss_s ?? 22);
@@ -92,51 +95,23 @@ export function ConsoleView({ playbook }: { playbook: PlaybookArtifact }) {
       safetyCar ||
       Object.keys(rates).length > 0);
 
-  if (apiDown) {
-    return <ApiDown message={apiDown} playbook={playbook} />;
-  }
-  if (!events) {
-    return <p className="panel p-4 text-xs text-fg-dim">connecting to the strategy service…</p>;
-  }
+  const reset = () => {
+    if (!event) return;
+    setPitLoss(event.pit_loss_s ?? 22);
+    setRaceLaps(event.race_laps);
+    setSafetyCar(false);
+    setRates({});
+  };
+
+  if (apiDown) return <ApiDown message={apiDown} playbook={playbook} />;
+  if (!events) return <Booting />;
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-1.5">
-        {events.map((e) => (
-          <button
-            key={e.event}
-            onClick={() => setEventName(e.event)}
-            disabled={!e.ready}
-            className={`rounded border px-2.5 py-1 text-xs transition-colors ${
-              e.event === eventName
-                ? "border-brand bg-brand/15 text-fg"
-                : e.ready
-                  ? "border-ink-600 text-fg-dim hover:border-ink-500 hover:text-fg"
-                  : "border-ink-700 text-fg-faint"
-            }`}
-            title={e.ready ? undefined : "no measured pit loss for this event"}
-          >
-            {e.event.replace(" Grand Prix", "")}
-          </button>
-        ))}
-        {dirty && (
-          <button
-            onClick={() => {
-              if (!event) return;
-              setPitLoss(event.pit_loss_s ?? 22);
-              setRaceLaps(event.race_laps);
-              setSafetyCar(false);
-              setRates({});
-            }}
-            className="ml-2 rounded border border-signal-warn/40 px-2.5 py-1 text-xs text-signal-warn hover:bg-signal-warn/10"
-          >
-            reset to measured
-          </button>
-        )}
-      </div>
+    <div className="space-y-5">
+      <EventBar events={events} active={eventName} onPick={setEventName} dirty={dirty} onReset={reset} />
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
-        <div className="space-y-4">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
+        <div className="space-y-5">
           <Controls
             event={event}
             pitLoss={pitLoss}
@@ -146,8 +121,9 @@ export function ConsoleView({ playbook }: { playbook: PlaybookArtifact }) {
             safetyCar={safetyCar}
             setSafetyCar={setSafetyCar}
             result={result}
+            pending={pending}
           />
-          {result && (
+          {result ? (
             <Tyres
               compounds={result.compounds}
               rates={rates}
@@ -159,176 +135,283 @@ export function ConsoleView({ playbook }: { playbook: PlaybookArtifact }) {
                 })
               }
             />
+          ) : (
+            <Panel title="degradation">
+              <div className="space-y-3">
+                <Skeleton className="h-8" />
+                <Skeleton className="h-8" />
+                <Skeleton className="h-8" />
+              </div>
+            </Panel>
           )}
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-5">
           {error ? (
-            <p className="panel border-signal-bad/40 p-4 text-xs text-signal-bad">{error}</p>
+            <Panel className="border-signal-bad/40">
+              <p className="text-base text-signal-bad">{error}</p>
+            </Panel>
           ) : result ? (
             <>
               <TheCall r={result} pending={pending} approximate={approximate} dirty={dirty} />
-              <Alternatives r={result} />
-              <WhatIf event={result.event} raceLaps={result.race_laps} compounds={result.compounds}
-                      pitLoss={pitLoss} safetyCar={safetyCar} />
+              <div className="grid gap-5 lg:grid-cols-2">
+                <Alternatives r={result} />
+                <Headroom r={result} />
+              </div>
+              <WhatIf
+                event={result.event}
+                raceLaps={result.race_laps}
+                compounds={result.compounds}
+                pitLoss={pitLoss}
+                safetyCar={safetyCar}
+              />
             </>
           ) : (
-            <p className="panel p-4 text-xs text-fg-dim">computing…</p>
+            <>
+              <Panel hero>
+                <Skeleton className="h-6 w-32" />
+                <Skeleton className="mt-4 h-20 w-48" />
+                <Skeleton className="mt-4 h-8 w-64" />
+              </Panel>
+              <Skeleton className="h-36 rounded-lg" />
+            </>
           )}
         </div>
       </div>
     </div>
+  );
+}
+
+function Booting() {
+  return (
+    <div className="space-y-5">
+      <Skeleton className="h-9 w-full max-w-2xl rounded-md" />
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
+        <Skeleton className="h-64 rounded-lg" />
+        <div className="space-y-5">
+          <Skeleton className="h-48 rounded-xl" />
+          <Skeleton className="h-36 rounded-lg" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EventBar({
+  events,
+  active,
+  onPick,
+  dirty,
+  onReset,
+}: {
+  events: ApiEvent[];
+  active: string | null;
+  onPick: (e: string) => void;
+  dirty: boolean;
+  onReset: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {events.map((e) => (
+        <button
+          key={e.event}
+          onClick={() => onPick(e.event)}
+          disabled={!e.ready}
+          className={`chip ${e.event === active ? "chip-active" : ""} ${!e.ready ? "chip-disabled" : ""}`}
+          title={e.ready ? undefined : "no measured pit loss for this event"}
+        >
+          {e.event.replace(" Grand Prix", "")}
+        </button>
+      ))}
+      <AnimatePresence>
+        {dirty && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.92 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.92 }}
+            transition={{ duration: 0.18, ease: EASE }}
+            onClick={onReset}
+            className="ml-1 rounded-md border border-signal-warn/50 bg-signal-warn/5 px-3 py-1.5 text-tiny font-medium text-signal-warn transition-colors hover:bg-signal-warn/15"
+          >
+            reset to measured
+          </motion.button>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+/** THE CALL. One hero panel per screen, and this is it. */
+function TheCall({
+  r,
+  pending,
+  approximate,
+  dirty,
+}: {
+  r: StrategyResult;
+  pending: boolean;
+  approximate: boolean;
+  dirty: boolean;
+}) {
+  const rec = r.plans.find((p) => p.n_stops === r.recommended_stops) ?? r.plans[0];
+  const close = r.margin_s < 3;
+
+  return (
+    <motion.section
+      className="panel-hero relative overflow-hidden p-6"
+      // Ring pulse keyed on the stop count: the flip gets acknowledged.
+      key={`ring-${r.recommended_stops}`}
+      initial={false}
+      animate={{ boxShadow: undefined }}
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h3 className="title">the call</h3>
+          <p className="mt-1 text-tiny text-fg-dim">
+            {r.event.replace(" Grand Prix", "")} · {r.race_laps} laps ·{" "}
+            {r.n_plans_enumerated.toLocaleString()} plans enumerated
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {dirty ? <Pill tone="warn">your inputs</Pill> : <Pill tone="neutral">as measured</Pill>}
+          {pending && (
+            <Pill tone="neutral">
+              <Dot tone="warn" />
+              refining
+            </Pill>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-5 flex flex-wrap items-end gap-x-8 gap-y-5">
+        <div
+          key={r.recommended_stops}
+          className="flex items-baseline gap-3 animate-value-in"
+        >
+          <span className="num text-hero font-medium text-fg">{r.recommended_stops}</span>
+          <span className="pb-2 text-xl text-fg-dim">
+            {r.recommended_stops === 1 ? "stop" : "stops"}
+          </span>
+        </div>
+
+        <div className="pb-2">
+          <div className="label">margin over the next-best stop count</div>
+          <div
+            className={`num mt-1 text-2xl font-medium ${close ? "text-signal-warn" : "text-signal-good"}`}
+          >
+            <Animated value={`${r.margin_s.toFixed(1)}s`} direction="none" />
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-5 divider" />
+
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        {rec.compounds.map((c, i) => (
+          <span key={i} className="flex items-center gap-2">
+            {i > 0 && <span className="text-lg text-fg-faint">→</span>}
+            <motion.span
+              layout
+              transition={{ duration: 0.2, ease: EASE }}
+              className="num rounded-md px-3 py-1.5 text-base font-semibold text-ink-950"
+              style={{ backgroundColor: COMPOUND_COLOR[c as Compound] }}
+            >
+              {c} <span className="opacity-60">×</span> {rec.stint_lengths[i]}
+            </motion.span>
+          </span>
+        ))}
+        {approximate && (
+          <span className="ml-1 text-micro text-fg-faint">stint lengths settle in a moment</span>
+        )}
+      </div>
+
+      {close && (
+        <p className="mt-4 rounded-md border border-signal-warn/30 bg-signal-warn/5 px-3 py-2 text-tiny leading-relaxed text-signal-warn">
+          Over {r.race_laps} laps, {r.margin_s.toFixed(1)}s is a coin flip leaning one way — not a
+          decision.
+        </p>
+      )}
+    </motion.section>
   );
 }
 
 /**
- * Fallback when the service is unreachable.
+ * How much measurement error the call survives.
  *
- * It falls back to the PUBLISHED playbook rather than to an error screen. The
- * live console can answer questions nobody precomputed, and that is the point
- * of it -- but if the backend dies thirty seconds before a demo, showing the
- * seven precomputed races is enormously better than showing a stack trace. The
- * banner says which one you are looking at, so the fallback can never be
- * mistaken for the live thing.
+ * Pit loss comes from a handful of green-flag stops, so it carries real error.
+ * The crossover is where the recommendation flips. The gap between the two is
+ * the answer to "how wrong can we be", which is what a strategist needs and
+ * what a single point estimate never says.
  */
-function ApiDown({ message, playbook }: { message: string; playbook: PlaybookArtifact }) {
-  return (
-    <div className="space-y-4">
-      <section className="panel border-signal-warn/40 p-4">
-        <h3 className="label text-signal-warn">
-          strategy service unreachable — showing published results
-        </h3>
-        <p className="mt-2 text-xs leading-relaxed text-fg-dim">
-          These are the precomputed calls for the events we have. The controls are gone because
-          there is nothing to recompute with. Start the service to get them back:
-        </p>
-        <pre className="mt-2 overflow-x-auto rounded bg-ink-900 p-2 text-micro text-fg">
-          uvicorn cleanair.api:app --reload --port 8000
-        </pre>
-        <p className="mt-2 text-micro text-fg-faint">{message}</p>
-      </section>
-      {playbook.events.length > 0 && <RacePlanView playbook={playbook} />}
-    </div>
-  );
-}
-
-function Controls({
-  event,
-  pitLoss,
-  setPitLoss,
-  raceLaps,
-  setRaceLaps,
-  safetyCar,
-  setSafetyCar,
-  result,
-}: {
-  event: ApiEvent | null;
-  pitLoss: number | null;
-  setPitLoss: (v: number) => void;
-  raceLaps: number | null;
-  setRaceLaps: (v: number) => void;
-  safetyCar: boolean;
-  setSafetyCar: (v: boolean) => void;
-  result: StrategyResult | null;
-}) {
-  if (!event || pitLoss === null || raceLaps === null) return null;
-  const measured = event.pit_loss_s;
-  const x = result?.crossover_pit_loss_s ?? null;
+function Headroom({ r }: { r: StrategyResult }) {
+  const x = r.crossover_pit_loss_s;
+  const lo = 15;
+  const hi = 35;
+  const pos = (v: number) => ((Math.min(hi, Math.max(lo, v)) - lo) / (hi - lo)) * 100;
+  const headroom = x === null ? null : Math.abs(x - r.pit_loss_s);
+  const tight = headroom !== null && headroom < 1.5;
 
   return (
-    <section className="panel p-4">
-      <span className="label">race state</span>
-
-      <div className="mt-3">
-        <div className="flex items-baseline justify-between text-xs">
-          <span className="text-fg-dim">pit loss</span>
-          <span className="num text-fg">{pitLoss.toFixed(1)}s</span>
-        </div>
-        <input
-          type="range"
-          min={15}
-          max={35}
-          step={0.5}
-          value={pitLoss}
-          onChange={(e) => setPitLoss(Number(e.target.value))}
-          className="mt-1 w-full accent-brand"
-        />
-        <div className="flex justify-between text-micro text-fg-faint">
-          <span className="num">15s</span>
-          {measured !== null && (
-            <button
-              onClick={() => setPitLoss(measured)}
-              className="num hover:text-fg"
-              title="back to the measured value"
-            >
-              measured {measured.toFixed(1)}s
-              {event.n_green_stops !== null && ` (${event.n_green_stops} stops)`}
-            </button>
-          )}
-          <span className="num">35s</span>
-        </div>
-        {/* The crossover is the whole reason this slider exists: it says how
-            much measurement error the call survives. */}
+    <Panel title="how wrong can we be" meta={x === null ? "not close" : `${headroom!.toFixed(1)}s`}>
+      <div className="relative mt-1 h-12">
+        <div className="absolute inset-x-0 top-6 h-1.5 rounded-full bg-ink-700" />
         {x !== null && (
-          <p className="mt-1.5 text-micro leading-snug text-fg-faint">
-            the call flips at <span className="num text-signal-warn">{x.toFixed(1)}s</span>
-            {measured !== null && (
-              <>
-                {" "}
-                — <span className="num">{Math.abs(x - measured).toFixed(1)}s</span> from the
-                measurement
-              </>
-            )}
-          </p>
+          <>
+            <motion.div
+              className={`absolute top-6 h-1.5 rounded-full ${tight ? "bg-signal-warn" : "bg-signal-good"}`}
+              initial={false}
+              animate={{
+                left: `${Math.min(pos(r.pit_loss_s), pos(x))}%`,
+                width: `${Math.abs(pos(x) - pos(r.pit_loss_s))}%`,
+              }}
+              transition={{ duration: 0.3, ease: EASE }}
+            />
+            <motion.div
+              className="absolute top-3 flex flex-col items-center"
+              initial={false}
+              animate={{ left: `${pos(x)}%` }}
+              transition={{ duration: 0.3, ease: EASE }}
+              style={{ translateX: "-50%" }}
+            >
+              <div className="h-7 w-0.5 bg-signal-warn" />
+              <span className="num mt-0.5 text-micro text-signal-warn">{x.toFixed(1)}</span>
+            </motion.div>
+          </>
         )}
+        <motion.div
+          className="absolute top-2 flex flex-col items-center"
+          initial={false}
+          animate={{ left: `${pos(r.pit_loss_s)}%` }}
+          transition={{ duration: 0.2, ease: EASE }}
+          style={{ translateX: "-50%" }}
+        >
+          <div className="h-9 w-1 rounded-sm bg-fg shadow-glow" />
+        </motion.div>
       </div>
 
-      <label className="mt-4 flex items-center gap-2 text-xs">
-        <input
-          type="checkbox"
-          checked={safetyCar}
-          onChange={(e) => setSafetyCar(e.target.checked)}
-          className="accent-brand"
+      <dl className="mt-2 space-y-1.5">
+        <Row
+          label="pit loss now"
+          value={`${r.pit_loss_s.toFixed(1)}s`}
+          note={
+            r.pit_loss_measured_s !== null && r.n_green_stops !== null
+              ? `measured ${r.pit_loss_measured_s.toFixed(1)}s · ${r.n_green_stops} stops`
+              : undefined
+          }
+          tone={r.n_green_stops !== null && r.n_green_stops < 4 ? "warn" : undefined}
         />
-        <span className={safetyCar ? "text-signal-warn" : "text-fg-dim"}>safety car is out</span>
-      </label>
-      {safetyCar && result?.safety_car_fraction && (
-        <p className="mt-1 text-micro leading-snug text-fg-faint">
-          a stop now costs{" "}
-          <span className="num text-fg">{result.pit_loss_s.toFixed(1)}s</span> — the{" "}
-          <span className="num">{result.safety_car_fraction}</span> fraction is measured from{" "}
-          {result.pit_loss_by_status?.vsc?.n_stops ?? "?"} VSC stops. It is NOT measurable for a
-          full safety car: 23 stops across two events, 15s apart.
-        </p>
-      )}
-
-      <div className="mt-4">
-        <div className="flex items-baseline justify-between text-xs">
-          <span className="text-fg-dim">race laps</span>
-          <span className="num text-fg">{raceLaps}</span>
-        </div>
-        <input
-          type="range"
-          min={Math.max(10, Math.round(event.race_laps * 0.4))}
-          max={event.race_laps}
-          step={1}
-          value={raceLaps}
-          onChange={(e) => setRaceLaps(Number(e.target.value))}
-          className="mt-1 w-full accent-brand"
-        />
-        <div className="flex justify-between text-micro text-fg-faint">
-          <span>shortened</span>
-          <span className="num">full {event.race_laps}</span>
-        </div>
-      </div>
-
-      {result && (
-        <p className="mt-4 border-t border-ink-600 pt-2 text-micro text-fg-faint">
-          <span className="num">{result.n_plans_enumerated.toLocaleString()}</span> plans enumerated
-          in <span className="num">{result.compute_ms}ms</span>
-        </p>
-      )}
-    </section>
+        {x === null ? (
+          <Row label="flips at" value="never in 15–35s" tone="good" />
+        ) : (
+          <Row
+            label="flips at"
+            value={`${x.toFixed(1)}s`}
+            note={`${headroom!.toFixed(1)}s of rope`}
+            tone={tight ? "warn" : "good"}
+          />
+        )}
+      </dl>
+    </Panel>
   );
 }
 
@@ -344,17 +427,13 @@ function Tyres({
   onClear: (c: string) => void;
 }) {
   return (
-    <section className="panel p-4">
-      <div className="flex items-baseline justify-between">
-        <span className="label">degradation</span>
-        <span className="label">s/lap</span>
-      </div>
-      <p className="mt-1 text-micro leading-snug text-fg-faint">
-        Drag to ask what happens if the tyre goes off faster than the model thinks. The bar is the
-        fitted 95% interval; outside it you are overruling the model, and it says so.
+    <Panel title="degradation" meta="s/lap">
+      <p className="mb-4 text-tiny leading-relaxed text-fg-faint">
+        Drag to ask what happens if a tyre goes off faster than the model thinks. The pale bar is
+        the fitted 95% interval.
       </p>
 
-      <div className="mt-3 space-y-3">
+      <div className="space-y-4">
         {compounds.map((c) => {
           const overridden = c.compound in rates;
           const value = overridden ? rates[c.compound] : c.rate;
@@ -362,44 +441,43 @@ function Tyres({
           const max = Math.max(0.12, c.rate_hi * 1.6);
           return (
             <div key={c.compound}>
-              <div className="flex items-baseline gap-2 text-xs">
+              <div className="flex items-baseline gap-2">
                 <span
-                  className="num w-7 rounded px-1 text-center text-micro font-medium text-ink-900"
+                  className="num w-9 rounded px-1.5 py-0.5 text-center text-micro font-bold text-ink-950"
                   style={{ backgroundColor: COMPOUND_COLOR[c.compound as Compound] }}
                 >
                   {c.compound}
                 </span>
-                <span className="label w-12">{c.label}</span>
-                <span className={`num ${outside ? "text-signal-warn" : "text-fg"}`}>
-                  {value.toFixed(4)}
+                <span className="label w-14">{c.label}</span>
+                <span className={`num text-lg font-medium ${outside ? "text-signal-warn" : "text-fg"}`}>
+                  <Animated value={value.toFixed(4)} direction="none" />
                 </span>
                 {overridden && (
                   <button
                     onClick={() => onClear(c.compound)}
-                    className="text-micro text-fg-faint hover:text-fg"
+                    className="text-micro text-fg-faint underline decoration-dotted hover:text-fg"
                   >
                     reset
                   </button>
                 )}
-                <span className="num ml-auto text-micro text-fg-faint">
+                <span className="num ml-auto text-tiny text-fg-dim">
                   {c.excluded ? "unusable" : `${c.optimal_stint} laps`}
                 </span>
               </div>
-              <input
-                type="range"
-                min={0}
-                max={max}
-                step={0.001}
-                value={Math.min(value, max)}
-                onChange={(e) => onChange(c.compound, Number(e.target.value))}
-                className={`mt-1 w-full ${outside ? "accent-signal-warn" : "accent-brand"}`}
-              />
-              {/* The fitted interval, drawn under the slider on the same scale,
-                  so "inside the model" is visible rather than a number to
-                  remember. */}
-              <div className="relative h-1">
+              <div className="relative mt-2">
+                <input
+                  type="range"
+                  min={0}
+                  max={max}
+                  step={0.001}
+                  value={Math.min(value, max)}
+                  onChange={(e) => onChange(c.compound, Number(e.target.value))}
+                />
+                {/* The fitted interval on the same scale as the slider, so
+                    "inside the model" is visible rather than a number to hold
+                    in your head. */}
                 <div
-                  className="absolute h-1 rounded-sm bg-fg-faint/40"
+                  className="pointer-events-none absolute -bottom-1.5 h-1 rounded-full bg-fg-faint/30"
                   style={{
                     left: `${(Math.max(0, c.rate_lo) / max) * 100}%`,
                     width: `${((c.rate_hi - Math.max(0, c.rate_lo)) / max) * 100}%`,
@@ -407,118 +485,195 @@ function Tyres({
                 />
               </div>
               {outside && (
-                <p className="mt-0.5 text-micro text-signal-warn">
-                  outside the fitted interval — this is your number, not the model&apos;s
+                <p className="mt-2 text-micro text-signal-warn">
+                  outside the fitted interval — your number, not the model&apos;s
                 </p>
               )}
             </div>
           );
         })}
       </div>
-    </section>
+
+      {compounds.some((c) => c.excluded) && (
+        <p className="mt-4 text-tiny leading-relaxed text-fg-faint">
+          A tyre marked unusable had a fitted degradation that was not positive, so the optimiser
+          was not allowed to pick it. Hand an optimiser a tyre that never wears and it runs it to
+          the flag.
+        </p>
+      )}
+    </Panel>
   );
 }
 
-function TheCall({
-  r,
+function Controls({
+  event,
+  pitLoss,
+  setPitLoss,
+  raceLaps,
+  setRaceLaps,
+  safetyCar,
+  setSafetyCar,
+  result,
   pending,
-  approximate,
-  dirty,
 }: {
-  r: StrategyResult;
+  event: ApiEvent | null;
+  pitLoss: number | null;
+  setPitLoss: (v: number) => void;
+  raceLaps: number | null;
+  setRaceLaps: (v: number) => void;
+  safetyCar: boolean;
+  setSafetyCar: (v: boolean) => void;
+  result: StrategyResult | null;
   pending: boolean;
-  approximate: boolean;
-  dirty: boolean;
 }) {
-  const rec = r.plans.find((p) => p.n_stops === r.recommended_stops) ?? r.plans[0];
-  const close = r.margin_s < 3;
+  if (!event || pitLoss === null || raceLaps === null) {
+    return (
+      <Panel title="race state">
+        <Skeleton className="h-40" />
+      </Panel>
+    );
+  }
+  const measured = event.pit_loss_s;
+
   return (
-    <section className="panel p-5">
-      <div className="flex items-baseline justify-between">
-        <span className="label">the call</span>
-        <span className="label">
-          {dirty ? (
-            <span className="text-signal-warn">your inputs</span>
-          ) : (
-            "as measured"
-          )}{" "}
-          · {r.event.replace(" Grand Prix", "")} · {r.race_laps} laps
-        </span>
-      </div>
-
-      <div className="mt-2 flex items-baseline gap-3">
-        <span className="num text-5xl font-medium leading-none text-fg">
-          {r.recommended_stops}
-        </span>
-        <span className="text-lg text-fg-dim">
-          {r.recommended_stops === 1 ? "stop" : "stops"}
-        </span>
-        {pending && <span className="label ml-2 text-fg-faint">refining…</span>}
-      </div>
-
-      <div className="mt-4 flex flex-wrap items-center gap-1.5">
-        {rec.compounds.map((c, i) => (
-          <span key={i} className="flex items-center gap-1.5">
-            {i > 0 && <span className="text-fg-faint">→</span>}
-            <span
-              className="num rounded px-2 py-1 text-xs font-medium text-ink-900"
-              style={{ backgroundColor: COMPOUND_COLOR[c as Compound] }}
-            >
-              {c} × {rec.stint_lengths[i]}
+    <Panel
+      title="race state"
+      meta={
+        result ? (
+          <span className="num">
+            {pending ? "computing" : `${result.compute_ms}ms`}
+          </span>
+        ) : undefined
+      }
+    >
+      <div className="space-y-6">
+        <div>
+          <div className="flex items-baseline justify-between">
+            <span className="label">pit loss</span>
+            <span className="num text-xl font-medium text-fg">
+              <Animated value={pitLoss.toFixed(1)} direction="none" />
+              <span className="ml-0.5 text-tiny text-fg-faint">s</span>
             </span>
-          </span>
-        ))}
-        {approximate && (
-          <span className="label ml-2 text-fg-faint">
-            stint lengths approximate until it settles
-          </span>
-        )}
-      </div>
+          </div>
+          <input
+            type="range"
+            min={15}
+            max={35}
+            step={0.5}
+            value={pitLoss}
+            onChange={(e) => setPitLoss(Number(e.target.value))}
+            className="mt-2"
+          />
+          <div className="mt-1.5 flex items-center justify-between text-micro text-fg-faint">
+            <span className="num">15</span>
+            {measured !== null && (
+              <button
+                onClick={() => setPitLoss(measured)}
+                className="text-micro underline decoration-dotted hover:text-fg"
+              >
+                measured {measured.toFixed(1)}s
+              </button>
+            )}
+            <span className="num">35</span>
+          </div>
+        </div>
 
-      <p className="mt-3 text-xs leading-relaxed text-fg-dim">
-        <span className="num text-fg">{r.margin_s.toFixed(1)}s</span> clear of the best plan at any
-        other stop count.
-      </p>
-      {close && (
-        <p className="mt-2 rounded border border-signal-warn/30 bg-signal-warn/5 px-2.5 py-1.5 text-xs text-signal-warn">
-          Under {r.race_laps} laps that margin is a coin flip leaning one way, not a decision.
-        </p>
-      )}
-    </section>
+        <div className="divider" />
+
+        <div>
+          <label className="flex cursor-pointer items-center justify-between">
+            <span className={`text-base ${safetyCar ? "text-signal-warn" : "text-fg-dim"}`}>
+              safety car is out
+            </span>
+            <input
+              type="checkbox"
+              checked={safetyCar}
+              onChange={(e) => setSafetyCar(e.target.checked)}
+            />
+          </label>
+          <AnimatePresence>
+            {safetyCar && result?.safety_car_fraction && (
+              <motion.p
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.2, ease: EASE }}
+                className="overflow-hidden text-tiny leading-relaxed text-fg-faint"
+              >
+                <span className="mt-2 block">
+                  A stop now costs{" "}
+                  <span className="num text-signal-warn">{result.pit_loss_s.toFixed(1)}s</span>. The{" "}
+                  <span className="num">{result.safety_car_fraction}</span>× fraction is measured
+                  from {result.pit_loss_by_status?.vsc?.n_stops ?? "?"} VSC stops. A full safety car
+                  is <strong>not</strong> measurable here — 23 stops across two events, 15s apart.
+                </span>
+              </motion.p>
+            )}
+          </AnimatePresence>
+        </div>
+
+        <div className="divider" />
+
+        <div>
+          <div className="flex items-baseline justify-between">
+            <span className="label">race laps</span>
+            <span className="num text-xl font-medium text-fg">
+              <Animated value={raceLaps} direction="none" />
+            </span>
+          </div>
+          <input
+            type="range"
+            min={Math.max(10, Math.round(event.race_laps * 0.4))}
+            max={event.race_laps}
+            step={1}
+            value={raceLaps}
+            onChange={(e) => setRaceLaps(Number(e.target.value))}
+            className="mt-2"
+          />
+          <div className="mt-1.5 flex justify-between text-micro text-fg-faint">
+            <span>shortened</span>
+            <span className="num">full {event.race_laps}</span>
+          </div>
+        </div>
+      </div>
+    </Panel>
   );
 }
 
 function Alternatives({ r }: { r: StrategyResult }) {
   const worst = Math.max(...r.plans.map((p) => p.delta_s), 1);
   return (
-    <section className="panel p-4">
-      <span className="label">what the alternatives cost</span>
-      <div className="mt-3 space-y-2">
+    <Panel title="what the alternatives cost" meta="total race time">
+      <div className="space-y-3">
         {r.plans.map((p) => {
           const best = p.n_stops === r.recommended_stops;
           return (
-            <div key={p.n_stops} className="flex items-center gap-2 text-xs">
-              <span className={`num w-14 ${best ? "text-fg" : "text-fg-dim"}`}>
+            <div key={p.n_stops} className="flex items-center gap-3">
+              <span className={`num w-16 text-tiny ${best ? "text-fg" : "text-fg-dim"}`}>
                 {p.n_stops} stop{p.n_stops === 1 ? "" : "s"}
               </span>
-              <div className="relative h-4 flex-1 overflow-hidden rounded-sm bg-ink-700">
-                <div
-                  className={`h-4 rounded-sm ${best ? "bg-brand/60" : "bg-ink-600"}`}
-                  style={{ width: `${best ? 4 : Math.max(4, (p.delta_s / worst) * 100)}%` }}
+              <div className="relative h-6 flex-1 overflow-hidden rounded bg-ink-700">
+                <motion.div
+                  className={`h-6 rounded ${best ? "bg-brand/70" : "bg-ink-500"}`}
+                  initial={false}
+                  animate={{ width: `${best ? 5 : Math.max(5, (p.delta_s / worst) * 100)}%` }}
+                  transition={{ duration: 0.3, ease: EASE }}
                 />
               </div>
-              <span className={`num w-16 text-right ${best ? "text-signal-good" : "text-fg-dim"}`}>
+              <span
+                className={`num w-20 text-right text-base font-medium ${best ? "text-signal-good" : "text-fg-dim"}`}
+              >
                 {best ? "best" : `+${p.delta_s.toFixed(1)}s`}
               </span>
             </div>
           );
         })}
       </div>
-    </section>
+    </Panel>
   );
 }
 
-/** Pit now or in N laps -- the question a pit wall actually asks. */
+/** Pit now or later -- the question a pit wall actually asks. */
 function WhatIf({
   event,
   raceLaps,
@@ -540,9 +695,7 @@ function WhatIf({
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!usable.some((c) => c.compound === compound)) {
-      setCompound(usable[0]?.compound ?? "");
-    }
+    if (!usable.some((c) => c.compound === compound)) setCompound(usable[0]?.compound ?? "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [compounds]);
 
@@ -585,41 +738,36 @@ function WhatIf({
   const worst = res ? Math.max(...res.options.map((o) => o.delta_s), 1) : 1;
 
   return (
-    <section className="panel p-4">
-      <div className="flex items-baseline justify-between">
-        <span className="label">pit now, or later?</span>
-        {res && <span className="label">{res.compute_ms}ms</span>}
-      </div>
-
-      <div className="mt-3 grid grid-cols-3 gap-3 text-xs">
-        <label>
-          <span className="text-fg-dim">on lap</span>
+    <Panel
+      title="pit now, or later?"
+      meta={res ? <span className="num">{res.compute_ms}ms</span> : undefined}
+    >
+      <div className="grid grid-cols-3 gap-4">
+        <Field label="on lap">
           <input
             type="number"
             min={1}
             max={raceLaps - 6}
             value={lap}
             onChange={(e) => setLap(Number(e.target.value))}
-            className="num mt-1 w-full rounded border border-ink-600 bg-ink-900 px-2 py-1 text-fg"
+            className="num w-full rounded-md border border-ink-600 bg-ink-950 px-2.5 py-1.5 text-base text-fg focus:border-brand focus:outline-none"
           />
-        </label>
-        <label>
-          <span className="text-fg-dim">tyre age</span>
+        </Field>
+        <Field label="tyre age">
           <input
             type="number"
             min={0}
             max={50}
             value={age}
             onChange={(e) => setAge(Number(e.target.value))}
-            className="num mt-1 w-full rounded border border-ink-600 bg-ink-900 px-2 py-1 text-fg"
+            className="num w-full rounded-md border border-ink-600 bg-ink-950 px-2.5 py-1.5 text-base text-fg focus:border-brand focus:outline-none"
           />
-        </label>
-        <label>
-          <span className="text-fg-dim">on</span>
+        </Field>
+        <Field label="on">
           <select
             value={compound}
             onChange={(e) => setCompound(e.target.value)}
-            className="num mt-1 w-full rounded border border-ink-600 bg-ink-900 px-2 py-1 text-fg"
+            className="num w-full rounded-md border border-ink-600 bg-ink-950 px-2.5 py-1.5 text-base text-fg focus:border-brand focus:outline-none"
           >
             {usable.map((c) => (
               <option key={c.compound} value={c.compound}>
@@ -627,55 +775,112 @@ function WhatIf({
               </option>
             ))}
           </select>
-        </label>
+        </Field>
       </div>
 
       {err ? (
-        <p className="mt-3 text-xs text-signal-warn">{err}</p>
+        <p className="mt-4 text-tiny text-signal-warn">{err}</p>
       ) : res ? (
         <>
-          <p className="mt-3 text-xs text-fg-dim">
-            Best stop is lap <span className="num text-fg">{res.best_pit_lap}</span>
+          <p className="mt-4 text-base leading-relaxed text-fg-dim">
+            Best stop is lap{" "}
+            <span className="num text-lg font-medium text-fg">{res.best_pit_lap}</span>
             {res.best_pit_lap === lap ? (
               <span className="text-signal-good"> — now</span>
             ) : (
               <>
                 {" "}
                 — <span className="num text-fg">{res.best_pit_lap - lap}</span> lap
-                {res.best_pit_lap - lap === 1 ? "" : "s"} from now
+                {res.best_pit_lap - lap === 1 ? "" : "s"} away
               </>
             )}
             . A stop costs <span className="num text-fg">{res.pit_loss_s.toFixed(1)}s</span>.
           </p>
-          <div className="mt-2 flex items-end gap-1">
+          {/* Bar height is COST, so taller is worse and the shortest bar is the
+              answer. The first version inverted this -- tallest meant best --
+              which put a tall bar directly under a label reading "+8.7s". The
+              chart and the number it sat beside disagreed. */}
+          <div className="mt-3 flex h-24 items-end gap-1.5">
             {res.options.map((o) => {
               const best = o.delta_s === 0;
               return (
-                <div key={o.pit_on_lap} className="flex flex-1 flex-col items-center gap-1">
+                <div key={o.pit_on_lap} className="flex h-full flex-1 flex-col items-center justify-end gap-1.5">
                   <span
-                    className={`num text-micro ${best ? "text-signal-good" : "text-fg-faint"}`}
+                    className={`num text-micro ${best ? "font-bold text-signal-good" : "text-fg-faint"}`}
                   >
                     {best ? "best" : `+${o.delta_s.toFixed(1)}`}
                   </span>
-                  <div
-                    className={`w-full rounded-sm ${best ? "bg-signal-good/60" : "bg-ink-600"}`}
-                    style={{ height: `${6 + (1 - o.delta_s / worst) * 34}px` }}
-                    title={`pit on lap ${o.pit_on_lap}: +${o.delta_s.toFixed(2)}s`}
+                  <motion.div
+                    className={`w-full rounded-t ${best ? "bg-signal-good" : "bg-ink-500"}`}
+                    initial={false}
+                    animate={{ height: `${Math.max(3, (o.delta_s / worst) * 56)}px` }}
+                    transition={{ duration: 0.25, ease: EASE }}
+                    title={`pit on lap ${o.pit_on_lap}: +${o.delta_s.toFixed(2)}s slower than the best`}
                   />
-                  <span className="num text-micro text-fg-dim">{o.pit_on_lap}</span>
+                  <span
+                    className={`num text-micro ${best ? "text-signal-good" : "text-fg-dim"}`}
+                  >
+                    {o.pit_on_lap}
+                  </span>
                 </div>
               );
             })}
           </div>
-          <p className="mt-2 text-micro leading-snug text-fg-faint">
+          <p className="mt-1 text-tiny text-fg-faint">
+            seconds lost versus stopping on the best lap — shorter is better
+          </p>
+          <p className="mt-3 text-tiny leading-relaxed text-fg-faint">
             Laps already run are held fixed; everything after the stop is re-optimised. Under a
             safety car only laps inside the window get the cheaper stop, which is what makes
             missing it cost anything.
           </p>
         </>
       ) : (
-        <p className="mt-3 text-xs text-fg-dim">computing…</p>
+        <Skeleton className="mt-4 h-24" />
       )}
-    </section>
+    </Panel>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="label">{label}</span>
+      <div className="mt-1.5">{children}</div>
+    </label>
+  );
+}
+
+/**
+ * Fallback when the service is unreachable.
+ *
+ * Falls back to the PUBLISHED playbook rather than to an error screen. The live
+ * console answers questions nobody precomputed and that is the point of it --
+ * but if the backend dies thirty seconds before a demo, seven precomputed races
+ * beat a stack trace. The banner says which one you are looking at.
+ */
+function ApiDown({ message, playbook }: { message: string; playbook: PlaybookArtifact }) {
+  return (
+    <div className="space-y-5">
+      <Panel className="border-signal-warn/40 bg-signal-warn/[0.03]">
+        <div className="flex items-start gap-3">
+          <Pill tone="warn">offline</Pill>
+          <div className="min-w-0">
+            <h3 className="title text-signal-warn">
+              strategy service unreachable — showing published results
+            </h3>
+            <p className="mt-2 text-tiny leading-relaxed text-fg-dim">
+              These are the precomputed calls for the events we have. The controls are gone because
+              there is nothing to recompute with. Start the service to get them back:
+            </p>
+            <pre className="mt-2 overflow-x-auto rounded-md border border-ink-600 bg-ink-950 p-2.5 text-micro text-fg">
+              uvicorn cleanair.api:app --reload --port 8000
+            </pre>
+            <p className="mt-2 text-micro text-fg-faint">{message}</p>
+          </div>
+        </div>
+      </Panel>
+      {playbook.events.length > 0 && <RacePlanView playbook={playbook} />}
+    </div>
   );
 }

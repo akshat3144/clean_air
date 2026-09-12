@@ -58,15 +58,33 @@ export default function App() {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="flex items-baseline gap-4 border-b border-ink-600 px-5 py-3">
-        <div className="flex items-baseline gap-2">
-          <span className="h-3 w-1 rounded-sm bg-brand" />
-          <h1 className="text-sm font-semibold tracking-tight">CLEAN AIR</h1>
+      {/* The header used to be three spans of 11px text. It is the first thing
+          anyone sees, so it now carries an actual mark and the dataset the whole
+          app is speaking about. */}
+      <header className="flex items-center gap-5 border-b border-ink-600 bg-ink-900/60 px-6 py-3.5 backdrop-blur">
+        <div className="flex items-center gap-2.5">
+          {/* Three bars, shortest to longest: a tyre losing pace. */}
+          <span className="flex items-end gap-[3px]" aria-hidden>
+            <span className="h-2.5 w-1 rounded-sm bg-brand/50" />
+            <span className="h-4 w-1 rounded-sm bg-brand/75" />
+            <span className="h-5 w-1 rounded-sm bg-brand" />
+          </span>
+          <h1 className="text-lg font-bold leading-none tracking-tight">CLEAN AIR</h1>
         </div>
-        <span className="label">Deconfounded Tyre Degradation</span>
-        <span className="ml-auto label">
-          {meta.season} · {meta.events.length} events · {meta.n_drivers} drivers
+        <span className="hidden text-tiny text-fg-dim sm:inline">
+          Deconfounded tyre degradation
         </span>
+        <div className="ml-auto flex items-center gap-4 text-tiny">
+          <span className="num text-fg-dim">
+            <span className="text-fg">{meta.season}</span> season
+          </span>
+          <span className="num text-fg-dim">
+            <span className="text-fg">{meta.events.length}</span> events
+          </span>
+          <span className="num text-fg-dim">
+            <span className="text-fg">{meta.n_long_run_laps.toLocaleString()}</span> long-run laps
+          </span>
+        </div>
       </header>
 
       {!meta.is_real && (
@@ -77,24 +95,22 @@ export default function App() {
         </div>
       )}
 
-      <nav className="flex gap-1 border-b border-ink-600 px-4">
+      <nav className="flex gap-1 border-b border-ink-600 px-5">
         {VIEWS.map((v) => (
           <button
             key={v.id}
             onClick={() => setView(v.id)}
-            className={`-mb-px border-b-2 px-3 py-2 text-xs transition-colors ${
-              v.id === view ? "border-brand text-fg" : "border-transparent text-fg-dim hover:text-fg"
-            }`}
+            className={`tab ${v.id === view ? "tab-active" : ""}`}
           >
             {v.label}
           </button>
         ))}
       </nav>
 
-      <main className="flex-1 overflow-auto p-5">
-        <div className="mb-4 flex items-baseline gap-3">
-          <h2 className="text-base font-medium">{active.label}</h2>
-          <p className="text-xs text-fg-dim">{active.hint}</p>
+      <main className="flex-1 overflow-auto p-6">
+        <div className="mb-5 flex flex-wrap items-baseline gap-x-4 gap-y-1">
+          <h2 className="text-2xl font-semibold leading-none tracking-tight">{active.label}</h2>
+          <p className="text-base text-fg-dim">{active.hint}</p>
           {view === "curves" && (
             <span className="ml-auto label">
               context: {degradation.curves[0]?.context ?? "—"}
@@ -174,12 +190,12 @@ export default function App() {
         )}
       </main>
 
-      <footer className="flex items-center gap-4 border-t border-ink-600 px-5 py-2">
+      <footer className="flex items-center gap-4 border-t border-ink-600 bg-ink-900/60 px-6 py-2.5">
         <span className="label">Team Pit Wall</span>
-        <span className="label">TrackShift 2026</span>
+        <span className="label text-fg-faint">TrackShift 2026</span>
         <span className="num ml-auto text-micro text-fg-faint">
-          schema {meta.schema_version} · model {meta.model_version} ·{" "}
-          {meta.n_long_run_laps.toLocaleString()} long-run laps
+          schema {meta.schema_version} · model {meta.model_version} · fastf1{" "}
+          {meta.fastf1_version}
         </span>
       </footer>
     </div>

@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -12,7 +12,7 @@
   }
 
   body {
-    @apply bg-ink-900 text-fg font-sans antialiased;
+    @apply bg-ink-950 text-fg font-sans antialiased;
     /* Faint scanline texture. Subtle enough to read as a screen, not a gimmick. */
     background-image: repeating-linear-gradient(
       0deg,
@@ -28,24 +28,126 @@
     @apply font-mono tabular-nums;
     font-variant-numeric: tabular-nums;
   }
+
+  /* Range inputs are the primary control here, so they get built rather than
+     inherited. The default track is nearly invisible on this background. */
+  input[type="range"] {
+    @apply h-1.5 w-full cursor-pointer appearance-none rounded-full bg-ink-600;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    @apply h-4 w-4 appearance-none rounded-full border-2 border-ink-900 bg-fg;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.15);
+    transition: transform 120ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  input[type="range"]:hover::-webkit-slider-thumb {
+    transform: scale(1.15);
+  }
+  input[type="range"]:active::-webkit-slider-thumb {
+    @apply bg-brand;
+    transform: scale(1.25);
+  }
+  input[type="range"]:focus-visible {
+    @apply outline-none ring-2 ring-brand/40;
+  }
+
+  input[type="checkbox"] {
+    @apply h-4 w-4 cursor-pointer rounded border-ink-500 bg-ink-800 accent-brand;
+  }
+
+  ::selection {
+    @apply bg-brand/30 text-fg;
+  }
 }
 
 @layer components {
   .panel {
-    @apply bg-ink-800 border border-ink-600 rounded-md shadow-panel;
+    @apply rounded-lg border border-ink-600 bg-ink-800 shadow-panel;
   }
 
-  /* Small uppercase label above a value. The standard console label. */
+  /* The one panel that outranks the others. Used exactly once per screen. */
+  .panel-hero {
+    @apply rounded-xl border border-ink-500 bg-gradient-to-b from-ink-700 to-ink-800 shadow-hero;
+  }
+
+  /* Field names and panel labels.
+     12px rather than the 11px this used to be: the class appears about thirty
+     times per screen, so at tick size it rendered half the page at tick size.
+     Uppercase reads larger than its point size, so one step is enough here.
+     `text-micro` is now reserved for axis ticks and footnotes. */
   .label {
-    @apply text-micro uppercase tracking-widest text-fg-dim;
+    @apply text-[0.75rem] font-medium uppercase leading-4 tracking-[0.14em] text-fg-dim;
+  }
+
+  /* Section heading -- one step above a label, for panel titles that are
+     titles rather than field names. */
+  .title {
+    @apply text-tiny font-semibold uppercase tracking-[0.1em] text-fg;
   }
 
   /* Big readout number. */
   .readout {
-    @apply num text-2xl font-medium text-fg;
+    @apply num text-xl font-medium text-fg;
   }
 
   .rule {
     @apply border-ink-600;
+  }
+
+  /* A hairline divider that fades at both ends. Reads as instrument panelling
+     rather than a border. */
+  .divider {
+    @apply h-px w-full;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.09) 20%,
+      rgba(255, 255, 255, 0.09) 80%,
+      transparent
+    );
+  }
+
+  /* Indeterminate progress bar for a request in flight. */
+  .sweep {
+    @apply relative overflow-hidden;
+  }
+  .sweep::after {
+    @apply absolute inset-0 animate-sweep;
+    content: "";
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.07), transparent);
+  }
+
+  /* Tabs */
+  .tab {
+    @apply relative -mb-px border-b-2 border-transparent px-3.5 py-2.5 text-tiny font-medium
+           text-fg-dim transition-colors duration-150 hover:text-fg;
+  }
+  .tab-active {
+    @apply border-brand text-fg;
+  }
+
+  /* Event chips in the console */
+  .chip {
+    @apply rounded-md border border-ink-600 px-3 py-1.5 text-tiny font-medium text-fg-dim
+           transition-all duration-150 hover:border-ink-500 hover:text-fg;
+  }
+  .chip-active {
+    @apply border-brand bg-brand/10 text-fg shadow-glow;
+  }
+  .chip-disabled {
+    @apply cursor-not-allowed border-ink-700 text-fg-faint hover:border-ink-700 hover:text-fg-faint;
+  }
+}
+
+@layer utilities {
+  /* Respect the setting. Every animation here is decoration on top of a value
+     that is already correct, so removing it costs nothing. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
   }
 }
