@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ApiError,
   getUpcoming,
@@ -479,25 +479,149 @@ function CircuitHistory({ rnd }: { rnd: UpcomingRound }) {
   );
 }
 
+/**
+ * The two inputs a circuit with no past cannot supply for itself.
+ *
+ * Madrid has never held a race, so there is no pit loss and no distance to
+ * carry forward, and the forecast endpoint refuses without them. That refusal
+ * is right -- inventing a pit lane time for a track nobody has driven is
+ * exactly the kind of confident wrong number this project exists to avoid.
+ *
+ * But refusing and then offering no way forward is a dead end, and the demo
+ * race is the one race guaranteed to hit it. So the screen ASKS. The fields
+ * start empty on purpose: a prefilled default would be a fabricated
+ * measurement wearing the clothes of a real one. The range hint is from the 22
+ * circuits we do have history for, which is evidence about what is plausible
+ * and is labelled as nothing more than that.
+ */
+function SupplyInputs({
+  pit,
+  laps,
+  setPit,
+  setLaps,
+  onSubmit,
+  busy,
+}: {
+  pit: string;
+  laps: string;
+  setPit: (v: string) => void;
+  setLaps: (v: string) => void;
+  onSubmit: () => void;
+  busy: boolean;
+}) {
+  const pitN = Number(pit);
+  const lapsN = Number(laps);
+  const ok =
+    pit !== "" && laps !== "" && pitN >= 5 && pitN <= 60 && lapsN >= 5 && lapsN <= 100;
+
+  return (
+    <Panel title="sunday's plan" meta={<Pill tone="warn">needs two inputs</Pill>}>
+      <p className="text-base leading-relaxed text-fg-dim">
+        We have never raced here, so there is no pit loss and no race distance to carry
+        forward. Supply them and the plan is computed live.
+      </p>
+
+      <div className="mt-4 flex flex-wrap items-end gap-4">
+        <label className="flex flex-col gap-1">
+          <span className="label">pit loss</span>
+          <span className="flex items-baseline gap-1.5">
+            <input
+              type="number"
+              value={pit}
+              onChange={(e) => setPit(e.target.value)}
+              placeholder="—"
+              step="0.1"
+              min={5}
+              max={60}
+              className="num w-24 rounded border border-ink-600 bg-ink-900 px-2 py-1.5 text-sm text-fg outline-none focus:border-fg-dim"
+            />
+            <span className="text-tiny text-fg-faint">s</span>
+          </span>
+        </label>
+
+        <label className="flex flex-col gap-1">
+          <span className="label">race distance</span>
+          <span className="flex items-baseline gap-1.5">
+            <input
+              type="number"
+              value={laps}
+              onChange={(e) => setLaps(e.target.value)}
+              placeholder="—"
+              min={5}
+              max={100}
+              className="num w-24 rounded border border-ink-600 bg-ink-900 px-2 py-1.5 text-sm text-fg outline-none focus:border-fg-dim"
+            />
+            <span className="text-tiny text-fg-faint">laps</span>
+          </span>
+        </label>
+
+        <button
+          type="button"
+          onClick={onSubmit}
+          disabled={!ok || busy}
+          className="rounded border border-ink-600 px-3 py-1.5 text-tiny uppercase tracking-widest text-fg-dim transition-colors hover:border-fg-dim hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {busy ? "computing…" : "compute the plan"}
+        </button>
+      </div>
+
+      <p className="mt-4 text-tiny leading-relaxed text-fg-faint">
+        Left blank deliberately &mdash; a default here would be a made-up measurement. For
+        scale, the 22 circuits we hold history for run{" "}
+        <span className="num text-fg-dim">19.0&ndash;29.2s</span> of pit loss (median{" "}
+        <span className="num text-fg-dim">23.0</span>) over{" "}
+        <span className="num text-fg-dim">44&ndash;78</span> laps. Both are assumptions you
+        are making, not things we measured, and the plan changes when you change them.
+      </p>
+    </Panel>
+  );
+}
+
 function Forecast({ rnd }: { rnd: UpcomingRound }) {
   const [res, setRes] = useState<ForecastResult | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  // Only ever set for a circuit with no history. Everywhere else these stay
+  // empty and the endpoint uses the measured values, as before.
+  const [pit, setPit] = useState("");
+  const [laps, setLaps] = useState("");
+  const [supplied, setSupplied] = useState(false);
+  const needsInputs = rnd.history === null;
+
+  const run = useCallback(
+    (signal?: AbortSignal) => {
+      setLoading(true);
+      setErr(null);
+      const body: { event: string; pit_loss_s?: number; race_laps?: number } = {
+        event: rnd.event,
+      };
+      if (needsInputs) {
+        body.pit_loss_s = Number(pit);
+        body.race_laps = Number(laps);
+      }
+      postForecast(body, signal)
+        .then(setRes)
+        .catch((e) => {
+          if (e?.name === "AbortError") return;
+          setErr(e instanceof ApiError ? e.message : "forecast failed");
+        })
+        .finally(() => setLoading(false));
+    },
+    [rnd.event, needsInputs, pit, laps],
+  );
 
   useEffect(() => {
     setRes(null);
     setErr(null);
+    setSupplied(false);
     if (!rnd.ready_to_forecast) return;
+    // A circuit with no history cannot be forecast until someone supplies the
+    // two inputs, so do not fire a request that is guaranteed to 422.
+    if (rnd.history === null) return;
     const ac = new AbortController();
-    setLoading(true);
-    postForecast({ event: rnd.event }, ac.signal)
-      .then(setRes)
-      .catch((e) => {
-        if (e?.name === "AbortError") return;
-        setErr(e instanceof ApiError ? e.message : "forecast failed");
-      })
-      .finally(() => setLoading(false));
+    run(ac.signal);
     return () => ac.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rnd.event, rnd.ready_to_forecast]);
 
   if (!rnd.ready_to_forecast) {
@@ -518,6 +642,22 @@ function Forecast({ rnd }: { rnd: UpcomingRound }) {
           Practice sessions are pulled automatically as they finish, so this fills itself in.
         </p>
       </Panel>
+    );
+  }
+
+  if (needsInputs && !supplied) {
+    return (
+      <SupplyInputs
+        pit={pit}
+        laps={laps}
+        setPit={setPit}
+        setLaps={setLaps}
+        busy={loading}
+        onSubmit={() => {
+          setSupplied(true);
+          run();
+        }}
+      />
     );
   }
 
