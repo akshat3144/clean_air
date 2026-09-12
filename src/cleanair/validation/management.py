@@ -77,14 +77,28 @@ class ManagementResult:
 
     @property
     def significant(self) -> bool:
-        return self.p_value < 0.05
+        """Significant on BOTH sidedness conventions.
+
+        Deliberately strict. Calling a result significant on the one-sided p
+        while the two-sided p sits above 0.05 puts the whole claim on a choice
+        the reader may not share, and that is precisely the case we ran into:
+        adding 2024 moved the two-sided p from 0.042 to 0.062 while the
+        one-sided stayed under 0.05.
+        """
+        return self.p_value < 0.05 and self.p_two_sided < 0.05
 
     def verdict(self) -> str:
-        if self.ordered and self.significant:
-            return "supported: ratio falls with softness, and the trend is significant"
-        if self.ordered:
-            return f"suggestive: ordering holds but p = {self.p_value:.3f}, not significant"
-        return "not supported: the ordering does not hold"
+        if not self.ordered:
+            return "not supported: the ordering does not hold"
+        if self.significant:
+            return "supported: ratio falls with softness, significant either way"
+        if self.p_value < 0.05:
+            return (
+                f"marginal: ordering holds and the predicted direction gives "
+                f"p = {self.p_value:.3f}, but two-sided p = {self.p_two_sided:.3f} "
+                f"is above 0.05. Consistent, not conclusive."
+            )
+        return f"suggestive: ordering holds but p = {self.p_value:.3f}"
 
 
 def cluster_slope(g: pd.DataFrame) -> tuple[float, float] | None:
