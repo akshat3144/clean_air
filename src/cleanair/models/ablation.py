@@ -55,7 +55,7 @@ def naive_rates(laps: pd.DataFrame) -> dict[str, Interval]:
 
 #: The naive analysis groups by label; ours groups by physical compound. To put
 #: them on one chart we need a correspondence. These are the most common
-#: nominations across the seven 2026 events we have.
+#: nominations across the thirteen 2026 events we have.
 LABEL_FOR = {"C2": "HARD", "C3": "HARD", "C4": "MEDIUM", "C5": "SOFT"}
 
 
@@ -91,9 +91,38 @@ def build(laps: pd.DataFrame, fit, context: str = "race") -> AblationArtifact:
     if not rows:
         raise ValueError("no compound had both a naive and a deconfounded estimate")
 
-    widths_naive = np.mean([r.naive.hi - r.naive.lo for r in rows])
-    widths_deconf = np.mean([r.deconfounded.hi - r.deconfounded.lo for r in rows])
-    shrink = widths_naive / widths_deconf if widths_deconf > 0 else float("nan")
+    # The headline is the SIGN, not the width.
+    #
+    # It used to be the width -- naive intervals over deconfounded ones -- and
+    # that stopped being true the moment the model started carrying per-circuit
+    # slopes. Pooling 13 circuits honestly makes the global interval WIDER than
+    # a naive fit that pretends they are one track, so the old caption printed
+    # "narrows the interval 1-fold", which is worse than saying nothing.
+    #
+    # The real damage the confounders do is not imprecision. It is that fuel
+    # burn beats tyre wear on the compounds that wear least, so the naive slope
+    # comes out NEGATIVE -- a tyre getting faster as it ages. That is a claim
+    # anyone can see is wrong, and it is what the obvious analysis produces.
+    backwards = [r for r in rows if r.naive.mean < 0]
+    fixed = [r for r in backwards if r.deconfounded.mean >= 0]
+
+    if backwards:
+        worst = min(backwards, key=lambda r: r.naive.mean)
+        lead = (
+            f"On {len(backwards)} of {len(rows)} compounds it comes out NEGATIVE -- "
+            f"{worst.label} at {worst.naive.mean:+.3f} s/lap, a tyre getting "
+            f"faster as it wears."
+        )
+        tail = (
+            f" Deconfounding turns all {len(fixed)} of them positive."
+            if len(fixed) == len(backwards)
+            else f" Deconfounding turns {len(fixed)} of them positive."
+        )
+    else:
+        # Kept honest for future data: if no naive slope is negative, say so
+        # rather than inventing a failure that is not on the chart.
+        lead = "Every naive slope happens to come out positive here."
+        tail = " The ordering, not the sign, is what deconfounding corrects."
 
     return AblationArtifact(
         context=context,
@@ -101,7 +130,6 @@ def build(laps: pd.DataFrame, fit, context: str = "race") -> AblationArtifact:
         caption=(
             "The naive slope regresses lap time on tyre age with no controls, so "
             "fuel burn and track evolution -- which both make laps faster -- cancel "
-            f"part of the rise from wear. Removing them narrows the interval "
-            f"{shrink:.0f}-fold and separates compounds the naive fit cannot."
+            "part of the rise from wear. " + lead + tail
         ),
     )

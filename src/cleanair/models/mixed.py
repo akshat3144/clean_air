@@ -53,11 +53,13 @@ class Fit:
     #: How much each circuit's tyre-age slope differs from the global one,
     #: s/lap. Empty when circuit effects are off.
     #:
-    #: One rate per compound for every track is false. The spread across the
-    #: 2026 circuits is 0.11 s/lap -- WIDER than the spread between compounds --
-    #: so a model without this blames the rubber for what is really the track,
-    #: and a pit call built on the global average is wrong everywhere. A
-    #: likelihood-ratio test rejects "all tracks alike" at p = 4e-78.
+    #: One rate per compound for every track is false. Across the 13 circuits
+    #: of 2026 the fitted slopes span 0.146 s/lap, from Barcelona at +0.076 to
+    #: Suzuka at -0.070 -- WIDER than the 0.112 s/lap that separates C1 from C5.
+    #: A model without this blames the rubber for what is really the track, and
+    #: a pit call built on the global average is wrong everywhere. A
+    #: likelihood-ratio test against the same model with no circuit slope gives
+    #: LR = 385 on 1 df, p = 4e-86.
     circuit_slope: dict[str, float] = field(default_factory=dict)
 
     def rate_for(self, compound: str, event: str | None = None) -> float:

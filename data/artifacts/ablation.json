@@ -66,5 +66,5 @@
       "published": null
     }
   ],
-  "caption": "The naive slope regresses lap time on tyre age with no controls, so fuel burn and track evolution -- which both make laps faster -- cancel part of the rise from wear. Removing them narrows the interval 1-fold and separates compounds the naive fit cannot."
+  "caption": "The naive slope regresses lap time on tyre age with no controls, so fuel burn and track evolution -- which both make laps faster -- cancel part of the rise from wear. On 2 of 4 compounds it comes out NEGATIVE -- MEDIUM at -0.122 s/lap, a tyre getting faster as it wears. Deconfounding turns all 2 of them positive."
 }
