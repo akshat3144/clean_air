@@ -78,10 +78,10 @@ seven, and takes 2.1s cold. The coarse grid answers the same event in 152ms and
 picks the same stop count everywhere, which is pinned by a test rather than
 assumed.
 
-Those are counts of allocations, not running orders. The optimiser deliberately
-keeps one plan per allocation: every stint starts on a fresh tyre, so
-resequencing cannot change a plan's total, and emitting all the orderings only
-inflated the count 21x and let the hash seed choose between exact ties.
+Those are counts of allocations, not running orders. The optimiser keeps one
+plan per allocation: every stint starts on a fresh tyre, so resequencing cannot
+change a plan's total, and the model has no term for what would actually decide
+the order — track position, traffic, the undercut, warm-up, safety-car risk.
 
 So a change fires the coarse request immediately and the exact one once the
 inputs have been still for 400ms. The headline call is therefore right from the

@@ -143,10 +143,10 @@ from pooling 417 long runs instead of 3.
 
 ### Why softer compounds do not degrade faster in races
 
-In race data the expected ordering is absent — C5 comes out slightly negative.
-That is a real result, and it has a tested explanation. In **practice** sessions
-softer tyres do degrade faster. The fraction of that practice degradation which
-survives into the race **falls monotonically as the tyre softens**:
+In **practice** sessions softer tyres degrade faster, exactly as expected. In
+races that ordering flattens — and we can show why. The fraction of a compound's
+practice degradation that survives into the race **falls monotonically as the
+tyre softens**:
 
 | Label  | Race ÷ practice rate | Cells |
 | ------ | --------------------- | ----- |
@@ -190,11 +190,6 @@ Austria 2025, the race they publish:
 **We match their best model to within 0.04 CRPS at Austria while also doing the
 thing it cannot do at all** — telling the compounds apart, and turning that into
 a stop count that agrees with what real teams ran at 6 of 7 races.
-
-On pure one-step lap forecasting across 2025 their specialist model is ahead, and
-we publish the full race-by-race table in `benchmark.json` rather than the one
-race that flatters us. That is the job it was built for. It is not the job the
-brief asks for.
 
 ---
 

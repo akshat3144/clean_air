@@ -6,9 +6,7 @@
 
 ---
 
-## What changed: the API is no longer read-only
-
-This document was written assuming the API only serves precomputed rows. That was right for a dashboard and is wrong for what the product became.
+## The API computes, it does not just serve rows
 
 The front end is a **strategy console**: you move a pit-loss slider, toggle a safety car, drag a degradation rate, and the recommendation is recomputed. That means real compute behind an HTTP request, and it changes the hosting decision.
 
@@ -79,7 +77,7 @@ The console mitigates this itself — it requests the coarse grid while a slider
 | Setup time | a few hours | under an hour |
 | Cold starts | none | ~1 min on the API unless kept warm |
 
-**Path A now wins, on the row that was added.** When the API only read rows, 0.1 CPU was plenty and Path B was free — that was the right call for that design. Now that a slider drag is a request, serving CPU is the binding constraint, and 0.1 CPU turns a 350ms answer into several seconds.
+**Path A wins on serving CPU.** A slider drag is a request, so CPU is the binding constraint — and 0.1 CPU turns a 350ms answer into several seconds.
 
 Cold starts matter for the same reason. A judge opening Next Race or Strategy on a Render free instance that has slept waits about a minute before anything appears.
 
