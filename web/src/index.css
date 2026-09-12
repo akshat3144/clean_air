@@ -1,0 +1,51 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-ink-900 text-fg font-sans antialiased;
+    /* Faint scanline texture. Subtle enough to read as a screen, not a gimmick. */
+    background-image: repeating-linear-gradient(
+      0deg,
+      rgba(255, 255, 255, 0.012) 0px,
+      rgba(255, 255, 255, 0.012) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+  }
+
+  /* Tabular figures everywhere, so numbers do not jitter as they update. */
+  .num {
+    @apply font-mono tabular-nums;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer components {
+  .panel {
+    @apply bg-ink-800 border border-ink-600 rounded-md shadow-panel;
+  }
+
+  /* Small uppercase label above a value. The standard console label. */
+  .label {
+    @apply text-micro uppercase tracking-widest text-fg-dim;
+  }
+
+  /* Big readout number. */
+  .readout {
+    @apply num text-2xl font-medium text-fg;
+  }
+
+  .rule {
+    @apply border-ink-600;
+  }
+}
