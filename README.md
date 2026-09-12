@@ -56,7 +56,7 @@ We did not take their paper's word for any of it. We ran their code.
 | Power analysis | ✅ 512 driver-stints needed; they had 3, we have 417 |
 | Calibration | ✅ 80% intervals cover 80.5% |
 | Practice → race | ✅ MAE 0.048 s/lap, +52% over the naive prediction |
-| Scored against the benchmark | ✅ CRPS 0.210 vs their best 0.202 |
+| Scored against the benchmark | ⚠️ CRPS 0.238 vs their best 0.202 — **we lose** |
 | Strategy layer | ✅ pit loss measured per circuit, every legal plan enumerated |
 | Softer compounds degrade faster | ❌ **not what the data says. Unresolved.** |
 
@@ -69,26 +69,52 @@ them. See [the open questions](#open-questions).
 
 ## Where we stand against the benchmark
 
-Scored on their exact 35 predictions, their cross-validation scheme, and their
-metric -- our CRPS verified to match R's `scoringRules` to 1e-11.
+Scored on their race, their cross-validation scheme, and their metric. Their
+scheme is transcribed from their own `CV_Functions.R`: test the last quarter of
+each stint, one lap ahead, expanding the training window a lap at a time. Our
+CRPS agrees with R's `scoringRules` to 2.5e-11, which is checked by a test
+rather than asserted here.
 
 | model | RMSE (s) | CRPS | |
 |---|---|---|---|
 | ARIMA(2,1,2) | 1.520 | 0.324 | published |
-| SSM base | 1.169 | 0.230 | published |
+| **Clean Air pooled** | **1.250** | **0.238** | **ours** |
 | SSM compound-specific | 1.187 | 0.236 | published |
-| **Clean Air pooled** | **1.145** | **0.210** | **ours** |
+| SSM base | 1.169 | 0.230 | published |
 | SSM skew-t | 1.082 | 0.202 | published, their best |
 
-We beat their base model, their compound-specific model and ARIMA. **We do not
-beat their best.** Per stint we are ahead on two of three (0.178 vs 0.184;
-0.266 vs 0.316) and well behind on the third (0.187 vs 0.106), which drags the
-mean.
+**We lose.** We beat ARIMA and nothing else. Across the 2025 season our median
+race scores 0.324 against their 0.238 season mean, on 16 races to their 19.
 
-That is the expected result, and worth stating plainly: their model is a
-one-step lap-time forecaster and ours is a degradation estimator. Being level
-with the published state of the art on *its* metric, while also producing
-per-compound rates it cannot, is the claim -- not that we beat it.
+Our per-stint CRPS at Austria is 0.178, 0.380, 0.157 -- competitive on the first
+and third stints, and dragged by the second.
+
+### An earlier version of this table said we won, and it was wrong
+
+It reported CRPS 0.210 on 35 predictions. Their scheme gives 16. The fold
+builder was passing each stint's last *global lap number* where a stint *length*
+belongs, which made the training fraction relative to the race instead of the
+stint: the third stint was tested on 17 of its 19 laps instead of 5, and the
+extra mid-stint laps are the easy ones. Fixing it moved us from 0.210 to 0.238.
+
+Scoring the full season then exposed a second bug. In-race degradation rates
+were being fitted with no identifiability guard, and early in a race every car
+is on a similar tyre age, so the slope was read off numerical noise -- at Saudi
+Arabia it returned 1.0 s/lap, twenty times any real tyre, and the predictor ran
+a whole stint 4.7 seconds slow. Requiring a real tyre-age spread first, the same
+rule already used in `transfer.py`, cut that race from 2.10 to 0.188 and the
+season mean from 0.816 to 0.606. Both failures are pinned by tests.
+
+Neither number is one we would have found without scoring the whole season, and
+both are recorded here because a reader who opens `CV_Functions.R` will check.
+
+### So what is the claim?
+
+Their model is a one-step lap-time forecaster for a single driver. It is better
+at that than we are. What it cannot do is separate the compounds -- their own
+compound-specific model scored *worse* than their base model, and their best
+model has no compound structure at all. That is the question this project
+answers, and the power analysis shows their three-stint design could not have.
 
 ## Open questions
 
