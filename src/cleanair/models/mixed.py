@@ -239,6 +239,9 @@ def to_artifact(fit: Fit, max_life: int = 26, event: str | None = None) -> Degra
             )
         )
 
+    # Normal approximation to the difference between two fitted rates. This is
+    # frequentist -- the model is mixed-effects, not Bayesian -- so it is not a
+    # posterior probability even though it is on a 0-1 scale.
     separation = {}
     ks = fit.ordered
     for i in range(len(ks) - 1):
