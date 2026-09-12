@@ -183,7 +183,7 @@ compound nomination — is one click in the UI.
 | **Driver management effect**  | ✅ **p = 0.0020** across 5 seasons, 98 cells                                          |
 | **Strategy call vs reality**  | ✅ **10 of 11 races** match the stop count teams actually ran                         |
 | **Forecasts an unraced race** | ✅ Madrid predicted from FP1, a day out                                                    |
-| **Test suite**                | ✅ **280 tests**                                                                      |
+| **Test suite**                | ✅ **283 tests**                                                                      |
 
 ### The track effect — the finding we did not expect
 
@@ -650,7 +650,7 @@ data/
 app/lab.py                       Streamlit lab bench — internal, never demoed
 docs/DEPLOYMENT.md               how this ships
 docs/reference/                  the benchmark paper, plus licensing notes on every source
-tests/                           280 tests
+tests/                           283 tests
 ```
 
 ---
