@@ -200,3 +200,66 @@ export function Dot({ tone = "good" }: { tone?: "good" | "warn" | "bad" }) {
     </span>
   );
 }
+
+/**
+ * The stints a plan allocates -- deliberately not a running order.
+ *
+ * Every stint in the model starts on a fresh tyre, so a plan's total time is a
+ * sum over unordered (compound, laps) pairs. Resequencing cannot change it, and
+ * the optimiser has no term for the things that would actually decide the
+ * order: track position, traffic, the undercut, warm-up, safety-car risk.
+ *
+ * This used to render with arrows between the pills. That asserted a call the
+ * model never made, and because the tied orderings were enumerated through an
+ * unordered set, which one appeared followed the hash seed -- the same data
+ * could recommend starting on the hard tyre one day and the medium the next.
+ * The separator is a plus, and the caption says what is and is not being
+ * claimed.
+ */
+export function StintAllocation({
+  compounds,
+  lengths,
+  colors,
+  size = "base",
+  note = true,
+}: {
+  compounds: string[];
+  lengths: (number | undefined)[];
+  colors: Record<string, string>;
+  size?: "base" | "sm";
+  note?: boolean;
+}) {
+  const pill =
+    size === "sm"
+      ? "num rounded px-2 py-1 text-xs font-medium text-ink-900"
+      : "num rounded-md px-3 py-1.5 text-base font-semibold text-ink-950";
+  return (
+    <div>
+      <div className={`flex flex-wrap items-center ${size === "sm" ? "gap-1.5" : "gap-2"}`}>
+        {compounds.map((c, i) => (
+          <span key={i} className={`flex items-center ${size === "sm" ? "gap-1.5" : "gap-2"}`}>
+            {i > 0 && (
+              <span className={`text-fg-faint ${size === "sm" ? "" : "text-lg"}`} aria-hidden>
+                +
+              </span>
+            )}
+            <motion.span
+              layout
+              transition={{ duration: 0.2, ease: EASE }}
+              className={pill}
+              style={{ backgroundColor: colors[c] }}
+            >
+              {c} <span className="opacity-60">×</span> {lengths[i]}
+            </motion.span>
+          </span>
+        ))}
+      </div>
+      {note && (
+        <p className="mt-2 text-micro leading-relaxed text-fg-faint">
+          Stint lengths, not a running order — swapping stints cannot change the total, so the
+          model ranks the allocation and leaves the sequence to you.
+        </p>
+      )}
+    </div>
+  );
+}

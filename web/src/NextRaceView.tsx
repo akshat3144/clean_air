@@ -9,7 +9,7 @@ import {
   type UpcomingRound,
 } from "./api";
 import { COMPOUND_COLOR, type Compound } from "./types/artifacts";
-import { Animated, Panel, Pill, Row, Skeleton } from "./ui";
+import { Animated, Panel, Pill, Row, Skeleton, StintAllocation } from "./ui";
 
 /**
  * The race that has not happened yet.
@@ -567,25 +567,16 @@ function Forecast({ rnd }: { rnd: UpcomingRound }) {
                 </div>
               </div>
             </div>
-            <div className="mt-4 flex flex-wrap items-center gap-2">
-              {res.plans
-                ?.find((p) => p.n_stops === res.recommended_stops)
-                ?.compounds.map((c, i, arr) => (
-                  <span key={i} className="flex items-center gap-2">
-                    {i > 0 && <span className="text-lg text-fg-faint">→</span>}
-                    <span
-                      className="num rounded-md px-3 py-1.5 text-base font-semibold text-ink-950"
-                      style={{ backgroundColor: COMPOUND_COLOR[c as Compound] }}
-                    >
-                      {c} <span className="opacity-60">×</span>{" "}
-                      {
-                        res.plans?.find((p) => p.n_stops === res.recommended_stops)
-                          ?.stint_lengths[i]
-                      }
-                    </span>
-                    {i === arr.length - 1 && null}
-                  </span>
-                ))}
+            <div className="mt-4">
+              <StintAllocation
+                compounds={
+                  res.plans?.find((p) => p.n_stops === res.recommended_stops)?.compounds ?? []
+                }
+                lengths={
+                  res.plans?.find((p) => p.n_stops === res.recommended_stops)?.stint_lengths ?? []
+                }
+                colors={COMPOUND_COLOR}
+              />
             </div>
           </>
         ) : (

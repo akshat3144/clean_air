@@ -16,15 +16,22 @@ is the one failure mode with no recovery.
 WHAT IS COMPUTED WHEN
 
     fitting the degradation model   once, at startup      0.10s
-    enumerating strategies          every request         0.07s - 6.6s
+    enumerating strategies          every request         0.03s - 2.1s
     the hierarchical MCMC model     never here            ~6 min a race
 
 The fit is fast enough to redo per request and is still cached, because it is
 the same answer every time and the cache makes the slow path obvious. The MCMC
 model is offline work and has no business behind an HTTP request.
 
-    enumerate step=1   exact, 337k plans at Hungary, 2.1s
-    enumerate step=3   same recommended stop count at all seven events, 0.07s
+    enumerate step=1   exact. 50,583 allocations at Barcelona, the worst
+                       case of the seven, in 2.1s; 0.34s at Australia
+    enumerate step=3   same recommended stop count at all seven events,
+                       0.03s - 0.15s
+
+Those counts are allocations, not sequences. The enumerator used to emit every
+ordering of each one -- 1,470,486 rows at Barcelona for the same 69,145 answers
+-- which inflated the figure roughly 21x and, because the orderings tie exactly,
+left the recommendation to be picked by whichever came first out of a set.
 
 ``step`` is therefore a request parameter rather than a constant. A UI dragging
 a slider asks for 3 and gets an instant answer; when the drag stops it asks for

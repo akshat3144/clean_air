@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { COMPOUND_COLOR, type PlaybookArtifact, type PlaybookEvent } from "./types/artifacts";
+import { StintAllocation } from "./ui";
 
 /**
  * The front door.
@@ -107,18 +108,13 @@ function TheCall({ e }: { e: PlaybookEvent }) {
         </span>
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center gap-1.5">
-        {rec.compounds.map((c, i) => (
-          <span key={i} className="flex items-center gap-1.5">
-            {i > 0 && <span className="text-fg-faint">→</span>}
-            <span
-              className="num rounded px-2 py-1 text-xs font-medium text-ink-900"
-              style={{ backgroundColor: COMPOUND_COLOR[c] }}
-            >
-              {c} × {rec.stint_lengths[i]}
-            </span>
-          </span>
-        ))}
+      <div className="mt-4">
+        <StintAllocation
+          compounds={rec.compounds}
+          lengths={rec.stint_lengths}
+          colors={COMPOUND_COLOR}
+          size="sm"
+        />
       </div>
 
       <p className="mt-4 text-xs leading-relaxed text-fg-dim">

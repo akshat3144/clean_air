@@ -41,6 +41,20 @@ MIN_DISTINCT_COMPOUNDS = 2
 
 @dataclass(frozen=True)
 class Plan:
+    """One strategy: which compound runs which stint length, and how many stops.
+
+    NOT a running order. Every stint starts on a fresh tyre, so the total is a
+    sum over unordered (compound, laps) pairs -- swapping two stints cannot
+    change it, and across the 1.47M candidates at Barcelona no allocation's
+    orderings differ by more than 1e-12. The optimiser is therefore genuinely
+    indifferent to sequence, and the model has no term for the things that would
+    decide it: track position, traffic, the undercut, warm-up, safety-car risk.
+
+    ``compounds`` and ``stints`` are held sorted so the same allocation always
+    prints the same way. That is a display convention. Reading it as "do this,
+    then that" is reading a recommendation we did not make.
+    """
+
     compounds: tuple[str, ...]
     stints: tuple[int, ...]
     total_time: float
@@ -54,8 +68,10 @@ class Plan:
         return len(self.stints) - 1
 
     def describe(self) -> str:
+        # " + " and not " -> ": see the class docstring. An arrow would claim a
+        # running order the optimiser cannot rank.
         parts = [f"{c} x{n}" for c, n in zip(self.compounds, self.stints, strict=True)]
-        return f"{self.n_stops}-stop: " + " -> ".join(parts)
+        return f"{self.n_stops}-stop: " + " + ".join(parts)
 
 
 def stint_time(
@@ -139,6 +155,7 @@ def enumerate_plans(
         )
 
     plans: list[Plan] = []
+    seen: set[tuple[tuple[str, int], ...]] = set()
     for n_stops in range(1, max_stops + 1):
         n_stints = n_stops + 1
         if race_laps < min_stint * n_stints:
@@ -168,12 +185,25 @@ def enumerate_plans(
                 continue
             for perm in sorted(set(permutations(combo))):
                 for stints in _splits(race_laps, n_stints, min_stint, step):
+                    # One plan per allocation, not per sequence. Sorting the
+                    # pairs is what collapses the orderings: at Barcelona this
+                    # takes 1,470,486 plans down to 69,145 without losing a
+                    # single distinct allocation at any step size.
+                    pairing = tuple(sorted(zip(perm, stints, strict=True)))
+                    if pairing in seen:
+                        continue
+                    seen.add(pairing)
                     tyre_time = sum(
                         stint_time(laps, rates[c], offsets[c], curvature.get(c, 0.0))
                         for c, laps in zip(perm, stints, strict=True)
                     )
                     plans.append(
-                        Plan(perm, stints, tyre_time + pit_loss_s * n_stops, tyre_time)
+                        Plan(
+                            tuple(c for c, _ in pairing),
+                            tuple(n for _, n in pairing),
+                            tyre_time + pit_loss_s * n_stops,
+                            tyre_time,
+                        )
                     )
 
     plans.sort(key=lambda p: p.total_time)

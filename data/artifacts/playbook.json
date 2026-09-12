@@ -87,7 +87,7 @@
           "delta_s": 21.54
         }
       ],
-      "n_plans_enumerated": 155278,
+      "n_plans_enumerated": 7893,
       "recommended_stops": 1,
       "margin_s": 5.33,
       "confidence": 0.533,
@@ -187,7 +187,7 @@
           "delta_s": 11.98
         }
       ],
-      "n_plans_enumerated": 357298,
+      "n_plans_enumerated": 17278,
       "recommended_stops": 2,
       "margin_s": 2.7,
       "confidence": 0.27,
@@ -287,7 +287,7 @@
           "delta_s": 24.25
         }
       ],
-      "n_plans_enumerated": 1060416,
+      "n_plans_enumerated": 50583,
       "recommended_stops": 1,
       "margin_s": 6.24,
       "confidence": 0.624,
@@ -387,7 +387,7 @@
           "delta_s": 32.12
         }
       ],
-      "n_plans_enumerated": 239520,
+      "n_plans_enumerated": 12558,
       "recommended_stops": 1,
       "margin_s": 12.67,
       "confidence": 0.95,
@@ -486,7 +486,7 @@
           "delta_s": 12.59
         }
       ],
-      "n_plans_enumerated": 337662,
+      "n_plans_enumerated": 16382,
       "recommended_stops": 2,
       "margin_s": 1.78,
       "confidence": 0.178,
@@ -586,7 +586,7 @@
           "delta_s": 19.54
         }
       ],
-      "n_plans_enumerated": 575904,
+      "n_plans_enumerated": 28377,
       "recommended_stops": 1,
       "margin_s": 4.66,
       "confidence": 0.466,
@@ -684,7 +684,7 @@
           "delta_s": 10.35
         }
       ],
-      "n_plans_enumerated": 516478,
+      "n_plans_enumerated": 24546,
       "recommended_stops": 2,
       "margin_s": 6.57,
       "confidence": 0.657,

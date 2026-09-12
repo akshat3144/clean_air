@@ -155,19 +155,44 @@ def test_plans_come_back_sorted():
 
 
 def test_stint_order_never_changes_the_total():
-    """Every stint starts on a fresh tyre, so the total is a sum over unordered
-    (compound, laps) pairs. This is why the best plan is so often a tie, and it
-    is the reason the sequence we print is a convention rather than a call."""
-    plans = enumerate_plans(60, RATES, OFFSETS, 22.0, step=5)
-    by_pairing: dict[tuple, list[float]] = {}
-    for pl in plans:
-        key = tuple(sorted(zip(pl.compounds, pl.stints, strict=True)))
-        by_pairing.setdefault(key, []).append(pl.total_time)
+    """The fact that licenses everything else here.
 
-    disagreeing = {k: v for k, v in by_pairing.items() if max(v) - min(v) > 1e-12}
-    assert not disagreeing, f"{len(disagreeing)} pairings scored differently by order"
-    # Not vacuous: some pairing really did show up in more than one order.
-    assert any(len(v) > 1 for v in by_pairing.values())
+    Every stint starts on a fresh tyre, so a plan's total is a sum over
+    unordered (compound, laps) pairs. Resequencing cannot change it, which is
+    why the optimiser cannot rank sequence and why the enumerator is free to
+    keep one plan per allocation.
+    """
+    from itertools import permutations as _perms
+
+    for pl in enumerate_plans(60, RATES, OFFSETS, 22.0, step=5)[:200]:
+        pairs = list(zip(pl.compounds, pl.stints, strict=True))
+        totals = {
+            round(
+                sum(stint_time(n, RATES[c], OFFSETS[c]) for c, n in order),
+                12,
+            )
+            for order in _perms(pairs)
+        }
+        assert len(totals) == 1, f"{pl.describe()} scored {len(totals)} ways by order"
+    # Not vacuous: plans with more than one stint really were checked.
+    assert any(len(pl.stints) > 1 for pl in enumerate_plans(60, RATES, OFFSETS, 22.0, step=5))
+
+
+def test_one_plan_per_allocation_not_one_per_sequence():
+    """Six orderings of the same allocation used to tie for first, and which one
+    the app showed followed the hash seed. Collapsing them removes the coin flip
+    at the source rather than making it repeatable."""
+    plans = enumerate_plans(60, RATES, OFFSETS, 22.0, step=5)
+    seen = [tuple(sorted(zip(p.compounds, p.stints, strict=True))) for p in plans]
+    assert len(seen) == len(set(seen)), "the same allocation was enumerated twice"
+
+
+def test_the_printed_plan_does_not_claim_a_running_order():
+    """An arrow would assert a sequence the model has no term for -- track
+    position, traffic, the undercut, warm-up, safety-car risk are all absent."""
+    best = enumerate_plans(60, RATES, OFFSETS, 22.0, step=5)[0]
+    assert "->" not in best.describe()
+    assert "→" not in best.describe()
 
 
 def test_the_best_plan_is_the_same_under_a_different_hash_seed():

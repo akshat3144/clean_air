@@ -73,10 +73,15 @@ padding so the circular mask iOS and Android apply does not clip the outer bars.
 
 ### Why two requests per change
 
-The exact enumeration runs to 337k plans at Hungary and over a million at
-Barcelona — seconds, not milliseconds. The coarse grid answers in about 70ms and
-picks the same stop count at every event, which is pinned by a test rather than
+The exact enumeration runs to 50,583 allocations at Barcelona, the worst of the
+seven, and takes 2.1s cold. The coarse grid answers the same event in 152ms and
+picks the same stop count everywhere, which is pinned by a test rather than
 assumed.
+
+Those are counts of allocations, not running orders. The optimiser deliberately
+keeps one plan per allocation: every stint starts on a fresh tyre, so
+resequencing cannot change a plan's total, and emitting all the orderings only
+inflated the count 21x and let the hash seed choose between exact ties.
 
 So a change fires the coarse request immediately and the exact one once the
 inputs have been still for 400ms. The headline call is therefore right from the

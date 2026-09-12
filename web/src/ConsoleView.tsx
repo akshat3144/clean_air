@@ -11,7 +11,7 @@ import {
 } from "./api";
 import { RacePlanView } from "./RacePlanView";
 import { COMPOUND_COLOR, type Compound, type PlaybookArtifact } from "./types/artifacts";
-import { Animated, Dot, EASE, Panel, Pill, Row, Skeleton } from "./ui";
+import { Animated, Dot, EASE, Panel, Pill, Row, Skeleton, StintAllocation } from "./ui";
 import { useStrategy } from "./useStrategy";
 
 /**
@@ -306,22 +306,16 @@ function TheCall({
 
       <div className="mt-5 divider" />
 
-      <div className="mt-4 flex flex-wrap items-center gap-2">
-        {rec.compounds.map((c, i) => (
-          <span key={i} className="flex items-center gap-2">
-            {i > 0 && <span className="text-lg text-fg-faint">→</span>}
-            <motion.span
-              layout
-              transition={{ duration: 0.2, ease: EASE }}
-              className="num rounded-md px-3 py-1.5 text-base font-semibold text-ink-950"
-              style={{ backgroundColor: COMPOUND_COLOR[c as Compound] }}
-            >
-              {c} <span className="opacity-60">×</span> {rec.stint_lengths[i]}
-            </motion.span>
-          </span>
-        ))}
+      <div className="mt-4">
+        <StintAllocation
+          compounds={rec.compounds}
+          lengths={rec.stint_lengths}
+          colors={COMPOUND_COLOR}
+        />
         {approximate && (
-          <span className="ml-1 text-micro text-fg-faint">stint lengths settle in a moment</span>
+          <span className="mt-1 block text-micro text-fg-faint">
+            stint lengths settle in a moment
+          </span>
         )}
       </div>
 
