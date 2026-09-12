@@ -6,6 +6,7 @@ import {
   clearAllocation,
   putAllocation,
   type ForecastResult,
+  type PitLossHint,
   type UpcomingRound,
 } from "./api";
 import { PracticeSessionsPanel } from "./PracticeSessionsPanel";
@@ -502,6 +503,8 @@ function SupplyInputs({
   setLaps,
   onSubmit,
   busy,
+  needs,
+  hints,
 }: {
   pit: string;
   laps: string;
@@ -509,23 +512,57 @@ function SupplyInputs({
   setLaps: (v: string) => void;
   onSubmit: () => void;
   busy: boolean;
+  /** Which inputs are actually outstanding. A new circuit still has a
+   *  PUBLISHED race distance -- the FIA fixes it before anyone drives -- so
+   *  asking for both was asking for one number that was never in doubt. */
+  needs: string[];
+  hints?: Record<string, PitLossHint>;
 }) {
+  const wantPit = needs.includes("pit_loss_s");
+  const wantLaps = needs.includes("race_laps");
   const pitN = Number(pit);
   const lapsN = Number(laps);
   const ok =
-    pit !== "" && laps !== "" && pitN >= 5 && pitN <= 60 && lapsN >= 5 && lapsN <= 100;
+    (!wantPit || (pit !== "" && pitN >= 5 && pitN <= 60)) &&
+    (!wantLaps || (laps !== "" && lapsN >= 5 && lapsN <= 100));
+  const hint = hints?.pit_loss_s;
 
   // No Panel of its own: this renders INSIDE the plan panel, beneath the
   // compound table, rather than in place of the entire screen.
   return (
     <>
       <p className="text-base leading-relaxed text-fg-dim">
-        We have never raced here, so there is no pit loss and no race distance to carry
-        forward. Supply them and the plan is computed live. The tyre numbers below are
-        measured from this weekend and do not depend on either.
+        We have never raced here, so there is no{" "}
+        {wantPit && wantLaps ? "pit loss or race distance" : wantPit ? "pit loss" : "race distance"}{" "}
+        to carry forward. Supply {wantPit && wantLaps ? "them" : "it"} and the plan is
+        computed live. The tyre numbers below are measured from this weekend and do not
+        depend on {wantPit && wantLaps ? "either" : "it"}.
       </p>
 
+      {/* A quoted figure, with who produced it and what kind of number it is.
+          Not a default and not prefilled: it is somebody's simulation, two
+          sources disagree by a second, and the operator should adopt it
+          knowingly or not at all. */}
+      {hint && (
+        <div className="mt-3 rounded border border-signal-warn/30 bg-signal-warn/5 p-3">
+          <p className="text-tiny leading-relaxed text-fg-dim">
+            <span className="num text-fg">{hint.seconds.toFixed(1)}s</span> is quoted for
+            this circuit by <span className="text-fg">{hint.source}</span> — a{" "}
+            <span className="text-signal-warn">{hint.kind}</span>, not a measurement.{" "}
+            {hint.note}
+          </p>
+          <button
+            type="button"
+            onClick={() => setPit(String(hint.seconds))}
+            className="mt-2 rounded border border-ink-600 px-2 py-1 text-micro uppercase tracking-widest text-fg-dim transition-colors hover:border-fg-dim hover:text-fg"
+          >
+            use {hint.seconds.toFixed(1)}s
+          </button>
+        </div>
+      )}
+
       <div className="mt-4 flex flex-wrap items-end gap-4">
+        {wantPit && (
         <label className="flex flex-col gap-1">
           <span className="label">pit loss</span>
           <span className="flex items-baseline gap-1.5">
@@ -542,7 +579,9 @@ function SupplyInputs({
             <span className="text-tiny text-fg-faint">s</span>
           </span>
         </label>
+        )}
 
+        {wantLaps && (
         <label className="flex flex-col gap-1">
           <span className="label">race distance</span>
           <span className="flex items-baseline gap-1.5">
@@ -558,6 +597,7 @@ function SupplyInputs({
             <span className="text-tiny text-fg-faint">laps</span>
           </span>
         </label>
+        )}
 
         <button
           type="button"
@@ -571,11 +611,10 @@ function SupplyInputs({
 
       <p className="mt-4 text-tiny leading-relaxed text-fg-faint">
         Left blank deliberately &mdash; a default here would be a made-up measurement. For
-        scale, the 22 circuits we hold history for run{" "}
+        scale, the circuits we hold history for run{" "}
         <span className="num text-fg-dim">19.0&ndash;29.2s</span> of pit loss (median{" "}
-        <span className="num text-fg-dim">23.0</span>) over{" "}
-        <span className="num text-fg-dim">44&ndash;78</span> laps. Both are assumptions you
-        are making, not things we measured, and the plan changes when you change them.
+        <span className="num text-fg-dim">23.0</span>). Whatever you enter is an assumption
+        you are making, not something we measured, and the plan changes when you change it.
       </p>
     </>
   );
@@ -686,7 +725,11 @@ function Forecast({ rnd }: { rnd: UpcomingRound }) {
         title="sunday's plan"
         meta={
           <span className="flex items-center gap-2">
-            <Pill tone="warn">{res.needs_inputs?.length ? "needs two inputs" : "forecast"}</Pill>
+            <Pill tone="warn">
+              {res.needs_inputs?.length
+                ? `needs ${res.needs_inputs.length === 1 ? "an input" : `${res.needs_inputs.length} inputs`}`
+                : "forecast"}
+            </Pill>
             <span className="num">{res.compute_ms}ms</span>
           </span>
         }
@@ -699,6 +742,8 @@ function Forecast({ rnd }: { rnd: UpcomingRound }) {
             setLaps={setLaps}
             busy={loading}
             onSubmit={() => run()}
+            needs={res.needs_inputs ?? []}
+            hints={res.hints}
           />
         ) : res.can_plan ? (
           <>

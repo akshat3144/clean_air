@@ -282,14 +282,6 @@ export interface SessionBreakdown {
   cells: SessionCell[];
 }
 
-/** How each practice session scored against the races that have run. */
-export interface SessionSkill {
-  n_cells: number;
-  correlation: number | null;
-  factor: number | null;
-  mae: number | null;
-}
-
 /** What the race actually did, where it has been run. */
 export interface RaceActual {
   compound: string;
@@ -299,14 +291,44 @@ export interface RaceActual {
   n_laps: number;
 }
 
+/** One weighting scheme and the blend error it produced. */
+export interface WeightScheme {
+  scheme: string;
+  mae: number;
+  n_cells: number;
+}
+
+/** Why the shipped weighting is the one we ship.
+ *
+ *  NOT per-session correlations. Those are a diagnostic only: each session
+ *  scores a different number of cells, so ranking them rewards whichever one
+ *  skipped the hard ones. */
+export interface SessionSkill {
+  criterion: string;
+  shipped: string;
+  schemes: WeightScheme[];
+  per_session: Record<
+    string,
+    { n_cells: number; correlation: number | null; median_laps: number }
+  >;
+}
+
 export interface PracticeSessions {
   event: string;
   sessions: SessionBreakdown[];
   race_actual: RaceActual[];
   sprint_weekend: boolean;
   weights: Record<string, number>;
-  weight_evidence: Record<string, SessionSkill>;
+  weight_evidence: SessionSkill;
   allocation: Record<string, string> | null;
+}
+
+/** A quoted figure for an input we cannot measure, and where it came from. */
+export interface PitLossHint {
+  seconds: number;
+  source: string;
+  kind: string;
+  note: string;
 }
 
 export interface ForecastResult {
@@ -319,6 +341,10 @@ export interface ForecastResult {
   /** Circuit inputs the PLAN is still waiting on. Everything else in this
    *  response is measured from practice and does not depend on them. */
   needs_inputs?: string[];
+  /** A publicly quoted figure for a missing input, with its provenance. Never
+   *  a default: these are other people's simulation output, and two sources
+   *  give 24s and 25s for the same pit lane. */
+  hints?: Record<string, PitLossHint>;
   race_laps: number | null;
   race_laps_source?: string;
   pit_loss_s: number | null;

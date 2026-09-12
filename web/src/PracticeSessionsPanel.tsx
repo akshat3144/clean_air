@@ -6,6 +6,7 @@ import {
   type RaceActual,
   type SessionBreakdown,
   type SessionCell,
+  type WeightScheme,
 } from "./api";
 import { COMPOUND_COLOR, type Compound } from "./types/artifacts";
 import { Panel, Pill, Skeleton } from "./ui";
@@ -170,15 +171,18 @@ export function PracticeSessionsPanel({ event }: { event: string }) {
 
   const heaviest = Object.entries(data.weights).sort((a, b) => b[1] - a[1])[0]?.[0];
   const ev = data.weight_evidence;
-  const best = ev[heaviest ?? ""];
-  const worst = Object.entries(ev)
-    .filter(([, v]) => v.correlation !== null)
-    .sort((a, b) => (a[1].correlation ?? 0) - (b[1].correlation ?? 0))[0];
+  // The shipped scheme and the nearest alternative. Showing the gap between
+  // them is the honest version of "FP2 matters": it says how much the choice
+  // is worth, rather than asserting that it is right.
+  const schemes: WeightScheme[] = ev?.schemes ?? [];
+  const shipped = schemes.find((x) => x.scheme.includes("shipped"));
+  const nextBest = schemes.find((x) => !x.scheme.includes("shipped"));
+  const equal = schemes.find((x) => x.scheme === "equal");
 
   // "2 of 3 run" is wrong on a sprint weekend, which only HAS one practice
   // session. Count against what the format offers, not against three.
-  const offered = data.sessions.filter((s) => s.exists);
-  const run = offered.filter((s) => s.has_run);
+  const offered = data.sessions.filter((x) => x.exists);
+  const run = offered.filter((x) => x.has_run);
 
   return (
     <Panel
@@ -224,26 +228,32 @@ export function PracticeSessionsPanel({ event }: { event: string }) {
           A sprint weekend runs FP1 and nothing else, and a footnote reasoning
           about FP2's weight underneath three cards that say "not part of a
           sprint weekend" reads as a screen that has not noticed where it is. */}
-      {heaviest &&
-        data.sessions.some((s) => s.session === heaviest && s.exists) &&
-        best?.correlation !== null &&
-        best?.correlation !== undefined && (
+      {heaviest && shipped && data.sessions.some((s) => s.session === heaviest && s.exists) && (
         <p className="mt-3 border-t border-ink-600/40 pt-3 text-micro leading-relaxed text-fg-dim">
-          <span className="text-fg">{heaviest} carries the most weight.</span> Against the races
-          already run this season, its measured degradation tracks the race at a correlation of{" "}
-          <span className="tabular-nums text-fg">{best.correlation.toFixed(2)}</span> over{" "}
-          {best.n_cells} cells
-          {worst && worst[0] !== heaviest && (
+          <span className="text-fg">{heaviest} carries the most weight</span>, and
+          it is weighted that way because it predicts best. Across the races
+          already run, blending the sessions this way lands at{" "}
+          <span className="tabular-nums text-fg">{shipped.mae.toFixed(4)} s/lap</span>{" "}
+          of practice-to-race error over {shipped.n_cells} cells
+          {equal && (
             <>
-              , where {worst[0]} manages{" "}
-              <span className="tabular-nums text-fg">{worst[1].correlation?.toFixed(2)}</span>
+              , against{" "}
+              <span className="tabular-nums text-fg">{equal.mae.toFixed(4)}</span> if
+              all three counted equally
             </>
           )}
-          . {heaviest} is where the setup is frozen and the heavy-fuel race simulations run; the
-          others are setup and qualifying work. No session is weighted to zero — this weekend's
-          worst session still beats another circuit's best.
+          {nextBest && nextBest !== equal && (
+            <>
+              {" "}
+              and {nextBest.mae.toFixed(4)} for the next-best scheme
+            </>
+          )}
+          . Every scheme is scored over the same cells, so the comparison is
+          like for like. No session is weighted to zero — this weekend&rsquo;s
+          worst session still beats another circuit&rsquo;s best.
         </p>
       )}
+
     </Panel>
   );
 }

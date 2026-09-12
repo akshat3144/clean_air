@@ -421,10 +421,23 @@ def test_practice_sessions_reports_all_three(client):
 
 def test_practice_sessions_ships_the_evidence_for_its_weights(client):
     """A weight a strategist cannot interrogate is a weight they will not use.
-    The correlation that justifies FP2 travels with the response."""
-    r = client.get("/practice-sessions", params={"event": EVENT}).json()
-    ev = r["weight_evidence"]
-    assert ev["FP2"]["correlation"] > ev["FP1"]["correlation"]
+
+    The evidence is the SCHEME COMPARISON, not per-session correlations. This
+    test used to assert FP2 correlated better than FP1 and it was right to
+    fail: dropping the warm-up lap repaired FP1 and reversed that ordering,
+    while the shipped blend still predicted best. Correlations across sessions
+    are not comparable -- they score different cells -- so the response now
+    carries the like-for-like comparison instead.
+    """
+    ev = client.get("/practice-sessions", params={"event": EVENT}).json()["weight_evidence"]
+    schemes = ev["schemes"]
+    assert len(schemes) >= 3, "one scheme is not a comparison"
+    # Every scheme must be scored over the same cells, or the ranking is noise.
+    assert len({s["n_cells"] for s in schemes}) == 1
+    best = min(schemes, key=lambda s: s["mae"])
+    assert "shipped" in best["scheme"], (
+        f"{best['scheme']!r} beats the shipped weighting; SESSION_SKILL is stale"
+    )
 
 
 def test_a_sprint_weekend_says_its_sessions_do_not_exist(client):
@@ -483,13 +496,34 @@ def test_forecast_answers_without_circuit_inputs(client):
     assert r.status_code == 200
     d = r.json()
     assert d["can_plan"] is False
-    assert set(d["needs_inputs"]) == {"pit_loss_s", "race_laps"}
-    assert d["compounds"], "the compound table does not depend on the pit loss"
+    # Only the pit loss. The race DISTANCE is published -- the FIA fixes it
+    # before anyone drives -- so asking for it was asking for a number that was
+    # never in doubt. Having no history is not the same as not knowing.
+    assert d["needs_inputs"] == ["pit_loss_s"]
+    assert d["race_laps"] == 57
     assert d["pit_loss_s"] is None
-    assert d["race_laps"] is None
+    assert d["compounds"], "the compound table does not depend on the pit loss"
     # Best stint DOES need the pit loss, so it must stay blank rather than
     # report a confident zero.
     assert all(c["optimal_stint"] == 0 for c in d["compounds"])
+
+
+def test_forecast_hints_a_quoted_pit_loss_and_names_its_provenance(client):
+    """Offering a figure is fine. Offering it as if we measured it is not.
+
+    Madrid's pit loss is quoted at 24s by Pirelli's own chief engineer, and at
+    25s second-hand by a journalist -- a one-second disagreement between two
+    simulations of the same pit lane. The hint carries who said it and what
+    kind of number it is, and nothing prefills it.
+    """
+    d = client.post("/forecast", json={"event": "Spanish Grand Prix"}).json()
+    hint = d["hints"]["pit_loss_s"]
+    assert hint["seconds"] > 0
+    assert hint["source"], "a quoted figure with no source is a rumour"
+    assert "estimate" in hint["kind"] or "simulation" in hint["kind"]
+    # It must NOT have been adopted.
+    assert d["pit_loss_s"] is None
+    assert d["can_plan"] is False
 
 
 def test_forecast_plans_once_the_inputs_arrive(client):
