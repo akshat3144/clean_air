@@ -77,6 +77,39 @@ COMPOUNDS = ("HARD", "MEDIUM", "SOFT")          # as labelled in the timing feed
 COMPOUND_CODES = {"HARD": 1, "MEDIUM": 2, "SOFT": 3}   # matches the benchmark's coding
 WET_COMPOUNDS = ("INTERMEDIATE", "WET")
 
+#: Pirelli's per-event compound nomination, 2026.
+#:
+#: THIS MATTERS MORE THAN IT LOOKS. "HARD", "MEDIUM" and "SOFT" in the timing
+#: feed are RELATIVE to each weekend's nomination, not physical compounds.
+#: Pirelli picks three of C1-C5 per race, so a "HARD" at Monaco (C3) is softer
+#: rubber than a "SOFT" at Suzuka (C3 too, but as the softest of C1/C2/C3).
+#:
+#: Pooling by label across events therefore averages together different tyres,
+#: and it is what every public FastF1 tyre analysis we have seen does. It is
+#: also what produced a physically backwards degradation ordering in our own
+#: first pooled fit (Hard appearing to wear faster than Soft).
+#:
+#: Mapping to the C number lets us pool physically identical rubber instead.
+#: C3 appears at all seven completed conventional weekends and C4 at six, so
+#: there is real cross-event overlap to exploit.
+#:
+#: Sources: Pirelli press releases and per-race F1.com tyre previews, 2026.
+COMPOUND_ALLOCATION_2026 = {
+    "Australian Grand Prix": {"HARD": "C3", "MEDIUM": "C4", "SOFT": "C5"},
+    "Japanese Grand Prix":   {"HARD": "C1", "MEDIUM": "C2", "SOFT": "C3"},
+    "Monaco Grand Prix":     {"HARD": "C3", "MEDIUM": "C4", "SOFT": "C5"},
+    "Barcelona Grand Prix":  {"HARD": "C2", "MEDIUM": "C3", "SOFT": "C4"},
+    "Austrian Grand Prix":   {"HARD": "C3", "MEDIUM": "C4", "SOFT": "C5"},
+    "Belgian Grand Prix":    {"HARD": "C2", "MEDIUM": "C3", "SOFT": "C4"},
+    "Hungarian Grand Prix":  {"HARD": "C3", "MEDIUM": "C4", "SOFT": "C5"},
+    # Upcoming, for the live-forecast target:
+    "Italian Grand Prix":    {"HARD": "C3", "MEDIUM": "C4", "SOFT": "C5"},
+    "Spanish Grand Prix":    {"HARD": "C2", "MEDIUM": "C3", "SOFT": "C4"},
+}
+
+#: Hardest to softest. Ordered so a model can treat the index as a scale.
+C_COMPOUNDS = ("C1", "C2", "C3", "C4", "C5")
+
 #: Race fuel load, kg. Down from 110 kg under the previous regulations.
 #: CAUTION: sources disagree on whether this is a hard regulatory cap at race
 #: start or the practical race load implied by the 3000 MJ/h energy-flow limit.

@@ -40,12 +40,11 @@ def main() -> None:
             t0 = time.time()
             try:
                 s = load_session(event, ses, args.season)
-                clean = tag_long_runs(clean_laps(s.laps, event=event, session=ses))
+                clean = clean_laps(s.laps, event=event, session=ses)
                 frames.append(clean)
-                lr = int(clean.is_long_run.sum()) if len(clean) else 0
                 print(
                     f"  ok   {event:24s} {ses:3s}  raw={len(s.laps):4d} "
-                    f"clean={len(clean):4d} long_run_laps={lr:4d}  ({time.time() - t0:4.1f}s)",
+                    f"clean={len(clean):4d}  ({time.time() - t0:4.1f}s)",
                     flush=True,
                 )
             except Exception as exc:  # one bad session must not stop the batch
@@ -56,7 +55,10 @@ def main() -> None:
         print("\nnothing loaded")
         return
 
-    df = pd.concat(frames, ignore_index=True)
+    # Tag long runs once, across everything. Doing it per session made run_id
+    # restart at 0 for each one, so ids collided after concatenation.
+    df = tag_long_runs(pd.concat(frames, ignore_index=True))
+
     PROCESSED.mkdir(parents=True, exist_ok=True)
     out = PROCESSED / "laps.parquet"
     df.to_parquet(out, index=False)

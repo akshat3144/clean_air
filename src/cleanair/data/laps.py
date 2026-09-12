@@ -106,6 +106,20 @@ def clean_laps(
         df = df[df["IsAccurate"].fillna(False).astype(bool)]
     n_acc = len(df)
 
+    # Two things at once here.
+    #
+    # 1. Every line above is a filter, so df is a view. Copy before assigning,
+    #    or pandas warns and the assignments may not stick.
+    # 2. Drop down to a plain DataFrame. session.laps is a fastf1.core.Laps,
+    #    which subclasses DataFrame and declares `_metadata = ['session']`.
+    #    That makes `laps.session` return the Session OBJECT, shadowing any
+    #    column of the same name -- and `laps.event` resolves to None the same
+    #    way. Since we add columns called exactly `event` and `session`, every
+    #    `df.event` downstream would silently be None instead of our data.
+    #    Bracket access still works, but carrying the subclass around is a trap,
+    #    so we leave it behind here.
+    df = pd.DataFrame(df).copy()
+
     log.info(
         "%s %s: %d laps -> %d timed -> %d non-pit -> %d green -> %d accurate",
         event, session, n0, n_time, n_pit, n_green, n_acc,
@@ -150,10 +164,14 @@ def tag_long_runs(df: pd.DataFrame, min_laps: int = MIN_LONG_RUN_LAPS) -> pd.Dat
     new_block = (df["LapNumber"] - prev).ne(1).fillna(True)
     df["block"] = new_block.groupby([df[k] for k in keys]).cumsum()
 
+    # run_id must be a full key, not a per-call code. `.cat.codes` restarts at 0
+    # every call, so tagging one session at a time and concatenating afterwards
+    # produced run_id 0 in seven different events. Keep the readable key: it is
+    # unique by construction, survives concatenation, and is legible when
+    # debugging a suspicious run.
     run_keys = keys + ["block"]
-    df["run_id"] = (
-        df[run_keys].astype(str).agg("|".join, axis=1).astype("category").cat.codes
-    )
+    df["run_id"] = df[run_keys].astype(str).agg("|".join, axis=1)
+
     df["run_len"] = df.groupby("run_id")["LapNumber"].transform("size")
     df["run_lap"] = df.groupby("run_id").cumcount() + 1
     df["is_long_run"] = df["run_len"] >= min_laps
@@ -173,18 +191,23 @@ def summarise(df: pd.DataFrame) -> pd.DataFrame:
 
     long_runs = df[df["is_long_run"]] if "is_long_run" in df.columns else df.iloc[0:0]
 
+    # Bracket access throughout, never `df.event`. `event` and `session` collide
+    # with attributes on fastf1.core.Laps, and if a Laps object ever reaches here
+    # attribute access returns None and every count silently comes out zero.
     rows = []
     for (event, session), g in df.groupby(["event", "session"], sort=False):
-        lr = long_runs[(long_runs.event == event) & (long_runs.session == session)]
+        lr = long_runs[(long_runs["event"] == event) & (long_runs["session"] == session)]
         rows.append(
             {
                 "event": event,
                 "session": session,
                 "laps": len(g),
-                "drivers": g.Driver.nunique(),
-                "long_runs": lr.run_id.nunique() if len(lr) else 0,
+                "drivers": g["Driver"].nunique(),
+                "long_runs": lr["run_id"].nunique() if len(lr) else 0,
                 "long_run_laps": len(lr),
-                "compounds": ", ".join(sorted(lr.Compound.dropna().unique())) if len(lr) else "",
+                "compounds": (
+                    ", ".join(sorted(lr["Compound"].dropna().unique())) if len(lr) else ""
+                ),
             }
         )
     return pd.DataFrame(rows)

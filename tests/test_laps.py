@@ -128,3 +128,60 @@ def test_empty_input_does_not_raise():
     empty = clean_laps(make_laps(1).iloc[0:0], event="T", session="FP2")
     assert tag_long_runs(empty).empty
     assert summarise(empty).empty
+
+
+def test_run_id_is_unique_across_sessions_and_events():
+    """run_id used to be a per-call category code, so id 0 appeared in seven
+    different events once frames were concatenated. It must be a full key."""
+    frames = []
+    for event in ("Race A", "Race B"):
+        for session in ("FP1", "FP2"):
+            frames.append(clean_laps(make_laps(6), event=event, session=session))
+    out = tag_long_runs(pd.concat(frames, ignore_index=True), min_laps=5)
+
+    assert out.run_id.nunique() == 4
+    per_run = out.groupby("run_id")[["event", "session"]].nunique()
+    assert (per_run == 1).all().all(), "a run_id spans more than one event/session"
+
+
+def test_tagging_all_at_once_matches_tagging_separately():
+    a = tag_long_runs(clean_laps(make_laps(6, driver="VER"), event="E", session="FP1"))
+    b = tag_long_runs(clean_laps(make_laps(6, driver="NOR"), event="E", session="FP1"))
+    both = tag_long_runs(
+        pd.concat(
+            [
+                clean_laps(make_laps(6, driver="VER"), event="E", session="FP1"),
+                clean_laps(make_laps(6, driver="NOR"), event="E", session="FP1"),
+            ],
+            ignore_index=True,
+        )
+    )
+    assert both.run_len.tolist() == a.run_len.tolist() + b.run_len.tolist()
+    assert both.is_long_run.sum() == a.is_long_run.sum() + b.is_long_run.sum()
+
+
+def test_clean_laps_returns_a_plain_dataframe():
+    """fastf1.core.Laps subclasses DataFrame and declares _metadata=['session'].
+    On a Laps object, `.session` returns the Session and `.event` returns None,
+    silently shadowing our columns of the same name. clean_laps must hand back
+    a plain DataFrame so attribute access is safe downstream."""
+    import fastf1.core
+
+    fake = fastf1.core.Laps(make_laps(6))
+    out = clean_laps(fake, event="Test GP", session="FP2")
+
+    assert type(out) is pd.DataFrame
+    assert out.event.iloc[0] == "Test GP"      # attribute access, the risky form
+    assert out.session.iloc[0] == "FP2"
+    assert out["event"].iloc[0] == "Test GP"
+
+
+def test_summarise_works_on_a_laps_subclass():
+    """Regression: summarise silently reported zero long runs for every session
+    because it used `df.event`, which was None on a Laps-derived frame."""
+    import fastf1.core
+
+    df = clean_laps(fastf1.core.Laps(make_laps(8)), event="Test GP", session="FP2")
+    s = summarise(tag_long_runs(df))
+    assert s.iloc[0].long_runs == 1
+    assert s.iloc[0].long_run_laps == 8
