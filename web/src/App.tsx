@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { DegradationChart } from "./DegradationChart";
+import { ConsoleView } from "./ConsoleView";
 import { EvidenceView } from "./EvidenceView";
-import { RacePlanView } from "./RacePlanView";
 import { StrategyView } from "./StrategyView";
 import { ValidationView } from "./ValidationView";
 import { useBundle } from "./useBundle";
@@ -28,7 +28,7 @@ import { COMPOUND_COLOR, width } from "./types/artifacts";
 type ViewId = "plan" | "friday" | "curves" | "evidence" | "strategy";
 
 const VIEWS: { id: ViewId; label: string; hint: string }[] = [
-  { id: "plan", label: "Race Plan", hint: "The call, and how wrong we can be before it changes" },
+  { id: "plan", label: "Race Plan", hint: "Set the race state; the call is recomputed live" },
   { id: "friday", label: "Friday → Sunday", hint: "Predicted from practice, checked against the race" },
   { id: "curves", label: "Tyre Curves", hint: "Clean degradation by physical compound" },
   { id: "evidence", label: "Proof", hint: "Deconfounding, benchmark, calibration, power" },
@@ -103,7 +103,7 @@ export default function App() {
         </div>
 
         {view === "plan" ? (
-          <RacePlanView playbook={state.bundle.playbook} />
+          <ConsoleView playbook={state.bundle.playbook} />
         ) : view === "curves" ? (
           <>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
