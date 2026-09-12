@@ -9,6 +9,7 @@ import {
   type StrategyResult,
   type WhatIfResult,
 } from "./api";
+import { DegradationHorizon } from "./DegradationHorizon";
 import { PracticeSessionsPanel } from "./PracticeSessionsPanel";
 import { RacePlanView } from "./RacePlanView";
 import { COMPOUND_COLOR, type Compound, type PlaybookArtifact } from "./types/artifacts";
@@ -88,7 +89,7 @@ export function ConsoleView({ playbook }: { playbook: PlaybookArtifact }) {
     [event?.event, pitLoss, raceLaps, safetyCar, rates],
   );
 
-  const { result, error, pending, approximate } = useStrategy(input);
+  const { result, error, pending, approximate, switching } = useStrategy(input);
   const dirty =
     !!event &&
     (pitLoss !== (event.pit_loss_s ?? 22) ||
@@ -155,6 +156,16 @@ export function ConsoleView({ playbook }: { playbook: PlaybookArtifact }) {
           ) : result ? (
             <>
               <TheCall r={result} pending={pending} approximate={approximate} dirty={dirty} />
+              {/* What staying out costs, in seconds rather than as a slope.
+                  This is the question the brief asks in these words -- how
+                  does the tyre perform after 5, 10, 15 laps -- and the console
+                  previously answered it only as a rate. */}
+              <Panel title="what the tyre costs you" meta="seconds lost">
+                <DegradationHorizon
+                  rows={result.compounds}
+                  note="Seconds slower than the same tyre fresh, at this circuit's fitted rate, with the 95% band beneath."
+                />
+              </Panel>
               <div className="grid gap-5 lg:grid-cols-2">
                 <Alternatives r={result} />
                 <Headroom r={result} />
@@ -177,18 +188,41 @@ export function ConsoleView({ playbook }: { playbook: PlaybookArtifact }) {
               <PracticeSessionsPanel event={result.event} />
             </>
           ) : (
-            <>
-              <Panel hero>
-                <Skeleton className="h-6 w-32" />
-                <Skeleton className="mt-4 h-20 w-48" />
-                <Skeleton className="mt-4 h-8 w-64" />
-              </Panel>
-              <Skeleton className="h-36 rounded-lg" />
-            </>
+            // Named, not a grey rectangle. Switching circuit clears the plan
+            // -- the previous one described a different race -- and a bare
+            // skeleton then reads as "broken" rather than "working". Saying
+            // which event is being computed also proves the click registered.
+            <Computing event={eventName} switching={switching} />
           )}
         </div>
       </div>
     </div>
+  );
+}
+
+/** What the console shows while it has no plan to show. */
+function Computing({ event, switching }: { event: string | null; switching: boolean }) {
+  return (
+    <>
+      <Panel hero>
+        <div className="flex items-center gap-3">
+          <Dot tone="warn" />
+          <span className="title">
+            {switching && event ? `computing ${event}` : "computing"}
+          </span>
+        </div>
+        <p className="mt-3 text-base leading-relaxed text-fg-dim">
+          {switching
+            ? "Enumerating every legal strategy for this circuit. The last plan has been cleared because it was for a different race."
+            : "Enumerating every legal strategy for these inputs."}
+        </p>
+        <div className="mt-5 space-y-3">
+          <Skeleton className="h-20 w-48" />
+          <Skeleton className="h-8 w-64" />
+        </div>
+      </Panel>
+      <Skeleton className="h-36 rounded-lg" />
+    </>
   );
 }
 
@@ -499,10 +533,9 @@ function Tyres({
       </div>
 
       {compounds.some((c) => c.excluded) && (
-        <p className="mt-4 text-tiny leading-relaxed text-fg-faint">
-          A tyre marked unusable had a fitted degradation that was not positive, so the optimiser
-          was not allowed to pick it. Hand an optimiser a tyre that never wears and it runs it to
-          the flag.
+        <p className="mt-3 text-tiny text-fg-faint">
+          Unusable means a non-positive fitted rate — a tyre that never wears would be run
+          to the flag.
         </p>
       )}
     </Panel>
@@ -875,8 +908,7 @@ function WhatIf({
           </p>
           <p className="mt-3 text-tiny leading-relaxed text-fg-faint">
             Laps already run are held fixed; everything after the stop is re-optimised. Under a
-            safety car only laps inside the window get the cheaper stop, which is what makes
-            missing it cost anything.
+        safety car only laps inside the window get the cheaper stop.
           </p>
         </>
       ) : (

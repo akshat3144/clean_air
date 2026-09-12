@@ -32,6 +32,11 @@ export type StrategyState = {
    *  answer stays on screen while the next one computes -- a console that
    *  blanks on every keystroke is unreadable. */
   pending: boolean;
+  /** The request in flight is for a DIFFERENT event than the one showing.
+   *  Nothing on screen describes the circuit the user just picked, so the
+   *  screen must say it is loading rather than keep a stale plan under a new
+   *  name. */
+  switching: boolean;
   /** The showing result came from the coarse grid. */
   approximate: boolean;
 };
@@ -42,6 +47,7 @@ export function useStrategy(input: StrategyInput | null): StrategyState {
     error: null,
     pending: false,
     approximate: false,
+    switching: false,
   });
 
   // Serialised so the effect compares by value, not identity. Without it every
@@ -53,6 +59,8 @@ export function useStrategy(input: StrategyInput | null): StrategyState {
   // controller aborts. Stamping every reply and dropping stale generations is
   // what actually guarantees the screen shows the current inputs.
   const gen = useRef(0);
+  // The event the result on screen belongs to.
+  const shown = useRef<string | null>(null);
 
   useEffect(() => {
     if (!key || !input) return;
@@ -66,12 +74,31 @@ export function useStrategy(input: StrategyInput | null): StrategyState {
 
     const current = () => gen.current === mine;
 
-    setState((s) => ({ ...s, pending: true, error: null }));
+    // Keeping the last answer while the next computes is right for a slider
+    // drag -- same question, refined. It is wrong for a change of EVENT: the
+    // previous circuit's plan then sits on screen under the new country's
+    // name, labelled "as measured", describing a race nobody asked about.
+    const changedEvent = shown.current !== null && shown.current !== input.event;
+    setState((s) => ({
+      ...s,
+      result: changedEvent ? null : s.result,
+      approximate: changedEvent ? false : s.approximate,
+      pending: true,
+      switching: changedEvent,
+      error: null,
+    }));
 
     postStrategy({ ...input, step: COARSE_STEP }, coarse.signal)
       .then((r) => {
         if (!current() || exactArrived) return;
-        setState({ result: r, error: null, pending: true, approximate: true });
+        shown.current = r.event;
+        setState({
+          result: r,
+          error: null,
+          pending: true,
+          approximate: true,
+          switching: false,
+        });
       })
       .catch((e) => {
         if (!current() || e?.name === "AbortError") return;
@@ -80,6 +107,7 @@ export function useStrategy(input: StrategyInput | null): StrategyState {
           error: e instanceof ApiError ? e.message : "cannot reach the strategy service",
           pending: false,
           approximate: false,
+          switching: false,
         });
       });
 
@@ -89,13 +117,20 @@ export function useStrategy(input: StrategyInput | null): StrategyState {
         .then((r) => {
           if (!current()) return;
           exactArrived = true;
-          setState({ result: r, error: null, pending: false, approximate: false });
+          shown.current = r.event;
+          setState({
+            result: r,
+            error: null,
+            pending: false,
+            approximate: false,
+            switching: false,
+          });
         })
         .catch((e) => {
           if (!current() || e?.name === "AbortError") return;
           // The coarse answer is already on screen and is the same call, so a
           // failed refinement is not worth throwing the view away for.
-          setState((s) => ({ ...s, pending: false }));
+          setState((s) => ({ ...s, pending: false, switching: false }));
         });
     }, SETTLE_MS);
 
