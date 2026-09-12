@@ -14,6 +14,21 @@ The front end is a **strategy console**: you move a pit-loss slider, toggle a sa
 
 The rule below still holds, with a sharper line drawn through it.
 
+### The scheduled worker now lives inside the API process
+
+`cleanair/poller.py` runs as an asyncio task started by the API's lifespan, not
+as a separate service. The recurring work is a network wait plus a tenth of a
+second of arithmetic, so it does not need its own machine, and one process is
+one deploy. Three rules make that safe: the pull runs in a SUBPROCESS so a
+three-minute download cannot block the event loop, a file lock stops two
+workers racing the same parquet, and a rate-cap failure backs off for 45
+minutes rather than retrying into the 500-calls-an-hour limit.
+
+`CLEANAIR_POLL=1` enables it. Off by default.
+
+That removes the GitHub Actions worker and the database from the recommended
+path: artifacts on disk are enough at this scale.
+
 ### The rule: FITTING never runs inside a web request. Optimising does.
 
 Measured on this dataset:
@@ -66,7 +81,7 @@ The console mitigates this itself — it requests the coarse grid while a slider
 
 **Path A now wins, on the row that was added.** When the API only read rows, 0.1 CPU was plenty and Path B was free — that was the right call for that design. Now that a slider drag is a request, serving CPU is the binding constraint, and 0.1 CPU turns a 350ms answer into several seconds.
 
-Cold starts matter for the same reason. A judge clicking Race Plan on a Render free instance that has slept waits about a minute before anything appears.
+Cold starts matter for the same reason. A judge opening Next Race or Strategy on a Render free instance that has slept waits about a minute before anything appears.
 
 Both paths still push the heavy fitting to GitHub Actions — a free 4-core, 16 GB runner beats anything either host gives you. That part of Path B was always right and is kept in Path A.
 

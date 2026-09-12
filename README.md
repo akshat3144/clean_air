@@ -64,6 +64,9 @@ What survives is the reason it does not affect our degradation result: the **wit
 | Strategy layer | ✅ pit loss measured per circuit, every legal plan enumerated |
 | Matches the field's actual call | ✅ **6 of 7 races**, against what the teams really ran |
 | Strategy console | ✅ live FastAPI optimiser, answers recomputed per request |
+| Adding a race | ✅ **no code push** — calendar discovered, nomination is one click |
+| New session data | ✅ in-process poller, every 15 min, pull in a subprocess |
+| Forecasting a race not yet run | ✅ Monza from FP1+FP2, two days before it happens |
 | Softer compounds degrade faster | ❌ **not in races — and we found why** |
 
 **The last row is the honest headline.** Pooling the field buys precision the
@@ -319,8 +322,72 @@ with three tabs of statistics behind them, which answers *"is this method
 sound?"* — a reviewer's question. Every screen it could show was one of seven
 precomputed pictures. A strategist has one question: what do we do on Sunday.
 
-Four controls, and each is there because a measured quantity has error worth
-exploring rather than because a slider looks good:
+### Five tabs, named after moments rather than scripts
+
+| tab | the question it answers |
+|---|---|
+| **Next Race** | what are we walking into on Sunday? |
+| **Strategy** | practice is in — what is the call, and how wrong can we be? |
+| **Track Record** | were you right? |
+| **Tyre Curves** | the measurement itself |
+| **Method** | why should I believe any of it? |
+
+The previous set was named after the pipeline, which meant two product tabs, two
+evidence tabs, one redundant one, and a single tab that jammed together planning
+a race and reacting mid-race — different jobs done in different states of mind.
+
+### Next Race: the one that has not happened yet
+
+Everything else looks backwards at races we can already score. This looks
+forward, and a race becomes answerable in stages that the screen shows honestly
+rather than papering over:
+
+    on the calendar    the date and the circuit, from the F1 API
+    + nominated        Pirelli announced the compounds (the one human input)
+    + practice run     long runs exist, so a forecast is possible
+    + enough of it     at least two compounds have a usable rate
+
+As this is written, **Monza is two days away and its FP1 and FP2 are already
+in** — so the app is forecasting a race that has not happened. It also says, in
+as many words, that it cannot plan it yet: on practice alone two of the three
+nominated compounds forecast a non-positive degradation rate, and a dry race
+needs two usable tyres. That is the truthful state, and FP3 resolves it without
+anyone touching a keyboard.
+
+Circuit history fills the two inputs an upcoming race cannot supply itself:
+Monza's pit loss is **25.4s with a 2.0s spread across four seasons**, its
+distance 53 laps. Both are labelled as history, because last year's pit lane is
+evidence about Sunday rather than a reading from it.
+
+### Nothing needs a code push to add a race
+
+| what | where it comes from |
+|---|---|
+| which races exist | the F1 calendar — all 23 rounds, future included |
+| session times | same, per session, in UTC |
+| race distance | previous seasons at that circuit |
+| pit loss | previous seasons at that circuit |
+| new session data | the in-process poller, every 15 minutes |
+| **compound nomination** | **the one thing a human sets** |
+
+That last row is not laziness. The timing feed reports HARD / MEDIUM / SOFT and
+those are relative to whatever three of C1–C5 were brought; nothing in the
+session or event metadata carries the mapping, and it is checked — it is a
+Pirelli press release. So it is a control in the app, not a constant in a source
+file, and it is one click: Pirelli slides a window of three ADJACENT compounds
+by circuit severity, and every 2026 nomination we verified is one of exactly
+three windows. Their own language is *"the middle trio"* and *"the softest
+trio"*.
+
+Values we cited are marked `pirelli` and anything typed in the app is marked
+`user`, because those are different kinds of claim. That distinction earned its
+place immediately: testing this app wrote a nomination for a race Pirelli had
+not announced, and the marker is what made it visible.
+
+### Four controls on the Strategy tab
+
+Each is there because a measured quantity has error worth exploring rather than
+because a slider looks good:
 
 | control | why it exists |
 |---|---|
@@ -398,9 +465,13 @@ confident story.
 
 ```
 src/cleanair/         the package
-  config.py           verified constants: 2026 regs, calendar, benchmark targets
-  api.py              FastAPI strategy console -- the only thing computed live
-  data/               FastF1 caching, clean-lap dataset, fuel model
+  config.py           verified constants: 2026 regs, benchmark targets, seeds
+  api.py              FastAPI strategy console -- everything computed live
+  poller.py           in-process watcher: pulls sessions as they finish
+  data/
+    schedule.py       the calendar, discovered from the API not hardcoded
+    allocation.py     Pirelli's nomination -- the one fact no feed carries
+    cache/laps/fuel   FastF1 caching, clean-lap dataset, fuel model
   models/             MixedLM (fast, interpretable) + Stan (hierarchical Bayesian)
     stan/hier_race    their state-space model with our field-wide pooling
   validation/         cross-validation, CRPS scoring, calibration, power analysis
@@ -415,12 +486,19 @@ benchmark/            R. Verification only, never part of the product.
 scripts/              numbered, run in order
   01 cache  02 publish  03 fit  04 validate  05 transfer  06 strategy
   07 management  08 benchmark  09 playbook  10 pit loss by status
+  11 circuits         per-circuit pit loss and distance, for races not yet run
 app/                  Streamlit lab bench (internal — we look at fits here, never demoed)
 web/                  the demo. Vite + React + TypeScript
   api.ts              client for the live optimiser
-  ConsoleView.tsx     the strategy console -- the front door
+  NextRaceView.tsx    the race that has not happened yet -- the front door
+  ConsoleView.tsx     the strategy console
+  CompoundLabels.tsx  why nothing is grouped by hard/medium/soft, derived live
   useStrategy.ts      coarse-while-dragging, exact-on-settle, generation-guarded
-data/artifacts/       JSON the web app reads for everything NOT computed live
+  ui.tsx              shared display primitives and the type scale
+data/
+  artifacts/          JSON the web app reads for everything NOT computed live
+  schedule/           cached calendar, so a demo works with no network
+  allocation.json     compound nominations, editable from the app
 docs/reference/       the benchmark paper, plus licensing notes on every source
 tests/
 ```
@@ -459,6 +537,10 @@ R 4.6.1 + Rtools45. Packages in `%LOCALAPPDATA%/R/win-library/4.6`: `cmdstanr`, 
 python -m uvicorn cleanair.api:app --reload --port 8000
 ```
 
+Set `CLEANAIR_POLL=1` to start the background poller with it. It is off by
+default so running the API locally does not silently begin pulling sessions.
+
+
 ```bash
 cd web && npm install && npm run dev
 ```
@@ -467,8 +549,9 @@ Vite proxies `/api` to port 8000, so the browser sees one origin and CORS never
 comes up in development. In production `VITE_API_BASE` points at the deployed
 service and `CORS_ORIGINS` lists the front end — no hostname is compiled in.
 
-The Tyre Curves and Proof views read published artifacts and work with the API
-stopped. Race Plan needs it, and says so if it is missing.
+Tyre Curves, Track Record and Method read published artifacts and work with the
+API stopped. Next Race and Strategy need it: Next Race says so plainly, and
+Strategy falls back to the published playbook with a banner.
 
 ---
 
