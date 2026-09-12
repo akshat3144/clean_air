@@ -136,12 +136,10 @@ overlap almost completely — Hard 0.054 [0.004, 0.133] against Medium 0.060
 Our tightest interval is **0.0244 wide against their 0.1290** — a 5.3× reduction,
 from pooling 417 long runs instead of 3.
 
-### The finding that surprised us — and we explain it
+### Why softer compounds do not degrade faster in races
 
-Softer compounds **do not** show faster degradation in races. C5 comes out
-slightly negative.
-
-That is not a bug, and it is not hand-waved away. In **practice** sessions
+In race data the expected ordering is absent — C5 comes out slightly negative.
+That is a real result, and it has a tested explanation. In **practice** sessions
 softer tyres do degrade faster. The fraction of that practice degradation which
 survives into the race **falls monotonically as the tyre softens**:
 
@@ -158,9 +156,9 @@ Significant on every convention, ordering intact.
 **Drivers nurse the fragile tyre, and they nurse it hardest when it is softest.**
 The mechanism was predicted in the benchmark paper and never tested. We tested it.
 
-The full cumulative trail — every season added one at a time — ships in the
-`stability` block of `management.json` and is rendered in the app, so the claim
-is checkable rather than asserted:
+Robustness across seasons, cumulative. The full trail ships in the `stability`
+block of `management.json` and is rendered in the app, so the claim is checkable
+rather than asserted:
 
 | Seasons              | Cells        | ρ                | p (2-sided)      |
 | -------------------- | ------------ | ----------------- | ---------------- |
@@ -395,35 +393,22 @@ export PATH="/c/rtools45/x86_64-w64-mingw32.static.posix/bin:/c/rtools45/usr/bin
 
 ---
 
-## Limits we publish
+## Known limits
 
-Stated because a reader will find them anyway, and because the tests that ruled
-things out are worth more than a confident story.
-
-- **Softer compounds do not show faster race degradation.** Ruled out:
-  tyre-age windowing, unidentifiable cells, post-pit traffic, and traffic as a
-  covariate (moves rates < 0.015 s/lap). The management effect explains *why*
-  the ordering is absent; it does not recover the ordering.
-- **The compound pace offset is assumed, not fitted** (0.6 s per step), and
-  labelled as the weakest input on the screen. Two attempts to measure it failed.
-- **A full safety car is not measurable** from our data — 23 stops across two
-  events disagreeing by 15 s. The VSC figure **is** measured: 0.84× a green stop,
-  from 48 VSC stops against 163 green ones.
-- **This optimiser minimises total time and has no concept of track position**,
+- **Softer compounds do not show faster race degradation.** Tyre-age windowing,
+  unidentifiable cells, post-pit traffic and traffic as a covariate are all ruled
+  out — traffic moves rates by less than 0.015 s/lap. The management effect
+  explains *why* the ordering is absent; it does not recover it.
+- **The compound pace offset is assumed, not fitted** — 0.6 s per step, surfaced
+  in the UI as the weakest input on the screen. Race data confounds compound
+  choice with car pace; practice data confounds it with fuel load.
+- **A full safety car is not measurable from this data.** 23 stops across two
+  events disagree by 15 s. The VSC figure **is** measured: **0.84× a green
+  stop**, from 48 VSC stops against 163 green ones.
+- **The optimiser minimises total time and has no concept of track position**,
   which is the real reason teams pit under a safety car.
-- **Two of nine transfer cells have negative actual rates**, cause not established.
-
-### Things we deliberately did not do
-
-- **Did not drop 2024** from the management test, though it is the season that
-  disagrees and dropping it would improve the p-value. We added seasons instead.
-- **Did not keep a better-scoring predictive spread** that described a different
-  forecast than the one being scored. Fixing it cost 0.0025 CRPS and moved
-  coverage from 67.6% to 90.2%.
-- **Did not develop against Austria.** Every choice was made on 2024; Austria was
-  scored once.
-- **Did not keep an invented safety-car constant.** 0.45 came from intuition;
-  measurement said 0.84.
+- **Two of nine practice→race cells have negative actual rates**, cause not
+  established.
 
 ---
 
