@@ -63,14 +63,46 @@ C_ORDER = ("C1", "C2", "C3", "C4", "C5")
 #: parameter too -- a caller who disagrees can say so.
 PACE_STEP_S = 0.6
 
-#: A safety car neutralises the field, so the time lost pitting collapses to
-#: roughly the pit-lane transit rather than a full green-flag stop. Treated as a
-#: fraction of the measured green-flag pit loss rather than a fixed number,
-#: because it scales with the circuit's pit lane.
+#: What a stop costs under a neutralisation, as a fraction of the green-flag
+#: pit loss. MEASURED, on the same construction as the green number: observed
+#: in-lap plus out-lap against the non-pitting field on those same two laps.
+#: See strategy.pitloss.loss_by_status and scripts/10_pit_loss_by_status.py.
 #:
-#: This is a MODELLING ASSUMPTION and not measured from our data. It is exposed
-#: in the response so a caller can see the answer rests on it.
-SAFETY_CAR_PIT_LOSS_FRACTION = 0.45
+#:     green        163 stops   22.15s   (the library's own estimate: 22.3s)
+#:     VSC           48 stops   18.66s   ratio 0.84
+#:     safety car    23 stops   30.71s   ratio 1.39  <- NOT USABLE
+#:
+#: The first version of this file asserted 0.45 on the universal intuition that
+#: a neutralised field makes a stop cheap. The data does not support it. The
+#: 1.39 is not usable either, and the reason is sample rather than mechanism:
+#: those 23 stops come from just two events, and the two disagree by 15 seconds
+#: -- Monaco 35.4s from 13 stops, Japan 20.10s from 10. One of those is above
+#: green and one below. There is no safety-car number here, only two circuits.
+#:
+#: A pit-lane queue is the obvious candidate explanation and it is NOT
+#: established: the loss does not rise monotonically with cars pitting on the
+#: same lap (2 cars 20.7s, 3 cars 36.0s, 6 cars 18.0s, 10 cars 38.6s), whereas
+#: green is flat across queue length at 21.8-23.0s. Something differs; which
+#: thing is not shown by 23 stops.
+#:
+#: So the default is the VSC number, the only neutralised category with enough
+#: stops and more than two events behind it. It is a request parameter because
+#: a caller at Monaco should be able to say otherwise.
+#:
+#: THE LIMITATION WORTH STATING OUT LOUD: teams pit under a safety car to gain
+#: TRACK POSITION, and this optimiser minimises total time. It has no concept of
+#: position, so it cannot represent the actual reason the decision is made. A
+#: correct pit-loss fraction would still not make it a safety-car strategist.
+NEUTRALISED_PIT_LOSS_FRACTION = 0.84
+
+#: Measured green-flag reference the fraction above is relative to, and the
+#: stop counts behind each number. Returned with any neutralised answer so the
+#: provenance travels with the number instead of living only in this comment.
+PIT_LOSS_BY_STATUS = {
+    "green": {"median_s": 22.15, "n_stops": 163, "ratio": 1.0},
+    "vsc": {"median_s": 18.66, "n_stops": 48, "ratio": 0.84},
+    "safety_car": {"median_s": 30.71, "n_stops": 23, "ratio": 1.39, "usable": False},
+}
 
 
 # ---------------------------------------------------------------------------
@@ -189,8 +221,14 @@ class StrategyRequest(BaseModel):
     #: 1 is exact and can take seconds; 3 is instant and agrees on the stop
     #: count at every event we checked. Use 3 while dragging, 1 on release.
     step: int = Field(default=1, ge=1, le=5)
-    #: Treat the next stop as taken under a safety car.
+    #: Treat the next stop as taken under a neutralisation.
     safety_car: bool = False
+    #: What a neutralised stop costs, as a fraction of the green pit loss.
+    #: Defaults to the MEASURED VSC ratio. A caller at Monaco, where the pit
+    #: lane queues under a safety car, should be able to override it.
+    neutralised_fraction: float = Field(
+        default=NEUTRALISED_PIT_LOSS_FRACTION, ge=0.1, le=2.0
+    )
 
 
 class PlanOut(BaseModel):
@@ -221,9 +259,11 @@ class StrategyResponse(BaseModel):
     pit_loss_measured_s: float | None
     n_green_stops: int | None
     safety_car: bool
-    #: The pit loss actually used when safety_car is set, and the fraction it
-    #: came from. Surfaced because it is assumed, not measured.
+    #: The fraction applied when safety_car is set. Measured, not assumed.
     safety_car_fraction: float | None
+    #: Stop counts and medians behind that fraction, so the provenance travels
+    #: with the answer rather than living in a source comment.
+    pit_loss_by_status: dict | None = None
     compounds: list[CompoundOut]
     plans: list[PlanOut]
     recommended_stops: int
@@ -254,6 +294,9 @@ class WhatIfRequest(BaseModel):
     #: constant, and cancels out of the comparison completely. The cheap stop
     #: is a window that closes, so only laps inside it get the discount.
     safety_car_laps: int = Field(default=3, ge=1, le=10)
+    neutralised_fraction: float = Field(
+        default=NEUTRALISED_PIT_LOSS_FRACTION, ge=0.1, le=2.0
+    )
     #: How many laps ahead to evaluate staying out.
     horizon: int = Field(default=8, ge=1, le=25)
     step: int = Field(default=3, ge=1, le=5)
@@ -408,7 +451,7 @@ def strategy(req: StrategyRequest) -> StrategyResponse:
             422,
             f"no measured pit loss for {req.event!r}; supply pit_loss_s explicitly",
         )
-    pit = base_pit * SAFETY_CAR_PIT_LOSS_FRACTION if req.safety_car else base_pit
+    pit = base_pit * req.neutralised_fraction if req.safety_car else base_pit
 
     race_laps = req.race_laps or st.race_laps[req.event]
     usable, compounds = _rates_for(st, req.event, req.rates)
@@ -450,7 +493,8 @@ def strategy(req: StrategyRequest) -> StrategyResponse:
         pit_loss_measured_s=round(measured, 2) if measured is not None else None,
         n_green_stops=st.n_green_stops.get(req.event),
         safety_car=req.safety_car,
-        safety_car_fraction=SAFETY_CAR_PIT_LOSS_FRACTION if req.safety_car else None,
+        safety_car_fraction=req.neutralised_fraction if req.safety_car else None,
+        pit_loss_by_status=PIT_LOSS_BY_STATUS if req.safety_car else None,
         compounds=compounds,
         plans=[
             _plan_out(p, top) for _, p in sorted(best.items(), key=lambda kv: kv[1].total_time)
@@ -495,7 +539,7 @@ def whatif(req: WhatIfRequest) -> WhatIfResponse:
         again, and that difference is the decision.
         """
         if req.safety_car and lap < req.current_lap + req.safety_car_laps:
-            return base_pit * SAFETY_CAR_PIT_LOSS_FRACTION
+            return base_pit * req.neutralised_fraction
         return base_pit
 
     race_laps = st.race_laps[req.event]

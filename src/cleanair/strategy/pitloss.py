@@ -131,3 +131,89 @@ def estimate_all(events: list[str], season: int = 2026) -> pd.DataFrame:
                 }
             )
     return pd.DataFrame(rows)
+
+
+# ---------------------------------------------------------------------------
+# Pit loss by track status
+# ---------------------------------------------------------------------------
+#
+# The strategy console has a "safety car is out" toggle, and the obvious way to
+# implement it is to discount the pit loss: the field is neutralised, so a stop
+# should be cheap. That is the universal intuition in F1 and it is why the first
+# version of the API simply asserted a 0.45 multiplier.
+#
+# It does not survive measurement, and the reason matters.
+
+#: Track-status categories, from FastF1's codes. A lap's status is a
+#: concatenation of every code that applied during it, so these are substring
+#: tests rather than equality: "41" is a safety car followed by all-clear.
+_STATUS_CODES = (
+    ("safety_car", ("4",)),
+    ("vsc", ("6", "7")),
+    ("yellow", ("2",)),
+)
+
+
+def status_category(status: object) -> str:
+    """Which neutralisation applied during a lap, if any."""
+    s = str(status)
+    for name, codes in _STATUS_CODES:
+        if any(c in s for c in codes):
+            return name
+    return "green"
+
+
+def loss_by_status(laps: pd.DataFrame, event: str) -> pd.DataFrame:
+    """Pit loss split by track status, each measured the same way.
+
+    The reference is the NON-PITTING field on the same two laps, not the
+    driver's own green-flag median. Under a neutralisation every car is slow, so
+    a green reference charges the stop for the safety car as well as for the
+    stop, and the resulting number means nothing.
+
+    Returns one row per stop: event, driver, lap, category, loss in seconds.
+    """
+    df = laps.copy()
+    if "LapTimeSeconds" not in df.columns:
+        df["LapTimeSeconds"] = pd.to_timedelta(df["LapTime"]).dt.total_seconds()
+    df = df[df["LapTimeSeconds"].notna()].sort_values(["Driver", "LapNumber"])
+    if df.empty:
+        return pd.DataFrame(columns=["event", "driver", "lap", "category", "loss", "n_pitting"])
+
+    df["category"] = df["TrackStatus"].map(status_category)
+    pitting = df["PitInTime"].notna() | df["PitOutTime"].notna()
+
+    # What a car that stayed out did on each lap.
+    reference = df[~pitting].groupby("LapNumber")["LapTimeSeconds"].median()
+
+    rows = []
+    for driver, g in df.groupby("Driver"):
+        for _, in_lap in g[g["PitInTime"].notna()].iterrows():
+            lap = in_lap["LapNumber"]
+            out_lap = g[g["LapNumber"] == lap + 1]
+            if out_lap.empty or out_lap["PitOutTime"].isna().all():
+                continue
+            if lap not in reference.index or (lap + 1) not in reference.index:
+                continue
+            observed = in_lap["LapTimeSeconds"] + float(out_lap["LapTimeSeconds"].iloc[0])
+            expected = float(reference.loc[lap]) + float(reference.loc[lap + 1])
+            rows.append(
+                {
+                    "event": event,
+                    "driver": driver,
+                    "lap": int(lap),
+                    "category": in_lap["category"],
+                    "loss": observed - expected,
+                }
+            )
+    out = pd.DataFrame(rows)
+    if out.empty:
+        return out
+    # Cars pitting on the same lap in the same state: a pit-lane queue, which
+    # costs real time and is not a property of the neutralisation.
+    counts = out.groupby(["lap", "category"]).size().rename("n_pitting")
+    out = out.merge(counts, on=["lap", "category"])
+    # A negative loss is not a stop, and 45s is a stop that also involved
+    # damage. The green floor of PLAUSIBLE_RANGE_S is deliberately NOT applied:
+    # it would discard cheap stops, which are the ones under question here.
+    return out[(out["loss"] > 0) & (out["loss"] < 45.0)]

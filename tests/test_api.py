@@ -14,7 +14,7 @@ import pytest
 pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient  # noqa: E402
 
-from cleanair.api import SAFETY_CAR_PIT_LOSS_FRACTION, app  # noqa: E402
+from cleanair.api import NEUTRALISED_PIT_LOSS_FRACTION, app  # noqa: E402
 
 EVENT = "Hungarian Grand Prix"
 
@@ -100,11 +100,42 @@ def test_a_safety_car_makes_the_stop_cheaper(client):
     sc = client.post("/strategy", json={"event": EVENT, "safety_car": True, "step": 3}).json()
     assert sc["pit_loss_s"] < green["pit_loss_s"]
     assert sc["pit_loss_s"] == pytest.approx(
-        green["pit_loss_s"] * SAFETY_CAR_PIT_LOSS_FRACTION, abs=0.05
+        green["pit_loss_s"] * NEUTRALISED_PIT_LOSS_FRACTION, abs=0.05
     )
-    assert sc["safety_car_fraction"] == SAFETY_CAR_PIT_LOSS_FRACTION
-    # And it must be surfaced as an assumption, not folded in silently.
+    assert sc["safety_car_fraction"] == NEUTRALISED_PIT_LOSS_FRACTION
+    # And it must be surfaced, not folded in silently.
     assert green["safety_car_fraction"] is None
+    # The provenance travels with the answer: stop counts behind the fraction.
+    assert sc["pit_loss_by_status"]["green"]["n_stops"] > 100
+    assert sc["pit_loss_by_status"]["safety_car"]["usable"] is False
+
+
+def test_the_neutralised_fraction_can_be_overridden(client):
+    """Monaco queues under a safety car, so a caller must be able to disagree
+    with the measured VSC default rather than being stuck with it."""
+    default = client.post(
+        "/strategy", json={"event": EVENT, "safety_car": True, "step": 3}
+    ).json()
+    dearer = client.post(
+        "/strategy",
+        json={"event": EVENT, "safety_car": True, "neutralised_fraction": 1.4, "step": 3},
+    ).json()
+    assert dearer["pit_loss_s"] > default["pit_loss_s"]
+    assert dearer["safety_car_fraction"] == 1.4
+
+
+def test_the_measured_green_reference_agrees_with_the_library(client):
+    """A cross-check on the whole measurement.
+
+    PIT_LOSS_BY_STATUS was measured against the non-pitting field; the
+    library's own estimate uses each driver's green median. Two different
+    constructions landing within a second of each other is evidence both are
+    measuring a pit stop rather than an artefact.
+    """
+    from cleanair.api import PIT_LOSS_BY_STATUS
+
+    r = client.post("/strategy", json={"event": EVENT, "step": 3}).json()
+    assert abs(PIT_LOSS_BY_STATUS["green"]["median_s"] - r["pit_loss_measured_s"]) < 1.5
 
 
 def test_overriding_a_rate_changes_the_answer(client):
@@ -202,9 +233,17 @@ def test_whatif_prefers_a_lap_inside_the_safety_car_window(client):
     assert sc["best_pit_lap"] < 34 + 3, "should stop inside the window"
     assert green["best_pit_lap"] >= 34 + 3, "no reason to rush under green"
 
-    # Missing the window must be expensive, or the urgency is not real.
+    # Missing the window must cost something, or the urgency is not real.
+    #
+    # The threshold is 1s, not the 5s this test first asserted. That 5s was
+    # calibrated against an INVENTED 0.45 fraction, which made missing the
+    # window cost 12s. On the measured 0.84 it costs 3.35s. The urgency is real
+    # and considerably milder than the folklore, which is the finding.
     missed = next(o for o in sc["options"] if o["pit_on_lap"] == 34 + 3)
-    assert missed["delta_s"] > 5.0
+    assert missed["delta_s"] > 1.0
+    # And staying out past the window must be worse than taking it.
+    inside = [o for o in sc["options"] if o["laps_from_now"] < 3]
+    assert min(o["delta_s"] for o in inside) < missed["delta_s"]
 
 
 def test_whatif_costs_are_relative_to_the_best_option(client):
