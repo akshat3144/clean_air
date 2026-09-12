@@ -269,6 +269,9 @@ export interface SessionCell {
 
 export interface SessionBreakdown {
   session: string;
+  /** False when the weekend's FORMAT has no such session. A sprint weekend
+   *  runs one practice session; its FP2 is not missing, it does not exist. */
+  exists: boolean;
   has_run: boolean;
   weight: number;
   /** Signed clock-hours from this session's start to the race start. */
@@ -287,9 +290,20 @@ export interface SessionSkill {
   mae: number | null;
 }
 
+/** What the race actually did, where it has been run. */
+export interface RaceActual {
+  compound: string;
+  label: string | null;
+  rate: number;
+  n_runs: number;
+  n_laps: number;
+}
+
 export interface PracticeSessions {
   event: string;
   sessions: SessionBreakdown[];
+  race_actual: RaceActual[];
+  sprint_weekend: boolean;
   weights: Record<string, number>;
   weight_evidence: Record<string, SessionSkill>;
   allocation: Record<string, string> | null;

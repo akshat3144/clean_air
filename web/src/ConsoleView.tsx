@@ -9,6 +9,7 @@ import {
   type StrategyResult,
   type WhatIfResult,
 } from "./api";
+import { PracticeSessionsPanel } from "./PracticeSessionsPanel";
 import { RacePlanView } from "./RacePlanView";
 import { COMPOUND_COLOR, type Compound, type PlaybookArtifact } from "./types/artifacts";
 import { Animated, Dot, EASE, Panel, Pill, Row, Skeleton, StintAllocation } from "./ui";
@@ -166,6 +167,14 @@ export function ConsoleView({ playbook }: { playbook: PlaybookArtifact }) {
                 safetyCar={safetyCar}
                 rates={rates}
               />
+              {/* The same panel the Next Race tab carries, on the screen the
+                  pit wall actually works from. Here the race HAS run, so it
+                  also shows what Friday's sessions said against what Sunday
+                  did -- which is the post-race validation the brief asks for,
+                  and the evidence behind the practice-to-race factor the
+                  forecast leans on. It is informational: this tab optimises on
+                  the MEASURED race rate, not on practice. */}
+              <PracticeSessionsPanel event={result.event} />
             </>
           ) : (
             <>
