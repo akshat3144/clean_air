@@ -7,9 +7,15 @@ which contradicts how tyres work. This tests the leading explanation: a driver
 nurses a fragile tyre in a race and pushes it in practice, so the race number is
 suppressed most for the softest tyre.
 
-Uses every season on disk, because the answer is limited by sample size and
-nothing else. Also reports how the effect moved as seasons were added -- ours
-shrank, and that belongs in the output rather than in a footnote.
+Uses every COMPLETE season on disk, because the answer is limited by sample size
+and nothing else. Truncated pulls are refused rather than pooled -- see
+season_completeness.
+
+Also reports how the effect moved as seasons were added, because it did not move
+in one direction: significant at two seasons, marginal at three, then clear at
+four and five. That trail belongs in the output rather than in a footnote, since
+the alternative reading -- drop the season that disagrees and report the better
+number -- was available at every step and is what the trail rules out.
 """
 
 from __future__ import annotations
@@ -22,6 +28,7 @@ import pandas as pd
 from cleanair.artifacts import schema
 from cleanair.artifacts.schema import ManagementArtifact, ManagementRow
 from cleanair.config import PROCESSED
+from cleanair.data.cache import season_completeness
 from cleanair.data.laps import tag_long_runs
 from cleanair.models.design import (
     classify_runs,
@@ -52,9 +59,11 @@ def build(path: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
 def stability_table(per_season: dict) -> list[dict]:
     """How the effect moves as seasons are added, newest first.
 
-    Included because our own effect got SMALLER with more data -- rho went from
-    -0.40 at 26 cells to -0.27 at 50 -- and a result that weakens as evidence
-    grows is exactly the thing a reader deserves to see.
+    rho is not monotone in sample size: -0.375, -0.402, -0.266, -0.312, -0.282
+    as 2026 through 2022 come in. It dipped hardest at three seasons, which is
+    where the two-sided p failed and the verdict read "marginal". Printing the
+    whole path is the point -- a reader who sees only the final row cannot tell
+    whether the claim survived the evidence or was fitted to it.
     """
     rows = []
     newest_first = sorted(per_season, reverse=True)
@@ -84,10 +93,21 @@ def main() -> None:
         if path.exists():
             sources[season] = path
 
-    per_season = {}
+    per_season, excluded = {}, []
     for season, path in sorted(sources.items(), reverse=True):
+        ok, why = season_completeness(path)
+        if not ok:
+            excluded.append((season, why))
+            print(f"  {season}: SKIPPED -- {why}")
+            continue
         per_season[season] = build(path)
-        print(f"  {season}: loaded {path.name}")
+        print(f"  {season}: loaded {path.name} -- {why}")
+
+    if excluded:
+        print(
+            f"\n  {len(excluded)} season(s) excluded as incomplete. Re-run "
+            f"scripts/01_cache_sessions.py --season <year> once the API cap resets."
+        )
 
     res = analyse(per_season)
 
@@ -123,11 +143,13 @@ def main() -> None:
     if len(stability) > 1:
         print()
         print("  HOW IT MOVED AS SEASONS WERE ADDED")
-        print(f"  {'seasons':22s}{'cells':>7s}{'rho':>9s}{'p 1-sided':>12s}{'p 2-sided':>12s}")
+        # 26 wide, not 22: five seasons joined by "+" is 24 characters, which
+        # overflowed the column and pushed every later field out of line.
+        print(f"  {'seasons':26s}{'cells':>7s}{'rho':>9s}{'p 1-sided':>12s}{'p 2-sided':>12s}")
         for row in stability:
             tag = "+".join(str(s) for s in row["seasons"])
             print(
-                f"  {tag:22s}{row['n_cells']:7d}{row['rho']:9.3f}"
+                f"  {tag:26s}{row['n_cells']:7d}{row['rho']:9.3f}"
                 f"{row['p_one_sided']:12.4f}{row['p_two_sided']:12.4f}"
             )
 

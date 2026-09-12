@@ -12,8 +12,10 @@ Sprint Qualifying, so they carry no race-simulation long runs.
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import time
+from datetime import UTC, datetime
 
 import pandas as pd
 
@@ -91,7 +93,29 @@ def main() -> None:
     out = PROCESSED / out_name
     df.to_parquet(out, index=False)
 
+    # A season that half-downloaded looks exactly like a complete one on disk:
+    # the parquet holds whatever arrived and records nothing about what did not.
+    # The F1 API caps at 500 calls/hour, so a truncated pull is a normal event,
+    # not a rare one, and pooling one silently would drop whole events from an
+    # analysis without anyone noticing. The manifest is what lets downstream
+    # scripts refuse it.
+    manifest = {
+        "season": args.season,
+        "written_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        "parquet": out.name,
+        "sessions_requested": len(args.events) * len(args.sessions),
+        "sessions_loaded": len(frames),
+        "sessions_failed": len(rows),
+        "events_requested": sorted(args.events),
+        "events_loaded": sorted(df["event"].unique().tolist()),
+        "complete": not rows,
+        "failures": rows,
+    }
+    man = out.with_name(f"{out.stem}.manifest.json")
+    man.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+
     print(f"\nwrote {out}  ({len(df):,} clean laps)")
+    print(f"wrote {man}  (complete={manifest['complete']})")
     print("\n" + summarise(df).to_string(index=False))
 
     long_runs = df[df.is_long_run]

@@ -16,7 +16,7 @@ Two comparisons are made, and they are not the same thing.
    races, but not the per-race numbers. So a per-race win/loss table cannot be
    built without inventing their side of it, and we do not build one. What we
    report instead is our season mean next to theirs, with both race counts
-   shown, because we cached 16 races and they used 19.
+   shown, because we scored 18 races and they used 19.
 
 We do not include a "reproduced" row for their state-space model. We verified
 their published parameter estimates, not a re-run of their sampler, and a row
@@ -32,6 +32,7 @@ import pandas as pd
 from cleanair.artifacts import schema
 from cleanair.artifacts.schema import BenchmarkArtifact, BenchmarkScore
 from cleanair.config import BENCHMARK_CRPS, BENCHMARK_RMSPE, BENCHMARK_SEASON_2025, PROCESSED
+from cleanair.data.cache import season_completeness
 from cleanair.validation.benchmark import score
 from cleanair.validation.scoring import crosscheck_against_r
 
@@ -72,7 +73,20 @@ def season_scores(races: pd.DataFrame) -> pd.DataFrame:
 
 
 def main() -> None:
-    laps = pd.read_parquet(PROCESSED / "laps_2025.parquet")
+    path = PROCESSED / "laps_2025.parquet"
+
+    # The season mean below is reported next to theirs, so a truncated pull
+    # would compare a different number of races against a fixed 19 and call it
+    # a comparison. Refuse instead: a wrong benchmark number is worse than none.
+    ok, why = season_completeness(path)
+    print(f"  2025 data: {why}")
+    if not ok:
+        raise SystemExit(
+            "refusing to score an incomplete season. Re-run "
+            "scripts/01_cache_sessions.py --season 2025 once the API cap resets."
+        )
+
+    laps = pd.read_parquet(path)
     races = laps[laps["session"] == "R"]
 
     print("=" * 72)

@@ -11,6 +11,7 @@ empty). Turn it on explicitly if that changes.
 
 from __future__ import annotations
 
+import json
 import logging
 
 import fastf1
@@ -93,3 +94,31 @@ def practice_sessions(events: tuple[str, ...] = CONVENTIONAL_2026) -> list[tuple
     no long runs and are excluded upstream in ``config.CONVENTIONAL_2026``.
     """
     return [(e, ses) for e in events for ses in ("FP1", "FP2", "FP3")]
+
+
+def season_completeness(path) -> tuple[bool, str]:
+    """Is a season's parquet a full pull, per the manifest script 01 writes?
+
+    A half-downloaded season is indistinguishable from a complete one by looking
+    at the parquet: it holds whatever arrived and records nothing about what did
+    not. The F1 API caps at 500 calls an hour, so truncated pulls are routine
+    rather than rare -- our own 2022 pull needed three attempts, landing 9 then
+    17 then all 19 events. Scoring or pooling a truncated season silently drops
+    whole events, so callers should refuse rather than warn.
+
+    Seasons cached before manifests existed report unverified and are allowed
+    through. Excluding those would silently shrink the sample instead, which is
+    the same failure pointing the other way.
+    """
+    man = path.with_name(f"{path.stem}.manifest.json")
+    if not man.exists():
+        return True, "completeness unverified (no manifest)"
+    m = json.loads(man.read_text(encoding="utf-8"))
+    if m.get("complete"):
+        return True, f"complete ({m.get('sessions_loaded')} sessions)"
+    missing = sorted(set(m.get("events_requested", [])) - set(m.get("events_loaded", [])))
+    detail = f", missing {', '.join(missing)}" if missing else ""
+    return False, (
+        f"INCOMPLETE: {m.get('sessions_failed')} session(s) failed, "
+        f"{len(missing)} event(s) missing{detail}"
+    )
