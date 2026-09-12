@@ -1,44 +1,25 @@
 # Deployment
 
-How Clean Air runs in production, and how to set it up from nothing.
+> **This is the last job, not the first.** Nothing here should be built until the model works and the artifact format is frozen. Deployment shapes itself around what the pipeline produces, so building it early means building it twice.
+>
+> Two paths are written up below. **Path B is the recommendation.**
 
 ---
 
-## The shape of it
+## Two things both paths share
 
-```
-┌─ EC2, one box, docker compose ──────────────────┐
-│                                                  │
-│  caddy      HTTPS in front, certs auto-renew     │
-│     │                                            │
-│  fastapi    read-only API over the database      │
-│     │                                            │
-│  postgres   results stored as JSONB              │
-│     ▲                                            │
-│  worker     on a timer: checks for new sessions, │
-│             pulls data, fits models, writes rows │
-└──────────────────────────────────────────────────┘
-                       ▲ https
-                       │
-              React app on Vercel
-```
+### The rule: the model never runs inside a web request
 
-Frontend and backend are deployed separately and neither blocks the other.
+A worker fits models on a schedule and writes results to the database. The API only *reads*.
 
-## The one rule
-
-**The model never runs inside a web request.**
-
-The worker fits models on a schedule and writes results to Postgres. The API only reads.
-
-This matters because a model fit takes seconds to minutes, and F1 data pulls take up to a minute. If that happened during a request, the demo would show a spinner or a timeout while judges watched. Reading a finished row from Postgres takes milliseconds and cannot fail in an interesting way.
+This matters because a model fit takes seconds to minutes and an F1 data pull takes up to a minute. If that happened during a request, the demo would show a spinner or a timeout while judges watched. Reading a finished row takes milliseconds and cannot fail in an interesting way.
 
 If you ever feel tempted to add `POST /fit`, don't. Add a job the worker picks up instead.
 
-## What updates itself
+### What updates itself
 
 1. A practice session happens
-2. The worker wakes up, finds data it has not processed, pulls it
+2. The worker wakes, finds data it has not processed, pulls it
 3. Fits the model, writes a row
 4. The API serves the new numbers straight away
 5. The site shows them
@@ -47,92 +28,55 @@ If you ever feel tempted to add `POST /fit`, don't. Add a job the worker picks u
 
 ---
 
-## Before you start
+## Choosing between the paths
 
-- [ ] AWS account (free tier covers the box for 12 months on a new account)
-- [ ] GitHub repo pushed
-- [ ] Vercel account, connected to GitHub
-- [ ] DuckDNS account (free, sign in with GitHub)
-- [ ] An SSH key pair for the EC2 box
+| | Path A — AWS EC2 | Path B — Render + Neon |
+|---|---|---|
+| Servers to manage | 1 (you patch it) | 0 |
+| Certificates | Caddy, automatic | included |
+| CPU for model fitting | 1–2 cores on the box | **4 cores, 16 GB** on a GitHub runner |
+| Persistent cache | yes, a disk | yes, GitHub Actions cache |
+| Cost | free 12 months, then ~₹1,100/mo | **₹0, permanently** |
+| Setup time | a few hours | under an hour |
+| Cold starts | none | ~1 min on the API unless kept warm |
 
-No paid domain is needed. Judges only ever see the Vercel URL; the API hostname is invisible inside the JavaScript.
+**Path B wins on the thing that matters most: compute for the fitting.** Render's free tier gives 0.1 CPU, which is unusable for MCMC — so in Path B the fitting moves to GitHub Actions, which hands you a 4-core, 16 GB runner for free. That is more than the AWS free tier gives you (`t3.micro`, 1 GB).
 
----
-
-# Part 1 — Frontend on Vercel
-
-1. Import the repo at <https://vercel.com/new>
-2. Set **Root Directory** to `web`
-3. Framework preset: Vite. Build `npm run build`, output `dist`
-4. Add an environment variable:
-
-   | Name | Value |
-   |---|---|
-   | `VITE_API_URL` | `https://cleanair-api.duckdns.org` |
-
-5. Deploy
-
-You get `cleanair.vercel.app`. Every push to `main` redeploys automatically. Pull requests get their own preview URL.
-
-**Why the API URL is an environment variable:** so local development points at `localhost:8000` and production points at EC2, with no code change. Never hardcode it.
-
-Local override goes in `web/.env.local` (gitignored):
-
-```
-VITE_API_URL=http://localhost:8000
-```
+Path A is only better if you specifically want one box that does everything and are happy to maintain it.
 
 ---
 
-# Part 2 — Backend on EC2
+# Path A — AWS EC2 (one box)
 
-## 2.1 Launch the instance
+```
+┌─ EC2, docker compose ───────────────────────────┐
+│  caddy      HTTPS, certs auto-renew              │
+│  fastapi    read-only API                        │
+│  postgres   results as JSONB                     │
+│  worker     timer: pull, fit, write              │
+└──────────────────────────────────────────────────┘
+                       ▲ https
+              React app on Vercel
+```
+
+### Instance
 
 | Setting | Value |
 |---|---|
 | Region | `ap-south-1` (Mumbai) |
-| AMI | Ubuntu Server 24.04 LTS, **ARM64** |
-| Type | `t4g.small` (2 vCPU, 2 GB) |
+| AMI | Ubuntu 24.04 LTS, **ARM64** |
+| Type | `t4g.small` (2 GB) — free tier only covers `t3.micro` (1 GB) |
 | Storage | 20 GB gp3 |
-| Key pair | create one, keep the `.pem` safe |
 
-Security group inbound rules:
+Security group inbound: 22 from your IP, 80 and 443 from anywhere. **Never open 5432** — Postgres stays inside the Docker network.
 
-| Port | Source | Why |
-|---|---|---|
-| 22 | your IP only | SSH |
-| 80 | anywhere | Let's Encrypt certificate challenge |
-| 443 | anywhere | the API |
+Attach an **Elastic IP**, or the address changes on restart and the certificate breaks.
 
-Do **not** open 5432. Postgres stays inside the Docker network and is never reachable from the internet.
+### Hostname without buying a domain
 
-ARM (`t4g`) is chosen because it is cheaper than x86 for the same performance, and every image we use has ARM builds.
+Judges only ever see the Vercel URL, so the API hostname can be anything. Create a free subdomain at [duckdns.org], point it at the Elastic IP, and Caddy gets a real Let's Encrypt certificate automatically.
 
-## 2.2 Point a hostname at it
-
-Allocate an **Elastic IP** and attach it to the instance. Without this the IP changes every time the box restarts, and the certificate breaks.
-
-Then at <https://duckdns.org>:
-
-1. Create a subdomain, e.g. `cleanair-api`
-2. Set its IP to your Elastic IP
-3. Copy your DuckDNS token — the worker uses it to keep the record fresh
-
-You now have `cleanair-api.duckdns.org`. Caddy gets a real Let's Encrypt certificate for it automatically.
-
-## 2.3 Install Docker
-
-```bash
-ssh -i key.pem ubuntu@<elastic-ip>
-
-sudo apt update && sudo apt upgrade -y
-curl -fsSL https://get.docker.com | sudo sh
-sudo usermod -aG docker ubuntu
-newgrp docker
-docker compose version
-```
-
-## 2.4 Compose file
+### Compose
 
 `deploy/docker-compose.yml`:
 
@@ -145,19 +89,17 @@ services:
       POSTGRES_DB: cleanair
       POSTGRES_USER: cleanair
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    volumes:
-      - pgdata:/var/lib/postgresql/data
+    volumes: [pgdata:/var/lib/postgresql/data]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U cleanair"]
       interval: 10s
       retries: 5
-    # No ports section on purpose. Only other containers can reach it.
+    # No ports section on purpose: only other containers can reach it.
 
   api:
     image: ghcr.io/${GH_OWNER}/cleanair-api:latest
     restart: unless-stopped
-    depends_on:
-      postgres: { condition: service_healthy }
+    depends_on: { postgres: { condition: service_healthy } }
     environment:
       DATABASE_URL: postgresql://cleanair:${POSTGRES_PASSWORD}@postgres:5432/cleanair
       CORS_ORIGINS: https://cleanair.vercel.app
@@ -165,14 +107,10 @@ services:
   worker:
     image: ghcr.io/${GH_OWNER}/cleanair-worker:latest
     restart: unless-stopped
-    depends_on:
-      postgres: { condition: service_healthy }
+    depends_on: { postgres: { condition: service_healthy } }
     environment:
       DATABASE_URL: postgresql://cleanair:${POSTGRES_PASSWORD}@postgres:5432/cleanair
-      DUCKDNS_TOKEN: ${DUCKDNS_TOKEN}
-      DUCKDNS_DOMAIN: cleanair-api
-    volumes:
-      - fastf1cache:/cache
+    volumes: [fastf1cache:/cache]
 
   caddy:
     image: caddy:2-alpine
@@ -183,10 +121,7 @@ services:
       - caddydata:/data
     depends_on: [api]
 
-volumes:
-  pgdata:
-  caddydata:
-  fastf1cache:
+volumes: { pgdata: , caddydata: , fastf1cache: }
 ```
 
 `deploy/Caddyfile`:
@@ -197,203 +132,181 @@ cleanair-api.duckdns.org {
 }
 ```
 
-That is the whole HTTPS setup. Caddy requests the certificate on first start and renews it forever. There is no certbot and no cron job to forget about.
+That is the entire HTTPS setup. No certbot, no renewal cron to forget.
 
-## 2.5 Secrets
+### Auto-deploy
 
-On the box, `deploy/.env` (never committed):
+GitHub Actions: run tests → build ARM images → push to `ghcr.io` → SSH to the box → `docker compose pull && up -d`.
 
-```
-POSTGRES_PASSWORD=<long random string>
-DUCKDNS_TOKEN=<from duckdns.org>
-GH_OWNER=<your github username>
-```
-
-Generate the password with `openssl rand -base64 32`.
-
-## 2.6 Start it
-
-```bash
-cd deploy
-docker compose up -d
-docker compose logs -f caddy   # watch the certificate get issued
-curl https://cleanair-api.duckdns.org/health
-```
+**Build with `platforms: linux/arm64`.** Runners are x86, the box is ARM. Miss this and the container fails to start with a confusing `exec format error`.
 
 ---
 
-# Part 3 — Database
+# Path B — Render + Neon + GitHub Actions  ← recommended
 
-One table does most of the work. Postgres `JSONB` suits us because artifacts are nested and their shape evolves.
+```
+GitHub Actions (cron)          Render                 Vercel
+  pull data                     FastAPI                React app
+  fit models          ───▶      read-only      ◀───    fetch
+  write rows                       │
+        │                          │
+        └──────────▶  Neon Postgres  ◀───────────────┘
+```
+
+Nothing to patch, nothing to SSH into, everything deploys from git.
+
+### B1. Database — Neon
+
+1. Create a project at [neon.com]
+2. Copy the pooled connection string
+3. Run the schema below
+
+Free plan: 0.5 GB storage and **100 compute-hours per month**, autosuspending after 5 minutes idle. Our data is a few megabytes of JSON, so storage is a non-issue.
+
+### B2. API — Render
+
+New Web Service from the repo:
+
+| Setting | Value |
+|---|---|
+| Runtime | Python 3 |
+| Build | `pip install -e .` |
+| Start | `uvicorn cleanair.api:app --host 0.0.0.0 --port $PORT` |
+| Plan | Free |
+
+Environment: `DATABASE_URL` (from Neon), `CORS_ORIGINS=https://cleanair.vercel.app`.
+
+Free tier is 512 MB and 0.1 CPU. That is fine here **because the API only reads rows** — no fitting ever happens in this process.
+
+### B3. ⚠ Keeping it warm without burning Neon
+
+Render free services sleep after 15 minutes and take about a minute to wake. A cron pinger fixes that — but there is a trap:
+
+**The ping must hit an endpoint that does not touch the database.**
+
+Neon only suspends when nothing queries it. If the ping reads Postgres every 10 minutes, Neon never sleeps, and you need ~730 compute-hours a month against an allowance of 100. The free tier is gone in under a week.
+
+So:
+
+```python
+@app.get("/health")
+def health():
+    return {"ok": True}      # no database call, deliberately
+```
+
+Point the pinger at `/health` only. Render stays awake, Neon stays asleep, both stay free.
+
+### B4. Model fitting — GitHub Actions
+
+This is what makes Path B work. Runners give **4 CPUs and 16 GB**, free, on a schedule.
+
+`.github/workflows/fit.yml`:
+
+```yaml
+name: fit
+on:
+  schedule:
+    - cron: "0 */6 * * *"     # every 6 hours; tighten during a race weekend
+  workflow_dispatch:           # and a manual button
+
+jobs:
+  fit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+
+      # Without this every run re-downloads every session.
+      - uses: actions/cache@v4
+        with:
+          path: data/fastf1_cache
+          key: fastf1-${{ github.run_id }}
+          restore-keys: fastf1-
+
+      - run: pip install -e .
+      - run: python scripts/run_pipeline.py --publish
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+```
+
+`workflow_dispatch` matters on Challenge Day: after Madrid practice you press one button and the site updates. No laptop, no push.
+
+### B5. Frontend — Vercel
+
+Import the repo, Root Directory `web`, framework Vite.
+
+| Env var | Value |
+|---|---|
+| `VITE_API_URL` | your Render URL |
+
+Never hardcode the API address. Local development uses `web/.env.local` with `http://localhost:8000`; localhost is exempt from mixed-content blocking, so plain HTTP is fine there.
+
+---
+
+## Database schema (both paths)
+
+One table does most of the work. `JSONB` suits us because artifacts are nested and their shape will evolve.
 
 ```sql
 create table artifacts (
-    id          bigserial primary key,
-    kind        text        not null,   -- 'degradation' | 'ablation' | 'benchmark' | ...
-    event       text,                   -- null when pooled across events
-    season      int         not null,
-    payload     jsonb       not null,
-    model_version text      not null,
-    created_at  timestamptz not null default now()
+    id            bigserial primary key,
+    kind          text        not null,   -- 'degradation' | 'ablation' | 'benchmark' | ...
+    event         text,                   -- null when pooled across events
+    season        int         not null,
+    payload       jsonb       not null,
+    model_version text        not null,
+    created_at    timestamptz not null default now()
 );
 
 create index on artifacts (kind, season, event, created_at desc);
 ```
 
-**Rows are never updated, only inserted.** Every fit is a new row.
+**Rows are only ever inserted, never updated.** Every fit is a new row.
 
-That gives history for free. You can show how the estimate for a session changed as more laps came in — a demo feature the static-file version could not do. The API returns the newest row unless asked for a specific `created_at`.
-
----
-
-# Part 4 — Auto-deploy on push
-
-`.github/workflows/deploy.yml`:
-
-```yaml
-name: deploy
-on:
-  push:
-    branches: [main]
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: "3.12" }
-      - run: pip install -e ".[dev]"
-      - run: pytest
-      - run: ruff check .
-
-  build:
-    needs: test
-    runs-on: ubuntu-latest
-    permissions: { contents: read, packages: write }
-    strategy:
-      matrix: { target: [api, worker] }
-    steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-qemu-action@v3        # needed to build ARM on x86 runners
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: deploy/Dockerfile.${{ matrix.target }}
-          platforms: linux/arm64
-          push: true
-          tags: ghcr.io/${{ github.repository_owner }}/cleanair-${{ matrix.target }}:latest
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ubuntu
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            cd ~/clean_air/deploy
-            docker compose pull
-            docker compose up -d
-            docker image prune -f
-```
-
-GitHub secrets to add: `EC2_HOST` (the Elastic IP) and `EC2_SSH_KEY` (contents of the `.pem`).
-
-**Tests gate the deploy.** If `pytest` fails, nothing ships.
-
-Note the `platforms: linux/arm64` line. GitHub runners are x86, the box is ARM, so images are cross-built with QEMU. Forgetting this produces an image that will not start, with a confusing `exec format error`.
-
----
-
-# Part 5 — The worker
-
-A loop, not a web service. Roughly:
-
-```python
-while True:
-    for event, session in sessions_worth_checking():
-        if already_processed(event, session):
-            continue
-        laps = pull(event, session)          # FastF1, cached to /cache
-        result = fit(laps)
-        insert_artifact(kind="degradation", event=event, payload=result)
-    refresh_duckdns()
-    sleep(30 * 60)
-```
-
-Points that matter:
-
-- **The FastF1 cache is a Docker volume.** Without it every restart re-downloads everything.
-- **Check before fitting.** Sessions do not change once complete, so process each one once.
-- **A failed session must not kill the loop.** Catch per session, log, carry on.
-- **Race weekends are the only time anything changes.** Half-hourly is plenty; during a live session drop it to five minutes with an env var.
+That gives history for free — you can show how an estimate changed as more of a session came in, which the static-file version could not do. The API returns the newest row unless asked for a specific time.
 
 ---
 
 ## Local development
 
-Run the same stack locally, minus Caddy:
-
 ```bash
-docker compose -f deploy/docker-compose.local.yml up -d   # postgres only
-uvicorn cleanair.api:app --reload                          # api on :8000
-cd web && npm run dev                                      # site on :5173
+docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=dev postgres:17-alpine
+uvicorn cleanair.api:app --reload      # :8000
+cd web && npm run dev                  # :5173
 ```
 
-Set `VITE_API_URL=http://localhost:8000` in `web/.env.local`. Localhost is exempt from mixed-content blocking, so plain HTTP is fine here.
-
----
-
-## Costs
-
-| | |
-|---|---|
-| EC2 `t4g.small` | ~₹1,100/month, free for 12 months on a new account |
-| Postgres (in Docker, same box) | ₹0 |
-| DuckDNS hostname | ₹0 |
-| Let's Encrypt certificates | ₹0 |
-| Vercel | ₹0 on the hobby plan |
-| Domain | ₹0 — not needed |
-
-RDS is deliberately not used. It is roughly ₹1,200/month more and buys managed backups we do not need here. If this ever became a real product, that is the first thing to change.
-
-A paid domain is cosmetic only. Buy one if you want `cleanair.dev` on the final slide.
+Set `VITE_API_URL=http://localhost:8000` in `web/.env.local`.
 
 ---
 
 ## Troubleshooting
 
-**Certificate will not issue.** Port 80 must be open to the world, not just your IP — Let's Encrypt validates over HTTP. Check the DuckDNS record actually resolves to the Elastic IP: `dig +short cleanair-api.duckdns.org`.
+**Browser blocked the request.** Mixed content — an HTTPS page cannot call an HTTP API. Check `VITE_API_URL` starts with `https://`.
 
-**Browser console says the request was blocked.** Mixed content: an HTTPS page cannot call an HTTP API. Confirm `VITE_API_URL` starts with `https://`.
+**CORS error.** `CORS_ORIGINS` must match the frontend origin exactly, scheme included. Vercel preview deployments get different URLs, so allow a pattern if you want previews working.
 
-**CORS error.** `CORS_ORIGINS` on the API must exactly match the frontend origin, scheme included. Vercel preview deployments get different URLs, so allow a pattern if you want previews to work.
+**Neon free tier exhausted.** Something is querying the database continuously. Almost always the keep-alive ping hitting a DB-backed endpoint — see B3.
 
-**Container will not start, `exec format error`.** An x86 image on an ARM box. Rebuild with `platforms: linux/arm64`.
+**First request takes a minute.** Render cold start. The pinger is not running, or it is pointed at the wrong path.
 
-**Box runs out of memory during a fit.** 2 GB is tight for MCMC. Either reduce chains, add a swap file, or move up to `t4g.medium`.
+**`exec format error` (Path A).** An x86 image on an ARM box. Rebuild with `platforms: linux/arm64`.
 
-**Data has stopped updating.** Check the worker: `docker compose logs worker --tail 100`. It is designed to keep running through failures, so an error there is silent by design.
+**Out of memory during a fit.** Reduce chains, or move the fit to GitHub Actions where there is 16 GB.
 
 ---
 
 ## On the day
 
-The site is live, so present from the Vercel URL. But keep insurance that costs nothing:
+The site is live, so present from the Vercel URL.
+
+Two pieces of insurance that cost nothing:
 
 ```bash
-cd web && npm run build     # dist/ runs from a folder, no network
+cd web && npm run build     # dist/ runs from a plain folder
 ```
 
-Not because the internet will fail — because deploys, DNS and captive portals do things you cannot control, and a built copy on the laptop means a network problem can never stop the pitch.
+Not because the internet will fail, but because deploys, DNS and captive portals do things you cannot control. A built copy on the laptop means a network problem can never stop the pitch.
 
-Also worth doing before you travel: run the whole pipeline once against the most recent weekend so the database already holds fresh results. Then a live update on the day is a bonus, not a dependency.
+And run the full pipeline once **before travelling**, so the database already holds fresh results. A live update on the day should be a bonus, never a dependency.
