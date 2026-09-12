@@ -37,10 +37,15 @@ PRACTICE -- the harder case.
 
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 import pandas as pd
 
 from ..config import COMPOUND_ALLOCATION_2026, MASS_SENSITIVITY_S_PER_KG
+from ..data.traffic import add_gap_ahead
+
+log = logging.getLogger(__name__)
 
 #: kg of fuel burned per lap during a practice race simulation. Teams run
 #: race-representative loads; the exact figure is private, so this is an
@@ -140,7 +145,7 @@ def classify_runs(df: pd.DataFrame, max_sd: float = MAX_RUN_LAP_TIME_SD_S) -> pd
     return df
 
 
-def race_design(df: pd.DataFrame, min_cars_per_lap: int = 4) -> pd.DataFrame:
+def race_design(df: pd.DataFrame, min_cars_per_lap: int = 4, with_traffic: bool = True) -> pd.DataFrame:
     """Within-transform race laps by (event, lap).
 
     Subtracting the (event, lap) mean is algebraically identical to including a
@@ -157,6 +162,23 @@ def race_design(df: pd.DataFrame, min_cars_per_lap: int = 4) -> pd.DataFrame:
     df = df[df["session"] == "R"].copy()
     df["tyre_life_sq"] = df["TyreLife"] ** 2
 
+    # Traffic is the one confounder the (event, lap) demeaning does NOT remove,
+    # because it differs between cars at the same instant -- which is exactly
+    # the variation this design uses. And it is correlated with tyre age through
+    # pit stops: fresh tyres rejoin into the pack, old tyres are usually in clear
+    # air. Measured: mean tyre age is 12.2 laps in dirty air against 16.0 in
+    # clear, correlation -0.19. Leaving it out biases degradation toward zero.
+    if with_traffic:
+        if "LapStartTime" in df.columns:
+            df = add_gap_ahead(df)
+        else:
+            # Degrade loudly rather than silently dropping a confounder.
+            log.warning(
+                "LapStartTime absent; fitting WITHOUT the traffic covariate. "
+                "Degradation will be biased toward zero -- fresh tyres run in "
+                "more traffic, so their laps look slow."
+            )
+
     cell = df.groupby(["event", "LapNumber"])
     df["cars_on_lap"] = cell["LapTimeSeconds"].transform("size")
     df = df[df["cars_on_lap"] >= min_cars_per_lap].copy()
@@ -165,6 +187,8 @@ def race_design(df: pd.DataFrame, min_cars_per_lap: int = 4) -> pd.DataFrame:
     df["y"] = df["LapTimeSeconds"] - cell["LapTimeSeconds"].transform("mean")
     df["tl"] = df["TyreLife"] - cell["TyreLife"].transform("mean")
     df["tl2"] = df["tyre_life_sq"] - cell["tyre_life_sq"].transform("mean")
+    if with_traffic and "traffic" in df.columns:
+        df["tr"] = df["traffic"] - cell["traffic"].transform("mean")
     return df
 
 

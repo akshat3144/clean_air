@@ -28,6 +28,10 @@ def synth_race(n_drivers=12, n_laps=40, true_rate=0.05, base=90.0, seed=0):
     rows = []
     # A big shared per-lap effect: fuel burn plus track evolution. The design
     # must remove this entirely, whatever its shape.
+    # Cars are unevenly spaced: the first few run nose-to-tail (0.8s apart, so
+    # in dirty air) and the rest are strung out. That gives the traffic
+    # covariate real variation, so these tests exercise the production path
+    # rather than a degenerate all-zero column.
     lap_effect = {lap: -0.9 * lap + 4.0 * np.log1p(lap) for lap in range(1, n_laps + 1)}
     for d in range(n_drivers):
         pit = 12 + (d % 9)  # drivers stop at different laps -- the identification
@@ -49,6 +53,7 @@ def synth_race(n_drivers=12, n_laps=40, true_rate=0.05, base=90.0, seed=0):
                     "run_lap": float(life),
                     "run_len": 20.0,
                     "is_long_run": True,
+                    "LapStartTime": pd.Timedelta(seconds=lap * 95.0 + (0.8 * d if d < 5 else 4.0 + 3.0 * d)),
                     "LapTimeSeconds": base + lap_effect[lap] + true_rate * life
                     + skill + rng.normal(0, 0.05),
                 }

@@ -109,14 +109,30 @@ def cell_rates(
         if min_age_spread is not None and spread < min_age_spread:
             continue
 
-        x, y = g["tl"].to_numpy(), g["y"].to_numpy()
-        denom = float(x @ x)
-        if denom <= 0:
+        y = g["y"].to_numpy()
+
+        # Partial out traffic where it is available. Dirty air is correlated
+        # with tyre age through pit stops -- fresh tyres rejoin into the pack --
+        # so leaving it in the residual biases the slope. Least squares on
+        # [tyre age, traffic] rather than tyre age alone.
+        cols = ["tl"] + (["tr"] if "tr" in g.columns else [])
+        X = g[cols].to_numpy(dtype=float)
+        if not np.isfinite(X).all() or float(X[:, 0] @ X[:, 0]) <= 0:
             continue
-        slope = float(x @ y / denom)
-        resid = y - slope * x
-        # Standard error of a slope through the origin.
-        se = float(resid.std(ddof=1) / np.sqrt(denom)) if len(y) > 2 else np.nan
+        try:
+            beta, *_ = np.linalg.lstsq(X, y, rcond=None)
+        except np.linalg.LinAlgError:
+            continue
+        slope = float(beta[0])
+
+        resid = y - X @ beta
+        dof = max(1, len(y) - X.shape[1])
+        # Standard error of the tyre-age coefficient from the normal equations.
+        try:
+            cov = float(np.linalg.pinv(X.T @ X)[0, 0])
+            se = float(np.sqrt(cov * (resid @ resid) / dof))
+        except np.linalg.LinAlgError:
+            se = np.nan
         rows.append(
             {
                 "event": event,

@@ -102,6 +102,15 @@ def fit_degradation(df: pd.DataFrame, *, quadratic: bool = True, context: str = 
     df["C"] = pd.Categorical(df["C"], [c for c in C_ORDER if c in set(df["C"])])
 
     formula = "y ~ 0 + C:tl" + (" + C:tl2" if quadratic else "")
+    # Traffic gets a single shared coefficient, not one per compound: dirty air
+    # costs the same lap time whatever tyre you are on, and a per-compound
+    # traffic term would compete with the degradation slope for the same signal.
+    #
+    # Only include it if it actually varies. In a race where nobody ran in dirty
+    # air the column is identically zero, and a constant regressor makes the
+    # design matrix singular.
+    if "tr" in df.columns and float(df["tr"].std() or 0.0) > 1e-9:
+        formula += " + tr"
     model = smf.mixedlm(formula, df, groups=df["Driver"])
     res = model.fit(method="lbfgs")
 

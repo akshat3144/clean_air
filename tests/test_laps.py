@@ -52,8 +52,8 @@ def test_missing_lap_time_is_dropped():
 
 def test_pit_laps_are_dropped():
     df = make_laps(5)
-    df.loc[0, "PitOutTime"] = pd.Timedelta(seconds=1)
-    df.loc[4, "PitInTime"] = pd.Timedelta(seconds=1)
+    df.loc[0, "PitOutTime"] = pd.Timedelta("1s")
+    df.loc[4, "PitInTime"] = pd.Timedelta("1s")
     assert len(clean_laps(df, event="T", session="FP2")) == 3
 
 
