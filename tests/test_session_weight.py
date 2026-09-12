@@ -132,23 +132,45 @@ def test_non_positive_weights_are_ignored_rather_than_fitted():
 @pytest.mark.skipif(
     not (PROCESSED / "laps.parquet").exists(), reason="needs the cached season"
 )
-def test_weights_still_agree_with_the_measured_skill():
+def test_the_shipped_weighting_is_the_best_one_measured():
     """Guards the constant against the data moving under it.
 
-    ``SESSION_WEIGHTS`` is hardcoded rather than fitted, because nine cells is
-    not enough to re-fit every run without the forecast lurching race to race.
-    That is only safe if something re-measures and complains, which is this.
+    This test used to assert that FP2 had the highest per-session correlation
+    with the race. That was the wrong criterion and it failed for the right
+    reason: dropping the warm-up lap from every run repaired FP1, whose
+    correlation went from 0.05 to 0.78 -- it had never been uninformative, it
+    had been contaminated by laps where the tyre was still coming up to
+    temperature.
+
+    But each session scores a DIFFERENT set of cells (FP1 six, FP2 ten), so
+    ranking their correlations rewards whichever one skipped the hard ones.
+    What actually matters is the error of the BLEND, which every scheme
+    computes over the same cells. On that criterion FP2-heavy still wins, so
+    the weights stand -- now for a reason that survives the next time the
+    design changes.
     """
     skill = load_skill_script()
-    tbl = skill.score(skill.paired_cells(pd.read_parquet(PROCESSED / "laps.parquet")))
-    ranked = tbl["correlation"].dropna()
-    if ranked.empty:
-        pytest.skip("not enough paired practice/race cells to score yet")
-    heaviest = max(session_weight.SESSION_WEIGHTS, key=session_weight.SESSION_WEIGHTS.get)
-    assert ranked.idxmax() == heaviest, (
-        f"{ranked.idxmax()} now predicts the race best, but {heaviest} carries "
-        "the most weight. Re-run scripts/12_session_skill.py and revisit "
-        "SESSION_WEIGHTS."
+    sweep = skill.weight_sweep(pd.read_parquet(PROCESSED / "laps.parquet"))
+    best = str(sweep.iloc[0]["scheme"])
+    assert "shipped" in best, (
+        f"{best!r} now predicts better than the weighting we ship.\n"
+        f"{sweep.to_string(index=False)}\n"
+        "Re-run scripts/12_session_skill.py and revisit SESSION_WEIGHTS."
+    )
+
+
+@pytest.mark.skipif(
+    not (PROCESSED / "laps.parquet").exists(), reason="needs the cached season"
+)
+def test_every_weighting_scheme_answers_the_same_cells():
+    """The sweep is only a fair comparison if the schemes are answering the
+    same questions. If one starts dropping cells, its MAE stops being
+    comparable and the verdict above becomes meaningless."""
+    skill = load_skill_script()
+    sweep = skill.weight_sweep(pd.read_parquet(PROCESSED / "laps.parquet"))
+    assert sweep["n_cells"].nunique() == 1, (
+        "weighting schemes now answer different numbers of cells, so their "
+        "errors are no longer comparable:\n" + sweep.to_string(index=False)
     )
 
 

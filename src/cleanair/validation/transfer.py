@@ -424,7 +424,7 @@ def stand_in_rates(
 def per_session_rates(
     practice: pd.DataFrame,
     event: str,
-    min_runs: int = 2,
+    min_runs: int = 1,
 ) -> pd.DataFrame:
     """What each practice session says on its own, before they are blended.
 
@@ -432,11 +432,17 @@ def per_session_rates(
     tell me how you combined them. The pooled fit answers the last part and
     hides the first three, so this reports each session separately.
 
-    It is a DIAGNOSTIC, not the forecast. ``min_runs`` is lower than the
-    pooled threshold on purpose, because a single session rarely clears the
-    pooled bar and "FP1 had two runs and they disagree" is the useful thing to
-    see. Rows carry their run and lap counts so a thin cell is visible as thin
-    rather than read as a measurement.
+    It is a DIAGNOSTIC, not the forecast, and ``min_runs`` is deliberately as
+    low as it goes. A single session rarely clears the pooled bar -- Madrid's
+    FP1 ran exactly one race-simulation run on each compound -- and at the
+    previous floor of two the screen printed "no race-simulation long runs"
+    for a session that had done six laps on each tyre. That is not strictness,
+    it is a blank where an observation exists.
+
+    Nothing here reaches a prediction. The forecast fits through ``cell_rates``
+    at MIN_RUNS, and lowering this floor does not move it. Rows carry their run
+    and lap counts, and anything under three runs comes back flagged, so a thin
+    cell is visible as thin rather than read as a measurement.
 
     Returns columns: session, C, rate, se, n_runs, n_laps, weight.
     """

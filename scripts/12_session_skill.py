@@ -93,6 +93,56 @@ def score(d: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(out).set_index("session")
 
 
+#: Weighting schemes worth comparing. Not a search space -- each is a position
+#: someone could reasonably argue for, and the sweep says which is right.
+SCHEMES: dict[str, dict[str, float]] = {
+    "FP2 heavy (shipped)": {"FP1": 0.5, "FP2": 1.0, "FP3": 0.5},
+    "equal": {"FP1": 1.0, "FP2": 1.0, "FP3": 1.0},
+    "FP1+FP2 equal": {"FP1": 1.0, "FP2": 1.0, "FP3": 0.5},
+    "FP1 heavy": {"FP1": 1.0, "FP2": 0.65, "FP3": 0.5},
+    "FP3 down only": {"FP1": 1.0, "FP2": 1.0, "FP3": 0.25},
+}
+
+
+def weight_sweep(laps: pd.DataFrame) -> pd.DataFrame:
+    """Transfer error under each weighting scheme.
+
+    Mutates the module constant and restores it, which is ugly but honest:
+    it exercises the real ``prepare`` rather than a copy of it that might
+    drift from what ships.
+    """
+    from cleanair.data import session_weight
+    from cleanair.validation.transfer import leave_one_event_out
+
+    race = prepare(laps, "race")
+    original = dict(session_weight.SESSION_WEIGHTS)
+    rows = []
+    try:
+        for name, w in SCHEMES.items():
+            session_weight.SESSION_WEIGHTS.clear()
+            session_weight.SESSION_WEIGHTS.update(w)
+            frame = prepare(laps, "practice")
+            loo = leave_one_event_out(frame, race)
+            rows.append(
+                {
+                    "scheme": name,
+                    "mae": round(loo.mae_calibrated, 4),
+                    "improvement_%": round(loo.improvement * 100, 1),
+                    "factor": round(loo.factor, 4),
+                    "n_cells": len(loo.table),
+                }
+            )
+    finally:
+        session_weight.SESSION_WEIGHTS.clear()
+        session_weight.SESSION_WEIGHTS.update(original)
+    return pd.DataFrame(rows).sort_values("mae")
+
+
+def best_scheme(laps: pd.DataFrame) -> str:
+    """Name of the lowest-error scheme. Used by the tests."""
+    return str(weight_sweep(laps).iloc[0]["scheme"])
+
+
 def main() -> None:
     laps = pd.read_parquet(PROCESSED / "laps.parquet")
     d = paired_cells(laps)
@@ -111,12 +161,17 @@ def main() -> None:
 
     print("\nWEIGHTS IN USE:", SESSION_WEIGHTS)
     ranked = tbl["correlation"].dropna()
-    if not ranked.empty:
-        best = ranked.idxmax()
-        print(f"best predictor: {best} (correlation {ranked.max():.3f})")
-        top = max(SESSION_WEIGHTS, key=lambda k: SESSION_WEIGHTS[k])
-        agree = "yes" if best == top else "NO -- the weights disagree with the data"
-        print(f"heaviest weight: {top}   consistent: {agree}")
+    print()
+    print("=" * 72)
+    print("DOES THE WEIGHTING EARN ITS PLACE")
+    print("The per-session correlation above is a DIAGNOSTIC, not the criterion.")
+    print("Each session scores a DIFFERENT set of cells -- FP1 answers six where")
+    print("FP2 answers ten -- so ranking their correlations rewards whichever one")
+    print("skipped the hard ones. What decides the weighting is the end-to-end")
+    print("error of the BLEND, which every scheme below computes over the same")
+    print("cells, through the same pipeline that ships.")
+    print("=" * 72)
+    print(weight_sweep(laps).to_string(index=False))
 
     print("\nPER-CELL DETAIL")
     print(d.sort_values(["session", "event"]).to_string(index=False))

@@ -57,7 +57,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from . import poller
-from .config import ARTIFACTS, PROCESSED, SEASON
+from .config import ARTIFACTS, PROCESSED, PUBLISHED_PIT_LOSS_HINTS, SEASON
 from .data import allocation as alloc
 from .data import schedule as sched
 from .models.design import prepare
@@ -69,13 +69,35 @@ logging.getLogger("fastf1").setLevel(logging.ERROR)
 
 log = logging.getLogger(__name__)
 
-#: Why FP2 outweighs FP1 and FP3. Each session's measured practice degradation
-#: scored against the race degradation of the same (event, compound) cell, over
-#: the races run so far this season. Regenerate with scripts/12_session_skill.py.
+#: Why FP2 outweighs FP1 and FP3.
+#:
+#: NOT the per-session correlation, which is what this used to hold. That
+#: comparison is unsound: each session scores a different set of cells -- FP1
+#: answers six where FP2 answers ten -- so ranking their correlations rewards
+#: whichever one skipped the hard ones. It also moved sharply when the design
+#: changed, because dropping the warm-up lap repaired FP1 (0.05 -> 0.78) and
+#: would have argued for reversing the weights on six cells of evidence.
+#:
+#: What decides it is the error of the BLEND, which every scheme computes over
+#: the same cells through the pipeline that ships. Regenerate with
+#: scripts/12_session_skill.py.
 SESSION_SKILL = {
-    "FP1": {"n_cells": 9, "correlation": 0.05, "factor": -0.015, "mae": 0.0428},
-    "FP2": {"n_cells": 11, "correlation": 0.84, "factor": 0.438, "mae": 0.0393},
-    "FP3": {"n_cells": 1, "correlation": None, "factor": None, "mae": None},
+    "criterion": "practice-to-race MAE of the blend, leave-one-event-out",
+    "shipped": "FP2 heavy",
+    "schemes": [
+        {"scheme": "FP2 heavy (shipped)", "mae": 0.0627, "n_cells": 13},
+        {"scheme": "FP3 down only", "mae": 0.0630, "n_cells": 13},
+        {"scheme": "FP1+FP2 equal", "mae": 0.0646, "n_cells": 13},
+        {"scheme": "equal", "mae": 0.0661, "n_cells": 13},
+        {"scheme": "FP1 heavy", "mae": 0.0667, "n_cells": 13},
+    ],
+    #: Kept as a diagnostic only, and labelled as one on screen. Cell counts
+    #: differ, so these are NOT comparable to each other.
+    "per_session": {
+        "FP1": {"n_cells": 6, "correlation": 0.78, "median_laps": 21},
+        "FP2": {"n_cells": 10, "correlation": 0.65, "median_laps": 41},
+        "FP3": {"n_cells": 2, "correlation": None, "median_laps": 20},
+    },
 }
 
 C_ORDER = ("C1", "C2", "C3", "C4", "C5")
@@ -1185,6 +1207,16 @@ def forecast(req: ForecastRequest) -> dict:
             "can_plan": False,
             "reason": reason,
             "needs_inputs": missing,
+            # A labelled starting point for what is missing, never a value we
+            # adopt. Madrid's pit loss is quoted publicly at 24s by Pirelli's
+            # own chief engineer -- but that is their simulation, not anyone's
+            # measurement, and the screen has to say so. Offering it with its
+            # provenance beats both silence and a confident default.
+            "hints": (
+                {"pit_loss_s": PUBLISHED_PIT_LOSS_HINTS[req.event]}
+                if "pit_loss_s" in missing and req.event in PUBLISHED_PIT_LOSS_HINTS
+                else {}
+            ),
             "compounds": out_compounds,
             "practice_sessions": (
                 r.long_run_sessions_run() if (r := sched.find(req.event, SEASON)) else []
