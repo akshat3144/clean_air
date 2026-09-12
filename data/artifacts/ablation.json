@@ -10,9 +10,9 @@
         "hi": 0.09585970499704068
       },
       "deconfounded": {
-        "mean": 0.06178845933291249,
-        "lo": 0.05031817754053167,
-        "hi": 0.07325874112529332
+        "mean": 0.16748567216986077,
+        "lo": 0.1305393778519776,
+        "hi": 0.20443196648774392
       },
       "published": null
     },
@@ -25,9 +25,9 @@
         "hi": 0.09585970499704068
       },
       "deconfounded": {
-        "mean": 0.0542021928003875,
-        "lo": 0.050014345236577204,
-        "hi": 0.0583900403641978
+        "mean": 0.09136116135461488,
+        "lo": 0.07917302770243898,
+        "hi": 0.10354929500679078
       },
       "published": {
         "mean": 0.054,
@@ -44,9 +44,9 @@
         "hi": -0.10475207521271973
       },
       "deconfounded": {
-        "mean": 0.027662184290318217,
-        "lo": 0.02069458301906278,
-        "hi": 0.03462978556157365
+        "mean": 0.0909652496849633,
+        "lo": 0.0705023415178511,
+        "hi": 0.11142815785207551
       },
       "published": null
     },
@@ -59,12 +59,12 @@
         "hi": 0.03190886607737087
       },
       "deconfounded": {
-        "mean": -0.004261114164677083,
-        "lo": -0.011536987705156203,
-        "hi": 0.0030147593758020385
+        "mean": -0.006271771289798613,
+        "lo": -0.02900764348973913,
+        "hi": 0.01646410091014191
       },
       "published": null
     }
   ],
-  "caption": "The naive slope regresses lap time on tyre age with no controls, so fuel burn and track evolution -- which both make laps faster -- cancel part of the rise from wear. Removing them narrows the interval 6-fold and separates compounds the naive fit cannot."
+  "caption": "The naive slope regresses lap time on tyre age with no controls, so fuel burn and track evolution -- which both make laps faster -- cancel part of the rise from wear. Removing them narrows the interval 2-fold and separates compounds the naive fit cannot."
 }

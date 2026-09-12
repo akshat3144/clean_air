@@ -16,6 +16,7 @@ import pandas as pd
 
 from cleanair.artifacts import schema
 from cleanair.config import PROCESSED
+from cleanair.models import ablation
 from cleanair.models.design import prepare
 from cleanair.models.mixed import fit_degradation, fuel_sensitivity, to_artifact
 
@@ -76,6 +77,15 @@ def main() -> None:
         art = to_artifact(fits["race"])
         path = schema.write("degradation", art)
         print(f"\nwrote {path}")
+
+        # ablation.json is built from the SAME fit, in the same run. It used
+        # to be written out of band, drifted a day and a half behind the
+        # model, and the app ended up drawing C3 at 0.054 on the Method tab
+        # and 0.091 on Tyre Curves. Two artifacts describing one quantity
+        # have to come from one fit.
+        abl = ablation.build(laps, fits["race"], context="race")
+        path = schema.write("ablation", abl)
+        print(f"wrote {path}")
 
 
 if __name__ == "__main__":
