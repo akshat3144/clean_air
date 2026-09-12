@@ -41,6 +41,7 @@ and an error banner over correct data is worse than a missed poll.
 | `GET /api/upcoming` | the calendar, per-round readiness, circuit history | discovered from the F1 API, so a new race needs no code change |
 | `GET`/`PUT`/`DELETE /api/allocation` | Pirelli's compound nomination | the one fact no feed carries; set and cleared from the app |
 | `POST /api/forecast` | Sunday's plan from Friday practice | a race that has not happened has no measured inputs |
+| `GET /api/practice-sessions` | what FP1, FP2 and FP3 each say on their own | one blended number hides which session it came from, and they disagree |
 | `POST /api/strategy`, `/api/whatif` | the strategy console | recomputed from the controls, so it can answer what nobody precomputed |
 | `GET /api/poller` | what the background watcher is doing | it runs unattended; its state should be visible |
 
@@ -54,6 +55,7 @@ disagreeing during a demo is the one failure with no recovery.
 |---|---|
 | `App.tsx` | shell and the five tabs, named after moments not scripts |
 | `NextRaceView.tsx` | the race that has not happened yet — the front door |
+| `PracticeSessionsPanel.tsx` | each practice session's own answer, its weight, and why FP2 carries most of it |
 | `ConsoleView.tsx` | the strategy console |
 | `CompoundLabels.tsx` | why nothing is grouped by hard/medium/soft — derived from the live nominations, never written down |
 | `useStrategy.ts` | request policy: coarse while dragging, exact on settle |

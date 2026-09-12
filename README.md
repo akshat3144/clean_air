@@ -58,7 +58,7 @@ We answer this four ways rather than asserting it once:
 | | |
 | --- | --- |
 | **Are the intervals honest?** | **80.6%** of actual values land inside the nominal **80%** band |
-| **Does Friday predict Sunday?** | **0.083 s/lap** mean absolute error, leave-one-event-out — the event being predicted never contributes to its own correction |
+| **Does Friday predict Sunday?** | **0.081 s/lap** mean absolute error, leave-one-event-out — the event being predicted never contributes to its own correction |
 | **Does the call match reality?** | the stop count agrees with what real teams ran at **10 of 11** races |
 | **Does it know when to shut up?** | at **2** races the evidence was too thin, and it refuses to call them rather than guessing |
 
@@ -178,12 +178,12 @@ compound nomination — is one click in the UI.
 | **Interval precision**        | ✅ **4.4× tighter** median, up to **9.1×**, race for race                             |
 | **Statistical power**         | ✅ **820 driver-stints** vs the 512 needed and the 3 they had                         |
 | **Uncertainty is honest**     | ✅ 80% intervals cover **80.6%** empirically                                          |
-| **Practice → race**          | ✅ MAE **0.083 s/lap**, a **25.6% error reduction** over assuming Sunday = Friday |
+| **Practice → race**          | ✅ MAE **0.081 s/lap**, a **29.0% error reduction** over assuming Sunday = Friday |
 | **Benchmark reproduced**      | ✅ their Table 3 recovered by running their own code                                       |
 | **Driver management effect**  | ✅ **p = 0.0020** across 5 seasons, 98 cells                                          |
 | **Strategy call vs reality**  | ✅ **10 of 11 races** match the stop count teams actually ran                         |
 | **Forecasts an unraced race** | ✅ Madrid predicted from FP1, a day out                                                    |
-| **Test suite**                | ✅ **234 tests**                                                                      |
+| **Test suite**                | ✅ **256 tests**                                                                      |
 
 ### The track effect — the finding we did not expect
 
@@ -275,10 +275,56 @@ The mechanism was predicted in the benchmark paper and never tested. We tested i
 
 ### Practice → race, the deliverable the brief names
 
-Friday is not Sunday. Assuming it is costs **0.111 s/lap** of error across 12
+Friday is not Sunday. Assuming it is costs **0.114 s/lap** of error across 12
 held-out event-compound cells. Calibrating by the measured practice→race factor
-— **0.461**, a race degrading at about **46%** of its practice rate — cuts that
-to **0.083 s/lap**, a **25.6% reduction**, leave-one-event-out throughout.
+— **0.380**, a race degrading at about **38%** of its practice rate — cuts that
+to **0.081 s/lap**, a **29.0% reduction**, leave-one-event-out throughout.
+
+**The three practice sessions are not worth the same, and we measured by how
+much.** Scoring each session's degradation against the race that followed, over
+every cell we can measure in both:
+
+| Session | Cells | Correlation with the race | Median run size |
+| --- | --- | --- | --- |
+| **FP2** | 11 | **0.84** | 5 runs · 33 laps |
+| FP1 | 9 | 0.05 | 2 runs · 12 laps |
+| FP3 | 1 | — | — |
+
+FP1 carries almost no signal. Part of that is thinness, and part is what the
+session is for: teams change the car between FP1 runs, so a slope fitted across
+them measures setup work as much as tyre wear — Monaco's FP1 medium reads
+**−0.807 s/lap** against a race value of 0.056. FP2 is where the setup is frozen
+and the heavy-fuel race simulations run.
+
+So FP2 carries twice the weight of the other two, by weighted least squares over
+the practice design. Nothing is weighted to zero: nine cells is not enough to
+retire a session, and this weekend's worst session still beats another circuit's
+best. The weights are constants rather than a live fit, and
+[`scripts/12_session_skill.py`](scripts/12_session_skill.py) re-measures the
+table — a test fails if FP2 ever stops being the best predictor.
+
+That change alone moved the forecast from **0.083 to 0.081 s/lap**, and the
+error reduction from 25.6% to **29.0%**.
+
+### When the weekend does not run the tyre
+
+Madrid 2026 is the hard case, and it is the one we demo. A new circuit with no
+history, and across all three practice sessions **nobody put a hard on a race
+simulation** — zero runs on a compound Pirelli nominated for Sunday. The soft
+managed two runs where three are needed. One usable compound is not a legal
+plan, so the strategy screen refused to answer.
+
+A refusal is honest and useless. Instead we take the compound's rate across the
+rest of the calendar and scale it by **how harsh this circuit is on the tyres it
+did run** — Madrid's medium wears at 0.394 s/lap against a season-wide 0.153, so
+Madrid runs **2.6× harsh**. Those rows come back marked `stand-in`, with a
+deliberately wider band, and the screen never draws them like a measurement.
+
+One physical constraint is enforced: a softer tyre cannot wear more slowly than
+a harder one on the same track. Without it, Madrid's extreme measured medium set
+a severity that put the borrowed soft *below* it, and the optimiser built the
+plan out of two borrowed compounds while ignoring the only one we actually
+watched run.
 
 ### Against the published benchmark
 
@@ -522,6 +568,7 @@ src/cleanair/                    the package
     laps.py                      building the clean-lap dataset and detecting long runs
     fuel.py                      fuel mass estimation, for the ablation only
     traffic.py                   the traffic covariate: how close was the car ahead?
+    session_weight.py            how much FP1, FP2 and FP3 each count toward the forecast
   models/
     design.py                    turns clean laps into a matrix degradation is identifiable from
     mixed.py                     the pooled mixed-effects model — fast, interpretable, the workhorse
@@ -555,6 +602,7 @@ scripts/                         numbered, run in order
   09_playbook.py                 the strategy call for every event, not just one
   10_pit_loss_by_status.py       what a stop costs under a safety car
   11_circuits.py                 per-circuit pit loss and distance, for races not yet run
+  12_session_skill.py            which practice session actually predicts the race
   run_pipeline.py                run everything, in order, with one command
   fetch_reference.sh             pull reference material we cannot redistribute
 
@@ -588,7 +636,7 @@ data/
 app/lab.py                       Streamlit lab bench — internal, never demoed
 docs/DEPLOYMENT.md               how this ships
 docs/reference/                  the benchmark paper, plus licensing notes on every source
-tests/                           234 tests
+tests/                           256 tests
 ```
 
 ---
