@@ -1,0 +1,258 @@
+{
+  "rows": [
+    {
+      "event": "Australian Grand Prix",
+      "compound": "C2",
+      "label": "HARD",
+      "predicted": {
+        "mean": 0.0333,
+        "lo": 0.0273,
+        "hi": 0.0393
+      },
+      "actual": 0.0368,
+      "abs_error": 0.0035
+    },
+    {
+      "event": "Australian Grand Prix",
+      "compound": "C3",
+      "label": "MEDIUM",
+      "predicted": {
+        "mean": 0.0352,
+        "lo": 0.0292,
+        "hi": 0.0412
+      },
+      "actual": 0.0417,
+      "abs_error": 0.0065
+    },
+    {
+      "event": "Australian Grand Prix",
+      "compound": "C4",
+      "label": "SOFT",
+      "predicted": {
+        "mean": 0.0485,
+        "lo": 0.0425,
+        "hi": 0.0545
+      },
+      "actual": 0.0451,
+      "abs_error": 0.0034
+    },
+    {
+      "event": "Japanese Grand Prix",
+      "compound": "C2",
+      "label": "HARD",
+      "predicted": {
+        "mean": 0.0329,
+        "lo": 0.0269,
+        "hi": 0.0389
+      },
+      "actual": 0.038,
+      "abs_error": 0.0051
+    },
+    {
+      "event": "Japanese Grand Prix",
+      "compound": "C3",
+      "label": "MEDIUM",
+      "predicted": {
+        "mean": 0.036,
+        "lo": 0.03,
+        "hi": 0.042
+      },
+      "actual": 0.042,
+      "abs_error": 0.006
+    },
+    {
+      "event": "Japanese Grand Prix",
+      "compound": "C4",
+      "label": "SOFT",
+      "predicted": {
+        "mean": 0.0486,
+        "lo": 0.0426,
+        "hi": 0.0546
+      },
+      "actual": 0.0548,
+      "abs_error": 0.0062
+    },
+    {
+      "event": "Monaco Grand Prix",
+      "compound": "C2",
+      "label": "HARD",
+      "predicted": {
+        "mean": 0.0271,
+        "lo": 0.0211,
+        "hi": 0.0331
+      },
+      "actual": 0.0225,
+      "abs_error": 0.0046
+    },
+    {
+      "event": "Monaco Grand Prix",
+      "compound": "C3",
+      "label": "MEDIUM",
+      "predicted": {
+        "mean": 0.0392,
+        "lo": 0.0332,
+        "hi": 0.0452
+      },
+      "actual": 0.04,
+      "abs_error": 0.0008
+    },
+    {
+      "event": "Monaco Grand Prix",
+      "compound": "C4",
+      "label": "SOFT",
+      "predicted": {
+        "mean": 0.0513,
+        "lo": 0.0453,
+        "hi": 0.0573
+      },
+      "actual": 0.0591,
+      "abs_error": 0.0078
+    },
+    {
+      "event": "Barcelona Grand Prix",
+      "compound": "C2",
+      "label": "HARD",
+      "predicted": {
+        "mean": 0.0335,
+        "lo": 0.0275,
+        "hi": 0.0395
+      },
+      "actual": 0.0352,
+      "abs_error": 0.0017
+    },
+    {
+      "event": "Barcelona Grand Prix",
+      "compound": "C3",
+      "label": "MEDIUM",
+      "predicted": {
+        "mean": 0.0388,
+        "lo": 0.0328,
+        "hi": 0.0448
+      },
+      "actual": 0.0429,
+      "abs_error": 0.0041
+    },
+    {
+      "event": "Barcelona Grand Prix",
+      "compound": "C4",
+      "label": "SOFT",
+      "predicted": {
+        "mean": 0.0531,
+        "lo": 0.0471,
+        "hi": 0.0591
+      },
+      "actual": 0.0464,
+      "abs_error": 0.0067
+    },
+    {
+      "event": "Austrian Grand Prix",
+      "compound": "C2",
+      "label": "HARD",
+      "predicted": {
+        "mean": 0.0338,
+        "lo": 0.0278,
+        "hi": 0.0398
+      },
+      "actual": 0.0329,
+      "abs_error": 0.0009
+    },
+    {
+      "event": "Austrian Grand Prix",
+      "compound": "C3",
+      "label": "MEDIUM",
+      "predicted": {
+        "mean": 0.0403,
+        "lo": 0.0343,
+        "hi": 0.0463
+      },
+      "actual": 0.0433,
+      "abs_error": 0.003
+    },
+    {
+      "event": "Austrian Grand Prix",
+      "compound": "C4",
+      "label": "SOFT",
+      "predicted": {
+        "mean": 0.0482,
+        "lo": 0.0422,
+        "hi": 0.0542
+      },
+      "actual": 0.0447,
+      "abs_error": 0.0035
+    },
+    {
+      "event": "Belgian Grand Prix",
+      "compound": "C2",
+      "label": "HARD",
+      "predicted": {
+        "mean": 0.0292,
+        "lo": 0.0232,
+        "hi": 0.0352
+      },
+      "actual": 0.0228,
+      "abs_error": 0.0064
+    },
+    {
+      "event": "Belgian Grand Prix",
+      "compound": "C3",
+      "label": "MEDIUM",
+      "predicted": {
+        "mean": 0.0355,
+        "lo": 0.0295,
+        "hi": 0.0415
+      },
+      "actual": 0.0294,
+      "abs_error": 0.0061
+    },
+    {
+      "event": "Belgian Grand Prix",
+      "compound": "C4",
+      "label": "SOFT",
+      "predicted": {
+        "mean": 0.0522,
+        "lo": 0.0462,
+        "hi": 0.0582
+      },
+      "actual": 0.048,
+      "abs_error": 0.0042
+    },
+    {
+      "event": "Hungarian Grand Prix",
+      "compound": "C2",
+      "label": "HARD",
+      "predicted": {
+        "mean": 0.0271,
+        "lo": 0.0211,
+        "hi": 0.0331
+      },
+      "actual": 0.0289,
+      "abs_error": 0.0018
+    },
+    {
+      "event": "Hungarian Grand Prix",
+      "compound": "C3",
+      "label": "MEDIUM",
+      "predicted": {
+        "mean": 0.0376,
+        "lo": 0.0316,
+        "hi": 0.0436
+      },
+      "actual": 0.0391,
+      "abs_error": 0.0015
+    },
+    {
+      "event": "Hungarian Grand Prix",
+      "compound": "C4",
+      "label": "SOFT",
+      "predicted": {
+        "mean": 0.0559,
+        "lo": 0.0499,
+        "hi": 0.0619
+      },
+      "actual": 0.0638,
+      "abs_error": 0.0079
+    }
+  ],
+  "mae": 0.0044,
+  "is_forecast": false
+}

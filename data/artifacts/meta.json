@@ -1,0 +1,21 @@
+{
+  "generated_at": "2026-09-03T05:37:54+00:00",
+  "schema_version": "1.0.0",
+  "model_version": "fixture",
+  "season": 2026,
+  "events": [
+    "Australian Grand Prix",
+    "Japanese Grand Prix",
+    "Monaco Grand Prix",
+    "Barcelona Grand Prix",
+    "Austrian Grand Prix",
+    "Belgian Grand Prix",
+    "Hungarian Grand Prix"
+  ],
+  "n_laps_clean": 13128,
+  "n_long_run_laps": 10059,
+  "n_runs": 875,
+  "n_drivers": 22,
+  "fastf1_version": "3.8.3",
+  "is_real": false
+}

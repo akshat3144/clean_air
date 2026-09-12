@@ -1,0 +1,41 @@
+{
+  "points": [
+    {
+      "nominal": 0.5,
+      "empirical": 0.526,
+      "n": 1400
+    },
+    {
+      "nominal": 0.6,
+      "empirical": 0.603,
+      "n": 1400
+    },
+    {
+      "nominal": 0.7,
+      "empirical": 0.685,
+      "n": 1400
+    },
+    {
+      "nominal": 0.8,
+      "empirical": 0.808,
+      "n": 1400
+    },
+    {
+      "nominal": 0.9,
+      "empirical": 0.86,
+      "n": 1400
+    },
+    {
+      "nominal": 0.95,
+      "empirical": 0.919,
+      "n": 1400
+    },
+    {
+      "nominal": 0.99,
+      "empirical": 0.972,
+      "n": 1400
+    }
+  ],
+  "coverage_80": 0.787,
+  "context": "race"
+}

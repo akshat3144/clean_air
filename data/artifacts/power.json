@@ -1,0 +1,40 @@
+{
+  "effect_size": 0.006,
+  "points": [
+    {
+      "n_driver_stints": 4,
+      "power": 0.064
+    },
+    {
+      "n_driver_stints": 8,
+      "power": 0.125
+    },
+    {
+      "n_driver_stints": 16,
+      "power": 0.234
+    },
+    {
+      "n_driver_stints": 32,
+      "power": 0.413
+    },
+    {
+      "n_driver_stints": 64,
+      "power": 0.656
+    },
+    {
+      "n_driver_stints": 128,
+      "power": 0.882
+    },
+    {
+      "n_driver_stints": 256,
+      "power": 0.986
+    },
+    {
+      "n_driver_stints": 512,
+      "power": 0.999
+    }
+  ],
+  "n_for_80pct": 97,
+  "benchmark_n": 3,
+  "ours_n": 417
+}

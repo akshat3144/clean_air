@@ -1,95 +1,127 @@
 /**
  * The contract between the Python pipeline and this app.
  *
- * DRAFT v1. Finalised in Step 2 of the plan, after the Step 1 gate tells us
- * whether the compounds separate. Until then the app runs on fixtures.
+ * Mirrors `src/cleanair/artifacts/schema.py`. Python is the source of truth;
+ * if you change one, change both. A test on the Python side checks that the
+ * generated JSON carries exactly the keys declared here.
  *
- * Rules once frozen:
- *  - additive changes only (new optional fields are fine)
- *  - never rename or retype an existing field
- *  - the Python side owns generation, in src/cleanair/artifacts/schema.py
+ * FROZEN as of v1. Additive changes only — adding an optional field is fine,
+ * renaming or retyping one is not.
  *
- * Every file lives at /data/<name>.json, copied from data/artifacts/ at build.
+ * Two things here come out of the Step 1 gate and are worth knowing before you
+ * build against them:
+ *
+ * 1. Degradation is keyed on the PHYSICAL compound (C1–C5), not on the
+ *    HARD/MEDIUM/SOFT label. Pirelli nominates three of C1–C5 per weekend, so
+ *    the labels are relative — a "HARD" at Monaco is softer rubber than a
+ *    "SOFT" at Suzuka. `label` is carried alongside because that is what people
+ *    say out loud, but never group by it.
+ *
+ * 2. Every result carries `context`: practice or race. They genuinely differ.
+ *    In races drivers manage soft tyres hard enough to flatten measured
+ *    degradation; in practice the physical ordering shows up. That is a
+ *    finding, not noise, so the UI should always say which one it is showing.
  */
 
-export type Compound = "HARD" | "MEDIUM" | "SOFT";
+export type Compound = "C1" | "C2" | "C3" | "C4" | "C5";
+export type Label = "HARD" | "MEDIUM" | "SOFT";
+export type Context = "practice" | "race";
 
-/** A value with a credible (or confidence) interval. Always seconds unless noted. */
+/** Files fetched from /data/. Same list as schema.FILES on the Python side. */
+export const ARTIFACT_FILES = [
+  "meta",
+  "degradation",
+  "ablation",
+  "benchmark",
+  "calibration",
+  "power",
+  "transfer",
+  "strategy",
+] as const;
+
+/** A value with an uncertainty band. Seconds unless the field says otherwise. */
 export interface Interval {
   mean: number;
-  lo: number; // 2.5th percentile by default
-  hi: number; // 97.5th percentile by default
+  lo: number;
+  hi: number;
 }
 
-// ---------------------------------------------------------------------------
-// meta.json — provenance. Shown in the footer so the demo is self-describing.
+export const width = (i: Interval) => i.hi - i.lo;
+export const overlaps = (a: Interval, b: Interval) => !(a.hi < b.lo || b.hi < a.lo);
+
 // ---------------------------------------------------------------------------
 
 export interface Meta {
-  generated_at: string; // ISO 8601
-  season: number;
+  generated_at: string;
+  schema_version: string;
   model_version: string;
-  events: string[]; // events the fit used
-  n_laps_total: number;
+  season: number;
+  events: string[];
   n_laps_clean: number;
-  n_long_runs: number;
+  n_long_run_laps: number;
+  n_runs: number;
   n_drivers: number;
   fastf1_version: string;
-  /** True when values came from the real pipeline, false for fixtures. */
+  /** False for fixtures. Show a warning banner when false. */
   is_real: boolean;
 }
 
-// ---------------------------------------------------------------------------
-// degradation.json — the brief's primary deliverable: clean tyre curves.
-// ---------------------------------------------------------------------------
+// --- degradation.json : the brief's primary deliverable ---------------------
 
-export interface DegradationPoint {
-  tyre_life: number; // laps on this set
-  pace: Interval; // predicted lap time delta vs fresh, seconds
+export interface CurvePoint {
+  tyre_life: number;
+  /** Lap time lost relative to a fresh tyre, seconds. */
+  delta: Interval;
 }
 
 export interface CompoundCurve {
   compound: Compound;
+  label: Label | null;
+  context: Context;
   /** Degradation rate, seconds lost per lap. The headline number. */
   rate: Interval;
-  /** The curve itself, for plotting. */
-  curve: DegradationPoint[];
+  curve: CurvePoint[];
   n_laps: number;
-  n_stints: number;
+  n_runs: number;
+  /** Events contributing. Length > 1 means pooled. */
+  events: string[];
 }
 
 export interface DegradationArtifact {
-  event?: string; // omitted when pooled across events
-  compounds: CompoundCurve[];
-  /** Fitted fuel effect, s/kg. Checked against the 0.030-0.035 physical prior. */
-  fuel_coefficient: Interval;
-  /** Fitted track evolution, s/lap of session elapsed. */
-  track_evolution: Interval;
-  /** P(a softer compound degrades faster than a harder one), from the posterior. */
-  separation_probability: Record<string, number>;
-  /** Do the 95% intervals overlap? The falsifiable claim. */
-  intervals_overlap: boolean;
+  /** null when pooled across the season. */
+  event: string | null;
+  curves: CompoundCurve[];
+  /** Fitted fuel effect, s/kg. Physics implies 0.030–0.035; the benchmark's
+   *  model recovers only ~0.016 because its latent state absorbs the rest. */
+  fuel_coefficient: Interval | null;
+  track_evolution: Interval | null;
+  /** P(softer of the pair degrades faster). Keys like "C3>C4". */
+  separation: Record<string, number>;
+  /** Pairs whose 95% intervals do not overlap. Keys like "C3|C4". */
+  separated_pairs: string[];
 }
 
-// ---------------------------------------------------------------------------
-// ablation.json — drives the "Deconfound" button. The money moment.
-// ---------------------------------------------------------------------------
+// --- ablation.json : drives the Deconfound button ---------------------------
 
 export interface AblationRow {
   compound: Compound;
-  naive: Interval; // lap time regressed on stint lap only
-  deconfounded: Interval; // fuel + track evolution removed, field pooled
+  label: Label | null;
+  /** Lap time regressed on stint lap alone. The naive approach. */
+  naive: Interval;
+  /** Fuel, traffic and track evolution removed, field pooled. */
+  deconfounded: Interval;
+  /** The benchmark's published figure, where one exists. */
+  published: Interval | null;
 }
 
 export interface AblationArtifact {
+  context: Context;
   rows: AblationRow[];
-  /** Benchmark's published values, for the third comparison column. */
-  published?: AblationRow[];
+  /** Written by the pipeline so the caption cannot drift from the numbers. */
+  caption: string;
 }
 
-// ---------------------------------------------------------------------------
-// benchmark.json — like-for-like scoring against the published paper.
-// ---------------------------------------------------------------------------
+// --- benchmark.json ---------------------------------------------------------
 
 export interface BenchmarkScore {
   model: string;
@@ -98,110 +130,87 @@ export interface BenchmarkScore {
   source: "published" | "reproduced" | "ours";
 }
 
-export interface BenchmarkArtifact {
-  /** Austria 2025, their exact CV scheme. Direct comparison to their tables. */
-  austria_2025: BenchmarkScore[];
-  /** Their 19-race season set, from their repo. Gives a win rate. */
-  season_2025?: {
-    race: string;
-    ours_crps: number;
-    theirs_crps: number;
-    ours_wins: boolean;
-  }[];
+export interface RaceScore {
+  race: string;
+  ours_crps: number;
+  theirs_crps: number;
+  ours_wins: boolean;
 }
 
-// ---------------------------------------------------------------------------
-// calibration.json — is the uncertainty honest?
-// ---------------------------------------------------------------------------
+export interface BenchmarkArtifact {
+  austria_2025: BenchmarkScore[];
+  season_2025: RaceScore[];
+  n_wins: number;
+  n_races: number;
+}
+
+// --- calibration.json / power.json ------------------------------------------
+
+export interface CalibrationPoint {
+  nominal: number;
+  empirical: number;
+  n: number;
+}
 
 export interface CalibrationArtifact {
-  /** Nominal vs empirical coverage. Perfect calibration is the diagonal. */
-  points: { nominal: number; empirical: number; n: number }[];
-  /** Headline: coverage of the 80% interval. */
+  points: CalibrationPoint[];
   coverage_80: number;
+  context: Context;
 }
 
-// ---------------------------------------------------------------------------
-// power.json — how much data does separating the compounds actually need?
-// ---------------------------------------------------------------------------
+export interface PowerPoint {
+  n_driver_stints: number;
+  power: number;
+}
 
 export interface PowerArtifact {
-  /** True effect size being tested, s/lap. */
   effect_size: number;
-  /** Probability of detecting it, by number of driver-stints. */
-  points: { n_driver_stints: number; power: number }[];
-  /** Stints needed for 80% power. */
+  points: PowerPoint[];
   n_for_80pct: number;
-  /** What the benchmark paper had, for contrast. */
+  /** What the benchmark had, for contrast. */
   benchmark_n: number;
+  ours_n: number;
 }
 
-// ---------------------------------------------------------------------------
-// transfer.json — practice to race. What the brief actually asks for.
-// ---------------------------------------------------------------------------
+// --- transfer.json : practice to race ---------------------------------------
+
+export interface TransferRow {
+  event: string;
+  compound: Compound;
+  label: Label | null;
+  predicted: Interval;
+  /** null when the race has not happened yet. */
+  actual: number | null;
+  abs_error: number | null;
+}
 
 export interface TransferArtifact {
-  /** One row per event: fit on FP2, predict the race. */
-  events: {
-    event: string;
-    compound: Compound;
-    predicted: Interval;
-    actual: number;
-    abs_error: number;
-  }[];
-  /** Headline: mean absolute error, s/lap. */
-  mae: number;
-  /** Set when predicting a race that has not happened yet (the live demo). */
-  is_forecast?: boolean;
+  rows: TransferRow[];
+  /** Mean absolute error, s/lap. null when every row is a forecast. */
+  mae: number | null;
+  is_forecast: boolean;
 }
 
-// ---------------------------------------------------------------------------
-// strategy.json — the decision the curves enable.
-// ---------------------------------------------------------------------------
+// --- strategy.json ----------------------------------------------------------
+
+export interface StrategyPlan {
+  n_stops: number;
+  compounds: Compound[];
+  stint_lengths: number[];
+  total_time: Interval;
+}
 
 export interface StrategyArtifact {
   event: string;
   pit_loss_s: number;
   race_laps: number;
-  /** Total race time by stop count, for the crossover chart. */
-  plans: {
-    n_stops: number;
-    compounds: Compound[];
-    stint_lengths: number[];
-    total_time: Interval;
-  }[];
-  recommended: { n_stops: number; rationale: string; confidence: number };
-  /** Optimal stint length per compound, given pit loss. */
+  plans: StrategyPlan[];
+  recommended_stops: number;
+  rationale: string;
+  confidence: number;
   optimal_stint: Record<string, Interval>;
 }
 
-// ---------------------------------------------------------------------------
-// replay/<event>.json — lap-by-lap, for the scrubber.
-// ---------------------------------------------------------------------------
-
-export interface ReplayLap {
-  lap: number;
-  driver: string;
-  compound: Compound;
-  tyre_life: number;
-  lap_time: number | null;
-  /** Model's degradation estimate using only laps up to here. */
-  estimate: Interval;
-  /** Recommendation as of this lap. */
-  recommendation: "stay_out" | "box_now" | "box_window";
-  track_status: string;
-}
-
-export interface ReplayArtifact {
-  event: string;
-  race_laps: number;
-  laps: ReplayLap[];
-  /** What the team actually did, for the counterfactual comparison. */
-  actual_pit_laps: number[];
-}
-
-// ---------------------------------------------------------------------------
-// Everything, as loaded by the app.
 // ---------------------------------------------------------------------------
 
 export interface Bundle {
@@ -213,4 +222,24 @@ export interface Bundle {
   power: PowerArtifact;
   transfer: TransferArtifact;
   strategy: StrategyArtifact;
+}
+
+/** Official Pirelli colours, keyed by physical compound rather than by label. */
+export const COMPOUND_COLOR: Record<Compound, string> = {
+  C1: "#f2f2f2",
+  C2: "#e8e0c8",
+  C3: "#ffd500",
+  C4: "#ff8c3b",
+  C5: "#ff3b3b",
+};
+
+export async function loadBundle(base = "/data"): Promise<Bundle> {
+  const entries = await Promise.all(
+    ARTIFACT_FILES.map(async (name) => {
+      const res = await fetch(`${base}/${name}.json`);
+      if (!res.ok) throw new Error(`could not load ${name}.json (${res.status})`);
+      return [name, await res.json()] as const;
+    }),
+  );
+  return Object.fromEntries(entries) as unknown as Bundle;
 }

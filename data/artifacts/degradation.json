@@ -1,0 +1,715 @@
+{
+  "event": null,
+  "curves": [
+    {
+      "compound": "C2",
+      "label": "HARD",
+      "context": "practice",
+      "rate": {
+        "mean": 0.031,
+        "lo": 0.0265,
+        "hi": 0.0355
+      },
+      "curve": [
+        {
+          "tyre_life": 1,
+          "delta": {
+            "mean": 0.031,
+            "lo": 0.0258,
+            "hi": 0.0362
+          }
+        },
+        {
+          "tyre_life": 2,
+          "delta": {
+            "mean": 0.0559,
+            "lo": 0.0495,
+            "hi": 0.0623
+          }
+        },
+        {
+          "tyre_life": 3,
+          "delta": {
+            "mean": 0.0789,
+            "lo": 0.0713,
+            "hi": 0.0865
+          }
+        },
+        {
+          "tyre_life": 4,
+          "delta": {
+            "mean": 0.1007,
+            "lo": 0.0919,
+            "hi": 0.1095
+          }
+        },
+        {
+          "tyre_life": 5,
+          "delta": {
+            "mean": 0.1218,
+            "lo": 0.1118,
+            "hi": 0.1318
+          }
+        },
+        {
+          "tyre_life": 6,
+          "delta": {
+            "mean": 0.1422,
+            "lo": 0.131,
+            "hi": 0.1534
+          }
+        },
+        {
+          "tyre_life": 7,
+          "delta": {
+            "mean": 0.1621,
+            "lo": 0.1497,
+            "hi": 0.1745
+          }
+        },
+        {
+          "tyre_life": 8,
+          "delta": {
+            "mean": 0.1815,
+            "lo": 0.1679,
+            "hi": 0.1951
+          }
+        },
+        {
+          "tyre_life": 9,
+          "delta": {
+            "mean": 0.2007,
+            "lo": 0.1859,
+            "hi": 0.2155
+          }
+        },
+        {
+          "tyre_life": 10,
+          "delta": {
+            "mean": 0.2195,
+            "lo": 0.2035,
+            "hi": 0.2355
+          }
+        },
+        {
+          "tyre_life": 11,
+          "delta": {
+            "mean": 0.238,
+            "lo": 0.2208,
+            "hi": 0.2552
+          }
+        },
+        {
+          "tyre_life": 12,
+          "delta": {
+            "mean": 0.2563,
+            "lo": 0.2379,
+            "hi": 0.2747
+          }
+        },
+        {
+          "tyre_life": 13,
+          "delta": {
+            "mean": 0.2743,
+            "lo": 0.2547,
+            "hi": 0.2939
+          }
+        },
+        {
+          "tyre_life": 14,
+          "delta": {
+            "mean": 0.2921,
+            "lo": 0.2713,
+            "hi": 0.3129
+          }
+        },
+        {
+          "tyre_life": 15,
+          "delta": {
+            "mean": 0.3098,
+            "lo": 0.2878,
+            "hi": 0.3318
+          }
+        },
+        {
+          "tyre_life": 16,
+          "delta": {
+            "mean": 0.3272,
+            "lo": 0.304,
+            "hi": 0.3504
+          }
+        },
+        {
+          "tyre_life": 17,
+          "delta": {
+            "mean": 0.3445,
+            "lo": 0.3201,
+            "hi": 0.3689
+          }
+        },
+        {
+          "tyre_life": 18,
+          "delta": {
+            "mean": 0.3617,
+            "lo": 0.3361,
+            "hi": 0.3873
+          }
+        },
+        {
+          "tyre_life": 19,
+          "delta": {
+            "mean": 0.3787,
+            "lo": 0.3519,
+            "hi": 0.4055
+          }
+        },
+        {
+          "tyre_life": 20,
+          "delta": {
+            "mean": 0.3956,
+            "lo": 0.3676,
+            "hi": 0.4236
+          }
+        },
+        {
+          "tyre_life": 21,
+          "delta": {
+            "mean": 0.4123,
+            "lo": 0.3831,
+            "hi": 0.4415
+          }
+        },
+        {
+          "tyre_life": 22,
+          "delta": {
+            "mean": 0.429,
+            "lo": 0.3986,
+            "hi": 0.4594
+          }
+        },
+        {
+          "tyre_life": 23,
+          "delta": {
+            "mean": 0.4455,
+            "lo": 0.4139,
+            "hi": 0.4771
+          }
+        },
+        {
+          "tyre_life": 24,
+          "delta": {
+            "mean": 0.4619,
+            "lo": 0.4291,
+            "hi": 0.4947
+          }
+        },
+        {
+          "tyre_life": 25,
+          "delta": {
+            "mean": 0.4782,
+            "lo": 0.4442,
+            "hi": 0.5122
+          }
+        },
+        {
+          "tyre_life": 26,
+          "delta": {
+            "mean": 0.4944,
+            "lo": 0.4592,
+            "hi": 0.5296
+          }
+        }
+      ],
+      "n_laps": 895,
+      "n_runs": 139,
+      "events": [
+        "Australian Grand Prix",
+        "Japanese Grand Prix",
+        "Monaco Grand Prix",
+        "Barcelona Grand Prix",
+        "Austrian Grand Prix",
+        "Belgian Grand Prix",
+        "Hungarian Grand Prix"
+      ]
+    },
+    {
+      "compound": "C3",
+      "label": "MEDIUM",
+      "context": "practice",
+      "rate": {
+        "mean": 0.038,
+        "lo": 0.0335,
+        "hi": 0.0425
+      },
+      "curve": [
+        {
+          "tyre_life": 1,
+          "delta": {
+            "mean": 0.038,
+            "lo": 0.0328,
+            "hi": 0.0432
+          }
+        },
+        {
+          "tyre_life": 2,
+          "delta": {
+            "mean": 0.0685,
+            "lo": 0.0621,
+            "hi": 0.0749
+          }
+        },
+        {
+          "tyre_life": 3,
+          "delta": {
+            "mean": 0.0967,
+            "lo": 0.0891,
+            "hi": 0.1043
+          }
+        },
+        {
+          "tyre_life": 4,
+          "delta": {
+            "mean": 0.1235,
+            "lo": 0.1147,
+            "hi": 0.1323
+          }
+        },
+        {
+          "tyre_life": 5,
+          "delta": {
+            "mean": 0.1492,
+            "lo": 0.1392,
+            "hi": 0.1592
+          }
+        },
+        {
+          "tyre_life": 6,
+          "delta": {
+            "mean": 0.1743,
+            "lo": 0.1631,
+            "hi": 0.1855
+          }
+        },
+        {
+          "tyre_life": 7,
+          "delta": {
+            "mean": 0.1987,
+            "lo": 0.1863,
+            "hi": 0.2111
+          }
+        },
+        {
+          "tyre_life": 8,
+          "delta": {
+            "mean": 0.2225,
+            "lo": 0.2089,
+            "hi": 0.2361
+          }
+        },
+        {
+          "tyre_life": 9,
+          "delta": {
+            "mean": 0.246,
+            "lo": 0.2312,
+            "hi": 0.2608
+          }
+        },
+        {
+          "tyre_life": 10,
+          "delta": {
+            "mean": 0.269,
+            "lo": 0.253,
+            "hi": 0.285
+          }
+        },
+        {
+          "tyre_life": 11,
+          "delta": {
+            "mean": 0.2917,
+            "lo": 0.2745,
+            "hi": 0.3089
+          }
+        },
+        {
+          "tyre_life": 12,
+          "delta": {
+            "mean": 0.3141,
+            "lo": 0.2957,
+            "hi": 0.3325
+          }
+        },
+        {
+          "tyre_life": 13,
+          "delta": {
+            "mean": 0.3362,
+            "lo": 0.3166,
+            "hi": 0.3558
+          }
+        },
+        {
+          "tyre_life": 14,
+          "delta": {
+            "mean": 0.3581,
+            "lo": 0.3373,
+            "hi": 0.3789
+          }
+        },
+        {
+          "tyre_life": 15,
+          "delta": {
+            "mean": 0.3797,
+            "lo": 0.3577,
+            "hi": 0.4017
+          }
+        },
+        {
+          "tyre_life": 16,
+          "delta": {
+            "mean": 0.4011,
+            "lo": 0.3779,
+            "hi": 0.4243
+          }
+        },
+        {
+          "tyre_life": 17,
+          "delta": {
+            "mean": 0.4223,
+            "lo": 0.3979,
+            "hi": 0.4467
+          }
+        },
+        {
+          "tyre_life": 18,
+          "delta": {
+            "mean": 0.4434,
+            "lo": 0.4178,
+            "hi": 0.469
+          }
+        },
+        {
+          "tyre_life": 19,
+          "delta": {
+            "mean": 0.4642,
+            "lo": 0.4374,
+            "hi": 0.491
+          }
+        },
+        {
+          "tyre_life": 20,
+          "delta": {
+            "mean": 0.4849,
+            "lo": 0.4569,
+            "hi": 0.5129
+          }
+        },
+        {
+          "tyre_life": 21,
+          "delta": {
+            "mean": 0.5054,
+            "lo": 0.4762,
+            "hi": 0.5346
+          }
+        },
+        {
+          "tyre_life": 22,
+          "delta": {
+            "mean": 0.5258,
+            "lo": 0.4954,
+            "hi": 0.5562
+          }
+        },
+        {
+          "tyre_life": 23,
+          "delta": {
+            "mean": 0.5461,
+            "lo": 0.5145,
+            "hi": 0.5777
+          }
+        },
+        {
+          "tyre_life": 24,
+          "delta": {
+            "mean": 0.5662,
+            "lo": 0.5334,
+            "hi": 0.599
+          }
+        },
+        {
+          "tyre_life": 25,
+          "delta": {
+            "mean": 0.5862,
+            "lo": 0.5522,
+            "hi": 0.6202
+          }
+        },
+        {
+          "tyre_life": 26,
+          "delta": {
+            "mean": 0.6061,
+            "lo": 0.5709,
+            "hi": 0.6413
+          }
+        }
+      ],
+      "n_laps": 1088,
+      "n_runs": 89,
+      "events": [
+        "Australian Grand Prix",
+        "Japanese Grand Prix",
+        "Monaco Grand Prix",
+        "Barcelona Grand Prix",
+        "Austrian Grand Prix",
+        "Belgian Grand Prix",
+        "Hungarian Grand Prix"
+      ]
+    },
+    {
+      "compound": "C4",
+      "label": "SOFT",
+      "context": "practice",
+      "rate": {
+        "mean": 0.052,
+        "lo": 0.0475,
+        "hi": 0.0565
+      },
+      "curve": [
+        {
+          "tyre_life": 1,
+          "delta": {
+            "mean": 0.052,
+            "lo": 0.0468,
+            "hi": 0.0572
+          }
+        },
+        {
+          "tyre_life": 2,
+          "delta": {
+            "mean": 0.0937,
+            "lo": 0.0873,
+            "hi": 0.1001
+          }
+        },
+        {
+          "tyre_life": 3,
+          "delta": {
+            "mean": 0.1323,
+            "lo": 0.1247,
+            "hi": 0.1399
+          }
+        },
+        {
+          "tyre_life": 4,
+          "delta": {
+            "mean": 0.1689,
+            "lo": 0.1601,
+            "hi": 0.1777
+          }
+        },
+        {
+          "tyre_life": 5,
+          "delta": {
+            "mean": 0.2042,
+            "lo": 0.1942,
+            "hi": 0.2142
+          }
+        },
+        {
+          "tyre_life": 6,
+          "delta": {
+            "mean": 0.2385,
+            "lo": 0.2273,
+            "hi": 0.2497
+          }
+        },
+        {
+          "tyre_life": 7,
+          "delta": {
+            "mean": 0.2719,
+            "lo": 0.2595,
+            "hi": 0.2843
+          }
+        },
+        {
+          "tyre_life": 8,
+          "delta": {
+            "mean": 0.3045,
+            "lo": 0.2909,
+            "hi": 0.3181
+          }
+        },
+        {
+          "tyre_life": 9,
+          "delta": {
+            "mean": 0.3366,
+            "lo": 0.3218,
+            "hi": 0.3514
+          }
+        },
+        {
+          "tyre_life": 10,
+          "delta": {
+            "mean": 0.3681,
+            "lo": 0.3521,
+            "hi": 0.3841
+          }
+        },
+        {
+          "tyre_life": 11,
+          "delta": {
+            "mean": 0.3992,
+            "lo": 0.382,
+            "hi": 0.4164
+          }
+        },
+        {
+          "tyre_life": 12,
+          "delta": {
+            "mean": 0.4298,
+            "lo": 0.4114,
+            "hi": 0.4482
+          }
+        },
+        {
+          "tyre_life": 13,
+          "delta": {
+            "mean": 0.4601,
+            "lo": 0.4405,
+            "hi": 0.4797
+          }
+        },
+        {
+          "tyre_life": 14,
+          "delta": {
+            "mean": 0.49,
+            "lo": 0.4692,
+            "hi": 0.5108
+          }
+        },
+        {
+          "tyre_life": 15,
+          "delta": {
+            "mean": 0.5196,
+            "lo": 0.4976,
+            "hi": 0.5416
+          }
+        },
+        {
+          "tyre_life": 16,
+          "delta": {
+            "mean": 0.5489,
+            "lo": 0.5257,
+            "hi": 0.5721
+          }
+        },
+        {
+          "tyre_life": 17,
+          "delta": {
+            "mean": 0.5779,
+            "lo": 0.5535,
+            "hi": 0.6023
+          }
+        },
+        {
+          "tyre_life": 18,
+          "delta": {
+            "mean": 0.6067,
+            "lo": 0.5811,
+            "hi": 0.6323
+          }
+        },
+        {
+          "tyre_life": 19,
+          "delta": {
+            "mean": 0.6352,
+            "lo": 0.6084,
+            "hi": 0.662
+          }
+        },
+        {
+          "tyre_life": 20,
+          "delta": {
+            "mean": 0.6636,
+            "lo": 0.6356,
+            "hi": 0.6916
+          }
+        },
+        {
+          "tyre_life": 21,
+          "delta": {
+            "mean": 0.6917,
+            "lo": 0.6625,
+            "hi": 0.7209
+          }
+        },
+        {
+          "tyre_life": 22,
+          "delta": {
+            "mean": 0.7196,
+            "lo": 0.6892,
+            "hi": 0.75
+          }
+        },
+        {
+          "tyre_life": 23,
+          "delta": {
+            "mean": 0.7473,
+            "lo": 0.7157,
+            "hi": 0.7789
+          }
+        },
+        {
+          "tyre_life": 24,
+          "delta": {
+            "mean": 0.7748,
+            "lo": 0.742,
+            "hi": 0.8076
+          }
+        },
+        {
+          "tyre_life": 25,
+          "delta": {
+            "mean": 0.8021,
+            "lo": 0.7681,
+            "hi": 0.8361
+          }
+        },
+        {
+          "tyre_life": 26,
+          "delta": {
+            "mean": 0.8293,
+            "lo": 0.7941,
+            "hi": 0.8645
+          }
+        }
+      ],
+      "n_laps": 1462,
+      "n_runs": 108,
+      "events": [
+        "Australian Grand Prix",
+        "Japanese Grand Prix",
+        "Monaco Grand Prix",
+        "Barcelona Grand Prix",
+        "Austrian Grand Prix",
+        "Belgian Grand Prix",
+        "Hungarian Grand Prix"
+      ]
+    }
+  ],
+  "fuel_coefficient": {
+    "mean": 0.0331,
+    "lo": 0.031,
+    "hi": 0.0352
+  },
+  "track_evolution": {
+    "mean": -0.0089,
+    "lo": -0.0103,
+    "hi": -0.0075
+  },
+  "separation": {
+    "C2>C3": 0.78,
+    "C3>C4": 0.999
+  },
+  "separated_pairs": [
+    "C3|C4"
+  ]
+}

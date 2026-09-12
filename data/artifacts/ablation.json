@@ -1,0 +1,55 @@
+{
+  "context": "practice",
+  "rows": [
+    {
+      "compound": "C2",
+      "label": "HARD",
+      "naive": {
+        "mean": 0.0291,
+        "lo": -0.0019,
+        "hi": 0.0601
+      },
+      "deconfounded": {
+        "mean": 0.031,
+        "lo": 0.0265,
+        "hi": 0.0355
+      },
+      "published": {
+        "mean": 0.054,
+        "lo": -0.0105,
+        "hi": 0.1185
+      }
+    },
+    {
+      "compound": "C3",
+      "label": "MEDIUM",
+      "naive": {
+        "mean": 0.0329,
+        "lo": 0.0019,
+        "hi": 0.0639
+      },
+      "deconfounded": {
+        "mean": 0.038,
+        "lo": 0.0335,
+        "hi": 0.0425
+      },
+      "published": null
+    },
+    {
+      "compound": "C4",
+      "label": "SOFT",
+      "naive": {
+        "mean": 0.0406,
+        "lo": 0.0096,
+        "hi": 0.0716
+      },
+      "deconfounded": {
+        "mean": 0.052,
+        "lo": 0.0475,
+        "hi": 0.0565
+      },
+      "published": null
+    }
+  ],
+  "caption": "The naive slope blends tyre wear with fuel burn and track evolution. Removing them separates the compounds and shrinks the interval about sevenfold."
+}
