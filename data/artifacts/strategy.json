@@ -10,67 +10,67 @@
         "C4"
       ],
       "stint_lengths": [
-        16,
-        54
+        9,
+        61
       ],
       "total_time": {
-        "mean": 38.38,
-        "lo": 35.38,
-        "hi": 41.38
+        "mean": 19.33,
+        "lo": 16.33,
+        "hi": 22.33
       }
     },
     {
       "n_stops": 2,
       "compounds": [
-        "C4",
-        "C4",
-        "C3"
-      ],
-      "stint_lengths": [
-        32,
-        33,
-        5
-      ],
-      "total_time": {
-        "mean": 36.6,
-        "lo": 33.6,
-        "hi": 39.6
-      }
-    },
-    {
-      "n_stops": 3,
-      "compounds": [
-        "C4",
         "C3",
         "C4",
         "C4"
       ],
       "stint_lengths": [
-        21,
         5,
+        32,
+        33
+      ],
+      "total_time": {
+        "mean": 24.51,
+        "lo": 21.51,
+        "hi": 27.51
+      }
+    },
+    {
+      "n_stops": 3,
+      "compounds": [
+        "C3",
+        "C4",
+        "C4",
+        "C4"
+      ],
+      "stint_lengths": [
+        5,
+        21,
         22,
         22
       ],
       "total_time": {
-        "mean": 49.19,
-        "lo": 46.19,
-        "hi": 52.19
+        "mean": 40.97,
+        "lo": 37.97,
+        "hi": 43.97
       }
     }
   ],
-  "recommended_stops": 2,
-  "rationale": "2-stop: C4 x32 -> C4 x33 -> C3 x5 is 1.8s faster than the best 1-stop alternative at a measured pit loss of 22.3s. The crossover sits at 24.5s.",
-  "confidence": 0.18,
+  "recommended_stops": 1,
+  "rationale": "1-stop: C3 x9 + C4 x61 is 5.2s faster than the best 2-stop alternative at a measured pit loss of 22.3s. The crossover sits at 17.5s.",
+  "confidence": 0.52,
   "optimal_stint": {
     "C3": {
-      "mean": 29.0,
-      "lo": 26.0,
-      "hi": 31.0
+      "mean": 31.0,
+      "lo": 29.0,
+      "hi": 34.0
     },
     "C4": {
-      "mean": 40.0,
-      "lo": 37.0,
-      "hi": 43.0
+      "mean": 52.0,
+      "lo": 48.0,
+      "hi": 55.0
     }
   }
 }
