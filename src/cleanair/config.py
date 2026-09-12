@@ -1,0 +1,161 @@
+"""Project-wide configuration and verified constants.
+
+Every number in this file was checked against a primary source. Where a value is
+uncertain, that is stated in the comment. Do not change these without a source.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+# ---------------------------------------------------------------------------
+# Paths
+# ---------------------------------------------------------------------------
+
+ROOT = Path(__file__).resolve().parents[2]
+
+DATA = ROOT / "data"
+FASTF1_CACHE = DATA / "fastf1_cache"
+PROCESSED = DATA / "processed"
+ARTIFACTS = DATA / "artifacts"
+
+STAN_DIR = Path(__file__).resolve().parent / "models" / "stan"
+BENCHMARK = ROOT / "benchmark"
+WEB_DATA = ROOT / "web" / "public" / "data"
+
+for _p in (FASTF1_CACHE, PROCESSED, ARTIFACTS):
+    _p.mkdir(parents=True, exist_ok=True)
+
+
+# ---------------------------------------------------------------------------
+# 2026 season facts
+# Source: fastf1.get_event_schedule(2026), verified 2026-09-03.
+# ---------------------------------------------------------------------------
+
+SEASON = 2026
+
+#: Total rounds on the 2026 calendar.
+#: NOTE: 23, not 22. Saudi Arabia was cancelled. Bahrain was NOT -- it was
+#: relocated to Sepang, Malaysia (2-4 Oct) and still carries the Bahrain name.
+N_ROUNDS_2026 = 23
+
+#: Completed conventional weekends as of 2026-09-03. These are the only 2026
+#: events with an FP2 session, and therefore the only ones with race-simulation
+#: long runs. Sprint weekends run FP1 then Sprint Qualifying, so they have none.
+CONVENTIONAL_2026 = (
+    "Australian Grand Prix",   # R1,  08 Mar
+    "Japanese Grand Prix",     # R3,  29 Mar
+    "Monaco Grand Prix",       # R6,  07 Jun
+    "Barcelona Grand Prix",    # R7,  14 Jun
+    "Austrian Grand Prix",     # R8,  28 Jun
+    "Belgian Grand Prix",      # R10, 19 Jul
+    "Hungarian Grand Prix",    # R11, 26 Jul
+)
+
+#: Completed sprint weekends as of 2026-09-03. No FP2, so no long runs.
+SPRINT_2026 = (
+    "Chinese Grand Prix",      # R2
+    "Miami Grand Prix",        # R4
+    "Canadian Grand Prix",     # R5
+    "British Grand Prix",      # R9
+    "Dutch Grand Prix",        # R12
+)
+
+#: Upcoming during the build window. Italian GP is a dry run for the pipeline;
+#: Spanish GP falls on Challenge Day itself and is the live-forecast target.
+ITALIAN_GP_2026 = "Italian Grand Prix"   # R13, 06 Sep -- fresh test weekend
+SPANISH_GP_2026 = "Spanish Grand Prix"   # R14, 13 Sep -- Challenge Day, live demo
+
+
+# ---------------------------------------------------------------------------
+# 2026 technical regulations
+# ---------------------------------------------------------------------------
+
+#: Dry compounds for 2026. Five, not six -- Pirelli dropped the C6 because the
+#: C5-to-C6 gap was too small to be worth validating.
+COMPOUNDS = ("HARD", "MEDIUM", "SOFT")          # as labelled in the timing feed
+COMPOUND_CODES = {"HARD": 1, "MEDIUM": 2, "SOFT": 3}   # matches the benchmark's coding
+WET_COMPOUNDS = ("INTERMEDIATE", "WET")
+
+#: Race fuel load, kg. Down from 110 kg under the previous regulations.
+#: CAUTION: sources disagree on whether this is a hard regulatory cap at race
+#: start or the practical race load implied by the 3000 MJ/h energy-flow limit.
+#: The magnitude is not in doubt. Do not cite a regulation article number.
+FUEL_RACE_KG_2026 = 70.0
+FUEL_RACE_KG_LEGACY = 110.0     # what the benchmark paper assumed (correct for 2025)
+
+#: Lap-time sensitivity to car mass, seconds per lap per kg.
+#: From the widely used 0.3-0.35 s/lap per 10 kg rule of thumb. Circuit-agnostic,
+#: so treat as a prior to check a fitted value against, never as a fixed input.
+#: The benchmark's model fits only ~0.016 -- about half -- because its latent
+#: state absorbs the rest. That gap is our headline evidence of confounding.
+MASS_SENSITIVITY_S_PER_KG = 0.033
+MASS_SENSITIVITY_RANGE = (0.030, 0.035)
+
+
+# ---------------------------------------------------------------------------
+# Lap filtering
+# ---------------------------------------------------------------------------
+
+#: TrackStatus codes meaning the track was not fully green.
+#: 1 green, 2 yellow, 4 safety car, 5 red flag, 6 VSC deployed, 7 VSC ending.
+#: The benchmark filters "4|5|6|7" as a substring match -- we replicate that
+#: exactly in the benchmark harness, but use explicit codes in our own pipeline.
+NON_GREEN_CODES = ("4", "5", "6", "7")
+GREEN = "1"
+
+#: Minimum consecutive clean green laps in a stint to count as a "long run".
+MIN_LONG_RUN_LAPS = 5
+
+
+# ---------------------------------------------------------------------------
+# Benchmark targets (Cappello & Hoegh 2025, arXiv:2512.00640)
+# Hamilton, 2025 Austrian GP. See benchmark/README.md.
+# ---------------------------------------------------------------------------
+
+#: Their Table 3: per-compound degradation, s/lap, with 95% credible intervals.
+#: The intervals overlap almost completely -- the model cannot separate Hard
+#: from Medium. Reproduced by us on 2026-09-03 (Hard 0.0550, Medium 0.0555).
+BENCHMARK_TABLE3 = {
+    "HARD":   {"mean": 0.054, "lo": 0.004, "hi": 0.133},
+    "MEDIUM": {"mean": 0.060, "lo": 0.009, "hi": 0.120},
+}
+
+#: Their Table 1 (RMSPE) and Table 2 (CRPS). Lower is better.
+#: WARNING: their "RMSPE" is a plain RMSE in seconds, not a percentage error,
+#: and its "Total" row is a SUM over 3 stints while the CRPS total is a MEAN.
+#: Do not compare RMSPE totals across races with different stint counts.
+BENCHMARK_RMSPE = {"arima": 1.520, "base": 1.169, "ext1": 1.187, "ext2": 1.218, "skew_t": 1.082}
+BENCHMARK_CRPS = {"arima": 0.324, "base": 0.230, "ext1": 0.236, "ext2": 0.245, "skew_t": 0.202}
+
+#: Our target. Note that beating 0.202 and separating the compounds are two
+#: different jobs: their compound-specific model (ext1) scored WORSE than their
+#: base model, and their best model has no compound structure at all. We need
+#: pooling AND a heavy-tailed observation model to do both.
+TARGET_CRPS = 0.202
+
+#: Season-wide benchmark from their repo (19 races, Hamilton, skew-t vs ARIMA).
+#: Not published in the paper. Gives us a win-rate to report instead of one number.
+BENCHMARK_SEASON_2025 = {
+    "n_races": 19,
+    "n_stints": 51,
+    "skewt_crps_mean": 0.238,
+    "arima_crps_mean": 0.2997,
+    "skewt_rmspe_mean": 0.4088,
+    "arima_rmspe_mean": 0.4786,
+    "skewt_crps_wins": 16,
+}
+
+
+# ---------------------------------------------------------------------------
+# Toolchain
+# ---------------------------------------------------------------------------
+
+#: CmdStan install shared by cmdstanpy (Python) and cmdstanr (R).
+CMDSTAN_PATH = Path.home() / ".cmdstan" / "cmdstan-2.39.0"
+
+#: Rtools bin directory. MUST be prepended to PATH before compiling Stan models:
+#: C:/MinGW/bin is on this machine's system PATH carrying GCC 6.3.0 from 2016,
+#: which shadows modern compilers and breaks every Stan build. See benchmark/README.md.
+RTOOLS_BIN = Path("C:/rtools45/x86_64-w64-mingw32.static.posix/bin")
+RTOOLS_USR_BIN = Path("C:/rtools45/usr/bin")
