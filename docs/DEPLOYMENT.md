@@ -51,6 +51,7 @@ The console mitigates this itself — it requests the coarse grid while a slider
 |---|---|
 | `CORS_ORIGINS` | comma-separated front-end origins. The React app is on a different host in every shape, so this is read from the environment rather than compiled in. |
 | `VITE_API_BASE` | build-time, on the front end. Unset in dev, where Vite proxies `/api` to port 8000. |
+| `CLEANAIR_POLL` | **set this to `1` in production.** It starts the in-process poller. Off by default so running the API locally does not silently begin pulling sessions — which means a deploy that forgets it looks completely healthy and never updates itself again. |
 
 ### What updates itself
 
@@ -144,14 +145,15 @@ services:
     environment:
       DATABASE_URL: postgresql://cleanair:${POSTGRES_PASSWORD}@postgres:5432/cleanair
       CORS_ORIGINS: https://cleanair.vercel.app
-
-  worker:
-    image: ghcr.io/${GH_OWNER}/cleanair-worker:latest
-    restart: unless-stopped
-    depends_on: { postgres: { condition: service_healthy } }
-    environment:
-      DATABASE_URL: postgresql://cleanair:${POSTGRES_PASSWORD}@postgres:5432/cleanair
+      # Without this the poller never starts and the site freezes on whatever
+      # was published at build time, while looking perfectly healthy.
+      CLEANAIR_POLL: "1"
     volumes: [fastf1cache:/cache]
+
+  # No separate worker service. The poller runs inside the API process: the
+  # recurring job is a network wait plus about ninety seconds of arithmetic,
+  # so it does not need its own container, and one process is one thing to
+  # deploy and one thing to explain.
 
   caddy:
     image: caddy:2-alpine

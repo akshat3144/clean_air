@@ -165,14 +165,39 @@ def _pull(event: str, season: int, sessions: list[str]) -> tuple[bool, str]:
     return True, tail
 
 
-def _republish() -> tuple[bool, str]:
-    """Refit and rewrite the artifacts the app reads.
+#: Every stage whose output changes when a new 2026 session lands, in
+#: dependency order. Measured end to end at about 90 seconds, comfortably
+#: inside the fifteen-minute tick.
+#:
+#: Four were missing before, so a new race refreshed the strategy call while
+#: calibration, power and the five-season management result silently stayed on
+#: the previous race's numbers.
+#:
+#: Deliberately NOT here:
+#:   11_circuits   reads only the 2022-2025 parquets, so a 2026 race cannot
+#:                 change it -- and it costs 4.4 minutes. Run it from
+#:                 run_pipeline.py when a new SEASON is added.
+#:   10_pit_loss   writes no artifact; it is a console diagnostic.
+#:   08_benchmark  scores against 2025 and does not move.
+#:   06_strategy   superseded by 09_playbook, which covers every event.
+REPUBLISH_STAGES = (
+    "03_fit_model.py",       # degradation + ablation + meta
+    "04_validate.py",        # calibration + power
+    "05_transfer.py",        # practice -> race
+    "07_management.py",      # the five-season result
+    "09_playbook.py",        # the strategy call per event
+    "02_publish_artifacts.py",
+)
 
-    Only the cheap stages. The benchmark and the hierarchical model are not in
-    this path: one needs a different season's data and the other is six minutes
-    of MCMC, and neither belongs behind a fifteen-minute timer.
+
+def _republish() -> tuple[bool, str]:
+    """Refit and rewrite every artifact the app reads.
+
+    The benchmark and the hierarchical model are not in this path: one needs a
+    different season's data and the other is six minutes of MCMC, and neither
+    belongs behind a fifteen-minute timer.
     """
-    for script in ("03_fit_model.py", "05_transfer.py", "09_playbook.py", "02_publish_artifacts.py"):
+    for script in REPUBLISH_STAGES:
         proc = subprocess.run(
             [sys.executable, str(ROOT / "scripts" / script)],
             cwd=ROOT,
@@ -182,7 +207,7 @@ def _republish() -> tuple[bool, str]:
         )
         if proc.returncode != 0:
             return False, f"{script}: {(proc.stderr or '')[-300:]}"
-    return True, "refit and republished"
+    return True, f"refit and republished ({len(REPUBLISH_STAGES)} stages)"
 
 
 async def tick(season: int = SEASON) -> None:
