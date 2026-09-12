@@ -5,14 +5,14 @@
       "compound": "C2",
       "label": "HARD",
       "naive": {
-        "mean": 0.05282103723829699,
-        "lo": 0.009782369479553299,
-        "hi": 0.09585970499704068
+        "mean": 0.07465791677923636,
+        "lo": 0.048032846583958455,
+        "hi": 0.10128298697451427
       },
       "deconfounded": {
-        "mean": 0.16748567216986077,
-        "lo": 0.1305393778519776,
-        "hi": 0.20443196648774392
+        "mean": 0.0723700067462878,
+        "lo": 0.014364104985836706,
+        "hi": 0.13037590850673889
       },
       "published": null
     },
@@ -20,14 +20,14 @@
       "compound": "C3",
       "label": "HARD",
       "naive": {
-        "mean": 0.05282103723829699,
-        "lo": 0.009782369479553299,
-        "hi": 0.09585970499704068
+        "mean": 0.07465791677923636,
+        "lo": 0.048032846583958455,
+        "hi": 0.10128298697451427
       },
       "deconfounded": {
-        "mean": 0.09136116135461488,
-        "lo": 0.07917302770243898,
-        "hi": 0.10354929500679078
+        "mean": 0.05720222156459627,
+        "lo": 0.0016805408080592665,
+        "hi": 0.11272390232113327
       },
       "published": {
         "mean": 0.054,
@@ -39,14 +39,14 @@
       "compound": "C4",
       "label": "MEDIUM",
       "naive": {
-        "mean": -0.14492219699935968,
-        "lo": -0.18509231878599963,
-        "hi": -0.10475207521271973
+        "mean": -0.12194504301501885,
+        "lo": -0.15033547781420786,
+        "hi": -0.09355460821582984
       },
       "deconfounded": {
-        "mean": 0.0909652496849633,
-        "lo": 0.0705023415178511,
-        "hi": 0.11142815785207551
+        "mean": 0.0292337290632875,
+        "lo": -0.02670758870630042,
+        "hi": 0.08517504683287541
       },
       "published": null
     },
@@ -54,17 +54,17 @@
       "compound": "C5",
       "label": "SOFT",
       "naive": {
-        "mean": -0.023208843129049594,
-        "lo": -0.07832655233547005,
-        "hi": 0.03190886607737087
+        "mean": -0.08174216296096642,
+        "lo": -0.12113339757707942,
+        "hi": -0.042350928344853433
       },
       "deconfounded": {
-        "mean": -0.006271771289798613,
-        "lo": -0.02900764348973913,
-        "hi": 0.01646410091014191
+        "mean": 0.0034739227447430575,
+        "lo": -0.053927300915554054,
+        "hi": 0.060875146405040166
       },
       "published": null
     }
   ],
-  "caption": "The naive slope regresses lap time on tyre age with no controls, so fuel burn and track evolution -- which both make laps faster -- cancel part of the rise from wear. Removing them narrows the interval 2-fold and separates compounds the naive fit cannot."
+  "caption": "The naive slope regresses lap time on tyre age with no controls, so fuel burn and track evolution -- which both make laps faster -- cancel part of the rise from wear. Removing them narrows the interval 1-fold and separates compounds the naive fit cannot."
 }

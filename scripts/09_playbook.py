@@ -154,11 +154,17 @@ def build_event(
     label_of = {c: lab for lab, c in allocation.items()}
     nominated = set(allocation.values())
 
+    # Per-CIRCUIT rates, not the global average. A pit call is for one race at
+    # one track, and the track matters more than the rubber: the spread across
+    # 2026 circuits is 0.11 s/lap against roughly 0.09 between compounds. Using
+    # the global mean made every race look identical and produced a one-stop
+    # recommendation at all twelve of them.
+    #
     # Only compounds with a positive fitted degradation can be optimised on.
     usable = {
-        c: fit.rates[c].mean
+        c: fit.rate_for(c, event)
         for c in fit.ordered
-        if c in nominated and fit.rates[c].mean > 0
+        if c in nominated and fit.rate_for(c, event) > 0
     }
     if len(usable) < 2:
         # Two compounds is the regulatory minimum for a dry race, so with fewer
@@ -236,7 +242,7 @@ def main() -> None:
     laps = pd.read_parquet(PROCESSED / "laps.parquet")
     race = prepare(laps, "race")
     raw_race = laps[laps["session"] == "R"]
-    fit = fit_degradation(race, quadratic=False, context="race")
+    fit = fit_degradation(race, quadratic=False, context="race", circuit_effects=True)
 
     events = sorted(race["event"].unique())
     print(f"measuring pit loss for {len(events)} events...", flush=True)

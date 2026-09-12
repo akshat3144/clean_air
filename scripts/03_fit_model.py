@@ -58,7 +58,24 @@ def main() -> None:
         df = prepare(laps, ctx)
         # No quadratic in practice: runs average seven laps, over which tyre age
         # and its square correlate at 0.99, so the curvature is unidentifiable.
-        fit = fit_degradation(df, quadratic=(ctx == "race"), context=ctx)
+        # No compound offsets in practice. practice_design centres each lap
+        # within its RUN, and a run is one compound, so the compound level is
+        # differenced away before the model sees it -- statsmodels returns a
+        # coefficient of exactly 0 with a NaN standard error. In the race design
+        # the demeaning is by (event, lap), so cars on different compounds share
+        # a cell and the offset IS identified.
+        # Circuit effects in the race fit. Ignoring them does not just lose the
+        # per-track detail -- it also makes the GLOBAL interval too narrow,
+        # because 11,000 laps from 13 circuits are not 11,000 independent
+        # observations. The intervals below are wider than they used to be and
+        # that is a correction, not a regression.
+        fit = fit_degradation(
+            df,
+            quadratic=(ctx == "race"),
+            context=ctx,
+            with_offsets=(ctx == "race"),
+            circuit_effects=(ctx == "race"),
+        )
         report(fit, df)
         fits[ctx] = fit
 

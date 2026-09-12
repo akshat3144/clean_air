@@ -16,13 +16,13 @@
     },
     {
       "label": "SOFT",
-      "n_cells": 31,
-      "ratio": 0.1726,
-      "median_race": 0.03458,
-      "median_practice": 0.18205
+      "n_cells": 32,
+      "ratio": 0.1697,
+      "median_race": 0.03355,
+      "median_practice": 0.18056
     }
   ],
-  "n_cells": 97,
+  "n_cells": 98,
   "n_events": 20,
   "n_seasons": 5,
   "seasons": [
@@ -32,10 +32,10 @@
     2025,
     2026
   ],
-  "rho": -0.2946,
-  "p_one_sided": 0.0017,
-  "p_two_sided": 0.0034,
-  "p_kruskal": 0.0155,
+  "rho": -0.308,
+  "p_one_sided": 0.001,
+  "p_two_sided": 0.002,
+  "p_kruskal": 0.01,
   "ordered": true,
   "significant": true,
   "verdict": "supported: ratio falls with softness, significant either way",
@@ -44,10 +44,10 @@
       "seasons": [
         2026
       ],
-      "n_cells": 13,
-      "rho": -0.3751,
-      "p_one_sided": 0.1033,
-      "p_two_sided": 0.2067,
+      "n_cells": 14,
+      "rho": -0.4453,
+      "p_one_sided": 0.0553,
+      "p_two_sided": 0.1106,
       "ordered": true
     },
     {
@@ -55,10 +55,10 @@
         2025,
         2026
       ],
-      "n_cells": 29,
-      "rho": -0.4158,
-      "p_one_sided": 0.0124,
-      "p_two_sided": 0.0249,
+      "n_cells": 30,
+      "rho": -0.4477,
+      "p_one_sided": 0.0066,
+      "p_two_sided": 0.0131,
       "ordered": false
     },
     {
@@ -67,10 +67,10 @@
         2025,
         2026
       ],
-      "n_cells": 54,
-      "rho": -0.2948,
-      "p_one_sided": 0.0152,
-      "p_two_sided": 0.0305,
+      "n_cells": 55,
+      "rho": -0.3171,
+      "p_one_sided": 0.0092,
+      "p_two_sided": 0.0183,
       "ordered": true
     },
     {
@@ -80,10 +80,10 @@
         2025,
         2026
       ],
-      "n_cells": 72,
-      "rho": -0.3293,
-      "p_one_sided": 0.0024,
-      "p_two_sided": 0.0047,
+      "n_cells": 73,
+      "rho": -0.3455,
+      "p_one_sided": 0.0014,
+      "p_two_sided": 0.0028,
       "ordered": true
     },
     {
@@ -94,10 +94,10 @@
         2025,
         2026
       ],
-      "n_cells": 97,
-      "rho": -0.2946,
-      "p_one_sided": 0.0017,
-      "p_two_sided": 0.0034,
+      "n_cells": 98,
+      "rho": -0.308,
+      "p_one_sided": 0.001,
+      "p_two_sided": 0.002,
       "ordered": true
     }
   ]

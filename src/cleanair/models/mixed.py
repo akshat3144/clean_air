@@ -16,8 +16,9 @@ Rather than assume either, we fit the curvature and report it.
 
 from __future__ import annotations
 
+import logging
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
@@ -49,6 +50,24 @@ class Fit:
     converged: bool
     n_obs: int
     n_drivers: int
+    #: How much each circuit's tyre-age slope differs from the global one,
+    #: s/lap. Empty when circuit effects are off.
+    #:
+    #: One rate per compound for every track is false. The spread across the
+    #: 2026 circuits is 0.11 s/lap -- WIDER than the spread between compounds --
+    #: so a model without this blames the rubber for what is really the track,
+    #: and a pit call built on the global average is wrong everywhere. A
+    #: likelihood-ratio test rejects "all tracks alike" at p = 4e-78.
+    circuit_slope: dict[str, float] = field(default_factory=dict)
+
+    def rate_for(self, compound: str, event: str | None = None) -> float:
+        """Degradation rate for a compound, at a circuit if we know one.
+
+        The global rate answers "how does this compound behave in general".
+        It is the wrong answer to "what do we do on Sunday at Monaco", which is
+        what the strategy layer asks.
+        """
+        return self.rates[compound].mean + self.circuit_slope.get(event or "", 0.0)
 
     @property
     def ordered(self) -> list[str]:
@@ -90,12 +109,16 @@ class Fit:
         return rate * n_laps + (quad.mean * n_laps**2 if quad else 0.0)
 
 
+log = logging.getLogger(__name__)
+
+
 def fit_degradation(
     df: pd.DataFrame,
     *,
     quadratic: bool = True,
     context: str = "race",
     with_offsets: bool = True,
+    circuit_effects: bool = False,
 ) -> Fit:
     """Fit per-compound degradation on a prepared design frame.
 
@@ -126,7 +149,26 @@ def fit_degradation(
     # design matrix singular.
     if "tr" in df.columns and float(df["tr"].std() or 0.0) > 1e-9:
         formula += " + tr"
-    model = smf.mixedlm(formula, df, groups=df["Driver"])
+    if circuit_effects and df["event"].nunique() >= 4:
+        # Let the tyre-age slope vary by circuit, with partial pooling: a track
+        # with plenty of clean running gets its own estimate, a thin or
+        # safety-car-shredded one is pulled toward the global mean instead of
+        # shouting over it. That second property is the point -- Canada 2026
+        # produced 65 C4 "runs" only because neutralisations chopped its stints
+        # into 6-lap pieces, and under the old model that noise outvoted every
+        # other circuit and dragged C4 from 0.09 to 0.02.
+        #
+        # Driver becomes a variance component inside the event group, named
+        # "drv" rather than reusing "Driver": patsy reads a bare C(...) as its
+        # categorical helper and our compound column is called C, so the
+        # collision raises "Series object is not callable".
+        df = df.assign(drv=df["Driver"].astype(str))
+        model = smf.mixedlm(
+            formula, df, groups=df["event"], re_formula="~0 + tl",
+            vc_formula={"driver": "0 + drv"},
+        )
+    else:
+        model = smf.mixedlm(formula, df, groups=df["Driver"])
     res = model.fit(method="lbfgs")
 
     params, ci = res.params, res.conf_int()
@@ -142,12 +184,27 @@ def fit_degradation(
             elif not name.endswith(f":{prefix}"):
                 continue
             compound = name.split("[")[1].split("]")[0].replace("T.", "")
-            out[compound] = Interval(
-                mean=float(params[name]),
-                lo=float(ci.loc[name, 0]),
-                hi=float(ci.loc[name, 1]),
-            )
+            lo, hi = float(ci.loc[name, 0]), float(ci.loc[name, 1])
+            if not (math.isfinite(lo) and math.isfinite(hi)):
+                # statsmodels returns a coefficient with a NaN standard error
+                # when a parameter is not identified by the design. Dropping it
+                # reports "we could not estimate this" instead of raising, which
+                # used to take the whole pipeline down from one degenerate cell.
+                log.warning(
+                    "%s has no finite interval in the %s fit; not reporting it",
+                    name, context,
+                )
+                continue
+            out[compound] = Interval(mean=float(params[name]), lo=lo, hi=hi)
         return out
+
+    circuit_slope: dict[str, float] = {}
+    if circuit_effects:
+        for ev, vals in (res.random_effects or {}).items():
+            try:
+                circuit_slope[str(ev)] = float(np.asarray(vals)[0])
+            except (IndexError, TypeError, ValueError):
+                continue
 
     counts = df.groupby("C", observed=True)
     return Fit(
@@ -162,6 +219,7 @@ def fit_degradation(
         converged=bool(res.converged),
         n_obs=len(df),
         n_drivers=df["Driver"].nunique(),
+        circuit_slope=circuit_slope,
     )
 
 
@@ -188,6 +246,10 @@ def fuel_sensitivity(
             prepare(laps, "practice", s_per_kg=s, **prepare_kw),
             context="practice",
             quadratic=False,
+            # Practice centres within run, so a compound's level is differenced
+            # away before the model sees it. Asking for offsets here yields
+            # coefficients of exactly zero with NaN standard errors.
+            with_offsets=False,
         )
         for c, iv in fit.rates.items():
             rows.append(

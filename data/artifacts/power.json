@@ -7,38 +7,38 @@
     },
     {
       "n_driver_stints": 4,
-      "power": 0.0325
+      "power": 0.03166666666666667
     },
     {
       "n_driver_stints": 8,
-      "power": 0.05583333333333333
+      "power": 0.058333333333333334
     },
     {
       "n_driver_stints": 16,
-      "power": 0.1
+      "power": 0.10083333333333333
     },
     {
       "n_driver_stints": 32,
-      "power": 0.145
+      "power": 0.15
     },
     {
       "n_driver_stints": 64,
-      "power": 0.25833333333333336
+      "power": 0.28
     },
     {
       "n_driver_stints": 128,
-      "power": 0.43666666666666665
+      "power": 0.4625
     },
     {
       "n_driver_stints": 256,
-      "power": 0.7408333333333333
+      "power": 0.7725
     },
     {
       "n_driver_stints": 512,
-      "power": 0.9616666666666667
+      "power": 0.9716666666666667
     }
   ],
   "n_for_80pct": 512,
   "benchmark_n": 3,
-  "ours_n": 417
+  "ours_n": 820
 }

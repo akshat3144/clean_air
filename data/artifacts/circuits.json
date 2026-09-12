@@ -142,6 +142,87 @@
       2022
     ]
   },
+  "British Grand Prix": {
+    "event": "British Grand Prix",
+    "pit_loss_by_season": {
+      "2022": 22.78,
+      "2023": 19.98,
+      "2024": 31.21,
+      "2025": 25.43
+    },
+    "pit_loss_s": 24.11,
+    "pit_loss_spread_s": 11.23,
+    "race_laps": 52,
+    "race_laps_seen": [
+      52
+    ],
+    "seasons": [
+      2025,
+      2024,
+      2023,
+      2022
+    ]
+  },
+  "Canadian Grand Prix": {
+    "event": "Canadian Grand Prix",
+    "pit_loss_by_season": {
+      "2022": 19.63,
+      "2023": 20.21,
+      "2024": 20.37,
+      "2025": 19.58
+    },
+    "pit_loss_s": 19.92,
+    "pit_loss_spread_s": 0.79,
+    "race_laps": 70,
+    "race_laps_seen": [
+      66,
+      70
+    ],
+    "seasons": [
+      2025,
+      2024,
+      2023,
+      2022
+    ]
+  },
+  "Chinese Grand Prix": {
+    "event": "Chinese Grand Prix",
+    "pit_loss_by_season": {
+      "2022": 29.35,
+      "2023": 23.39,
+      "2024": 24.5,
+      "2025": 23.87
+    },
+    "pit_loss_s": 24.19,
+    "pit_loss_spread_s": 5.96,
+    "seasons": [
+      2025,
+      2024,
+      2023,
+      2022
+    ]
+  },
+  "Dutch Grand Prix": {
+    "event": "Dutch Grand Prix",
+    "pit_loss_by_season": {
+      "2022": 23.07,
+      "2023": 30.26,
+      "2024": 23.99,
+      "2025": 18.32
+    },
+    "pit_loss_s": 23.53,
+    "pit_loss_spread_s": 11.94,
+    "race_laps": 72,
+    "race_laps_seen": [
+      72
+    ],
+    "seasons": [
+      2025,
+      2024,
+      2023,
+      2022
+    ]
+  },
   "Hungarian Grand Prix": {
     "event": "Hungarian Grand Prix",
     "pit_loss_by_season": {
@@ -250,6 +331,27 @@
       2022
     ]
   },
+  "Miami Grand Prix": {
+    "event": "Miami Grand Prix",
+    "pit_loss_by_season": {
+      "2022": 21.71,
+      "2023": 20.63,
+      "2024": 21.62,
+      "2025": 19.88
+    },
+    "pit_loss_s": 21.12,
+    "pit_loss_spread_s": 1.83,
+    "race_laps": 57,
+    "race_laps_seen": [
+      57
+    ],
+    "seasons": [
+      2025,
+      2024,
+      2023,
+      2022
+    ]
+  },
   "Monaco Grand Prix": {
     "event": "Monaco Grand Prix",
     "pit_loss_by_season": {
@@ -282,6 +384,29 @@
     },
     "pit_loss_s": 26.52,
     "pit_loss_spread_s": 7.7,
+    "seasons": [
+      2025,
+      2024,
+      2023,
+      2022
+    ]
+  },
+  "Singapore Grand Prix": {
+    "event": "Singapore Grand Prix",
+    "pit_loss_by_season": {
+      "2022": 35.16,
+      "2023": 28.31,
+      "2024": 30.16,
+      "2025": 23.1
+    },
+    "pit_loss_s": 29.23,
+    "pit_loss_spread_s": 12.06,
+    "race_laps": 62,
+    "race_laps_seen": [
+      59,
+      61,
+      62
+    ],
     "seasons": [
       2025,
       2024,

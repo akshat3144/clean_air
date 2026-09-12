@@ -21,6 +21,17 @@ from cleanair.validation.transfer import MIN_AGE_SPREAD_LAPS, cell_rates, leave_
 warnings.filterwarnings("ignore")
 
 
+def _interval(mean: float, half_width: float) -> Interval:
+    """A mean with a symmetric band, rounded and guaranteed ordered.
+
+    Rounding each bound independently can still invert a band narrower than the
+    rounding step, so the bounds are clamped around the mean afterwards.
+    """
+    lo, hi = round(mean - half_width, 5), round(mean + half_width, 5)
+    m = round(mean, 5)
+    return Interval(mean=m, lo=min(lo, m), hi=max(hi, m))
+
+
 def main() -> None:
     laps = pd.read_parquet(PROCESSED / "laps.parquet")
     practice = prepare(laps, "practice")
@@ -81,10 +92,12 @@ def main() -> None:
             event=r["event"],
             compound=r["C"],
             label=None,
-            predicted=Interval(
-                mean=round(r["calibrated_pred"], 5),
-                lo=round(r["calibrated_pred"] - 1.96 * (r["se_practice"] or 0) * r["factor_used"], 5),
-                hi=round(r["calibrated_pred"] + 1.96 * (r["se_practice"] or 0) * r["factor_used"], 5),
+            # abs() on the factor. Scaling a standard error by a multiplier
+            # scales its MAGNITUDE: SD(aX) = |a|.SD(X). Without it a negative
+            # calibration factor produced lo > hi and Interval refused it,
+            # taking the whole transfer stage down.
+            predicted=_interval(
+                r["calibrated_pred"], 1.96 * (r["se_practice"] or 0) * abs(r["factor_used"])
             ),
             actual=round(r["race_rate"], 5),
             abs_error=round(r["calibrated_err"], 5),
