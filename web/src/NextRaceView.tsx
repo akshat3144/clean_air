@@ -515,11 +515,14 @@ function SupplyInputs({
   const ok =
     pit !== "" && laps !== "" && pitN >= 5 && pitN <= 60 && lapsN >= 5 && lapsN <= 100;
 
+  // No Panel of its own: this renders INSIDE the plan panel, beneath the
+  // compound table, rather than in place of the entire screen.
   return (
-    <Panel title="sunday's plan" meta={<Pill tone="warn">needs two inputs</Pill>}>
+    <>
       <p className="text-base leading-relaxed text-fg-dim">
         We have never raced here, so there is no pit loss and no race distance to carry
-        forward. Supply them and the plan is computed live.
+        forward. Supply them and the plan is computed live. The tyre numbers below are
+        measured from this weekend and do not depend on either.
       </p>
 
       <div className="mt-4 flex flex-wrap items-end gap-4">
@@ -574,7 +577,7 @@ function SupplyInputs({
         <span className="num text-fg-dim">44&ndash;78</span> laps. Both are assumptions you
         are making, not things we measured, and the plan changes when you change them.
       </p>
-    </Panel>
+    </>
   );
 }
 
@@ -586,7 +589,9 @@ function Forecast({ rnd }: { rnd: UpcomingRound }) {
   // empty and the endpoint uses the measured values, as before.
   const [pit, setPit] = useState("");
   const [laps, setLaps] = useState("");
-  const [supplied, setSupplied] = useState(false);
+  // No `supplied` flag any more. Whether the plan is still waiting is the
+  // SERVER's answer (`needs_inputs`), not a local guess -- one source of truth,
+  // and it cannot drift out of step with what the response actually contains.
   const needsInputs = rnd.history === null;
 
   const run = useCallback(
@@ -596,9 +601,14 @@ function Forecast({ rnd }: { rnd: UpcomingRound }) {
       const body: { event: string; pit_loss_s?: number; race_laps?: number } = {
         event: rnd.event,
       };
+      // Only send what the user has actually typed. `Number("")` is 0, and
+      // sending 0 fails the endpoint's own `ge=5` validation -- so the first
+      // automatic call for a new circuit came back 422 and the screen printed
+      // the raw pydantic error where the plan goes. An untouched box is an
+      // absent field, not a zero.
       if (needsInputs) {
-        body.pit_loss_s = Number(pit);
-        body.race_laps = Number(laps);
+        if (pit !== "") body.pit_loss_s = Number(pit);
+        if (laps !== "") body.race_laps = Number(laps);
       }
       postForecast(body, signal)
         .then(setRes)
@@ -614,11 +624,11 @@ function Forecast({ rnd }: { rnd: UpcomingRound }) {
   useEffect(() => {
     setRes(null);
     setErr(null);
-    setSupplied(false);
     if (!rnd.ready_to_forecast) return;
-    // A circuit with no history cannot be forecast until someone supplies the
-    // two inputs, so do not fire a request that is guaranteed to 422.
-    if (rnd.history === null) return;
+    // Fire even for a circuit with no history. It used to be skipped because
+    // the request was guaranteed to 422; the endpoint now answers with
+    // everything that does not need a pit lane -- the compound rates and the
+    // session breakdown -- and says which inputs the PLAN is still waiting on.
     const ac = new AbortController();
     run(ac.signal);
     return () => ac.abort();
@@ -646,21 +656,12 @@ function Forecast({ rnd }: { rnd: UpcomingRound }) {
     );
   }
 
-  if (needsInputs && !supplied) {
-    return (
-      <SupplyInputs
-        pit={pit}
-        laps={laps}
-        setPit={setPit}
-        setLaps={setLaps}
-        busy={loading}
-        onSubmit={() => {
-          setSupplied(true);
-          run();
-        }}
-      />
-    );
-  }
+  // NOTE: there is deliberately no early return for a circuit awaiting its two
+  // inputs. That is what blanked Madrid -- the one race this is built to demo
+  // -- down to two empty boxes, hiding degradation rates and a full
+  // session-by-session breakdown that are computed from practice alone and
+  // need neither number. The form now renders as the PLAN panel, with the
+  // tyre work above it.
 
   if (loading || (!res && !err)) {
     return (
@@ -685,12 +686,21 @@ function Forecast({ rnd }: { rnd: UpcomingRound }) {
         title="sunday's plan"
         meta={
           <span className="flex items-center gap-2">
-            <Pill tone="warn">forecast</Pill>
+            <Pill tone="warn">{res.needs_inputs?.length ? "needs two inputs" : "forecast"}</Pill>
             <span className="num">{res.compute_ms}ms</span>
           </span>
         }
       >
-        {res.can_plan ? (
+        {res.needs_inputs?.length ? (
+          <SupplyInputs
+            pit={pit}
+            laps={laps}
+            setPit={setPit}
+            setLaps={setLaps}
+            busy={loading}
+            onSubmit={() => run()}
+          />
+        ) : res.can_plan ? (
           <>
             <div className="flex flex-wrap items-end gap-x-8 gap-y-4">
               <div className="flex items-baseline gap-3">
@@ -734,15 +744,18 @@ function Forecast({ rnd }: { rnd: UpcomingRound }) {
             value={res.practice_sessions.join(" + ") || "—"}
             note="long runs"
           />
+          {/* Both are null on a circuit still awaiting its inputs. tsconfig
+              has strictNullChecks off, so a bare .toFixed() here type-checks
+              clean and throws at runtime on exactly the race we demo. */}
           <Row
             label="pit loss"
-            value={`${res.pit_loss_s.toFixed(1)}s`}
-            note={res.pit_loss_source}
+            value={res.pit_loss_s === null ? "—" : `${res.pit_loss_s.toFixed(1)}s`}
+            note={res.pit_loss_source ?? (res.pit_loss_s === null ? "not supplied" : undefined)}
           />
           <Row
             label="distance"
-            value={`${res.race_laps} laps`}
-            note={res.race_laps_source}
+            value={res.race_laps === null ? "—" : `${res.race_laps} laps`}
+            note={res.race_laps_source ?? (res.race_laps === null ? "not supplied" : undefined)}
           />
           <Row
             label="practice → race"
@@ -796,7 +809,14 @@ function Forecast({ rnd }: { rnd: UpcomingRound }) {
                 </span>
               )}
               <span className="num ml-auto text-tiny text-fg-dim">
-                {c.excluded ? "unusable" : `${c.optimal_stint} laps`}
+                {/* Best stint needs the pit loss, so it is genuinely unknown
+                    until one is supplied. "0 laps" reads as a measurement of
+                    zero, which is the one thing it is not. */}
+                {c.excluded
+                  ? "unusable"
+                  : res.pit_loss_s === null
+                    ? "needs pit loss"
+                    : `${c.optimal_stint} laps`}
               </span>
             </div>
           ))}

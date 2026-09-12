@@ -316,9 +316,12 @@ export interface ForecastResult {
    *  table and `reason` are still returned -- that is the useful part. */
   can_plan: boolean;
   reason?: string;
-  race_laps: number;
+  /** Circuit inputs the PLAN is still waiting on. Everything else in this
+   *  response is measured from practice and does not depend on them. */
+  needs_inputs?: string[];
+  race_laps: number | null;
   race_laps_source?: string;
-  pit_loss_s: number;
+  pit_loss_s: number | null;
   pit_loss_source?: string;
   pit_loss_spread_s?: number | null;
   history_seasons?: number[];
