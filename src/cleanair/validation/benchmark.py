@@ -4,14 +4,19 @@ The comparison has to be fair in both directions, and that takes some care.
 
 SAME TEST LAPS
     Their cross-validation is rolling-origin recalibration on Hamilton's 2025
-    Austrian GP: for each stint, train on laps 1..ceil(3/4 S_i), predict the next
-    lap, then expand the window one lap at a time to the end of the stint. S_i is
-    the LAST LAP of stint i in the global lap index, so training always starts at
-    lap 1. That gives 35 predictions across three stints. We predict exactly
-    those laps.
+    Austrian GP, transcribed from their ``CV_Functions.R``: per stint, hold out
+    the last ``round(stint_length/4)`` laps, predict one lap ahead, and expand
+    the training window a lap at a time to the end of the stint. Training always
+    starts at lap 1. That gives 16 predictions across his three stints, and we
+    predict exactly those laps.
+
+    This docstring used to say 35, because ``_folds`` was handed each stint's
+    last global lap number where its length belongs. See ``_folds`` for what
+    that cost.
 
 SAME METRIC
-    CRPS from ``scoringrules``, verified against R's ``scoringRules`` to 1e-11.
+    CRPS from ``scoringrules``, verified against R's ``scoringRules`` to 2.5e-11
+    by ``test_our_crps_matches_r_scoring_rules``.
     Their per-stint totals are averaged, not summed (their RMSE total IS summed
     -- see validation/scoring).
 

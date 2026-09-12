@@ -156,7 +156,7 @@ def test_both_predictor_modes_produce_valid_scores():
     """Deliberately NOT asserting that the hybrid beats the field-only mode.
 
     On real data it does, and by a lot: on Hamilton's 2025 Austrian GP the
-    field-only predictor scores CRPS 0.319 and the hybrid 0.210. But that gap
+    field-only predictor scores CRPS 0.355 and the hybrid 0.238. But that gap
     comes from drivers differing in pace in ways this fixture does not reproduce
     -- here both land near 0.40 and the ordering flips. Asserting it anyway would
     be a test that passes for the wrong reason, or fails for the wrong reason.
