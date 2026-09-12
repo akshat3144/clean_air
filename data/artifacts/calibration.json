@@ -2,40 +2,40 @@
   "points": [
     {
       "nominal": 0.5,
-      "empirical": 0.526,
-      "n": 1400
+      "empirical": 0.482103952692188,
+      "n": 6426
     },
     {
       "nominal": 0.6,
-      "empirical": 0.603,
-      "n": 1400
+      "empirical": 0.5859010270774977,
+      "n": 6426
     },
     {
       "nominal": 0.7,
-      "empirical": 0.685,
-      "n": 1400
+      "empirical": 0.6934329287270464,
+      "n": 6426
     },
     {
       "nominal": 0.8,
-      "empirical": 0.808,
-      "n": 1400
+      "empirical": 0.8046996576408341,
+      "n": 6426
     },
     {
       "nominal": 0.9,
-      "empirical": 0.86,
-      "n": 1400
+      "empirical": 0.9060068471833178,
+      "n": 6426
     },
     {
       "nominal": 0.95,
-      "empirical": 0.919,
-      "n": 1400
+      "empirical": 0.9536258948023654,
+      "n": 6426
     },
     {
       "nominal": 0.99,
-      "empirical": 0.972,
-      "n": 1400
+      "empirical": 0.9867724867724867,
+      "n": 6426
     }
   ],
-  "coverage_80": 0.787,
+  "coverage_80": 0.8047,
   "context": "race"
 }
