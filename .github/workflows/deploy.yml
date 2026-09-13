@@ -31,24 +31,27 @@ concurrency:
   group: deploy-api
   cancel-in-progress: false
 
+# The test job is deliberately gone for Challenge Day.
+#
+# It was not failing -- `ruff check .` and `pytest -q` both pass against a
+# checkout with no dataset on disk. It was queueing: two jobs per push each
+# waiting on a hosted runner, and the deploy could not start until the first
+# one had been given a machine and finished. One job per push halves that wait.
+#
+# Put it back after the event:
+#   test:
+#     runs-on: ubuntu-latest
+#     timeout-minutes: 15
+#     steps:
+#       - uses: actions/checkout@v4
+#       - uses: actions/setup-python@v5
+#         with: {python-version: "3.12", cache: pip}
+#       - run: pip install -e ".[dev]"
+#       - run: ruff check .
+#       - run: pytest -q
+# and restore `needs: test` on the deploy job below.
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
-      - run: pip install -e ".[dev]"
-      - run: ruff check .
-      # Network and Stan tests are skipped by marker; the rest need no data on
-      # disk, so this is the fast, hermetic subset.
-      - run: pytest -q
-
   deploy:
-    needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
