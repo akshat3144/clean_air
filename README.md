@@ -12,7 +12,7 @@ Problem statement: *Tyre Degradation Intelligence*.
 | | | | |
 | --- | --- | --- | --- |
 | **4.4×** tighter intervals than the published model, race for race | **820** driver-stints vs their 3 | **10 of 11** strategy calls match what teams ran | **80.6%** empirical coverage at nominal 80% |
-| **138,839** clean laps, 5 seasons | **131,053** strategies enumerated per race | **0** code pushes to add a race | **234** tests |
+| **138,839** clean laps, 5 seasons | **131,053** strategies enumerated per race | **0** code pushes to add a race | **293** tests |
 
 ---
 
@@ -182,8 +182,8 @@ compound nomination — is one click in the UI.
 | **Benchmark reproduced**      | ✅ their Table 3 recovered by running their own code                                       |
 | **Driver management effect**  | ✅ **p = 0.0020** across 5 seasons, 98 cells                                          |
 | **Strategy call vs reality**  | ✅ **10 of 11 races** match the stop count teams actually ran                         |
-| **Forecasts an unraced race** | ✅ Madrid predicted from FP1, a day out                                                    |
-| **Test suite**                | ✅ **285 tests**                                                                      |
+| **Forecasts an unraced race** | ✅ Madrid predicted from FP1, FP2 and FP3, before lights out                                                    |
+| **Test suite**                | ✅ **293 tests**                                                                      |
 
 ### The track effect — the finding we did not expect
 
@@ -685,7 +685,7 @@ data/
 app/lab.py                       Streamlit lab bench — internal, never demoed
 docs/DEPLOYMENT.md               how this ships
 docs/reference/                  the benchmark paper, plus licensing notes on every source
-tests/                           285 tests
+tests/                           293 tests
 ```
 
 ---
