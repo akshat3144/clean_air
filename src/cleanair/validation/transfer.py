@@ -296,6 +296,27 @@ THIN_INTERVAL_MULTIPLE = 2.0
 #: a typical stand-in spans roughly the compound's spread across the calendar.
 STANDIN_INTERVAL_MULTIPLE = 3.0
 
+#: A cell must be at least this many of its own standard errors from zero
+#: before it counts as a measurement of this circuit.
+#:
+#: One is a deliberately weak bar -- roughly 68% confidence -- because the job
+#: is to catch cells that say nothing at all, not to demand significance from
+#: three practice runs.
+#:
+#: WHAT IT CATCHES. Madrid measured C4 at 0.058 s/lap with a standard error of
+#: 0.198: a number whose sign we do not know. The forecast carried it through
+#: as a measurement, the optimiser read the SOFT as the most durable tyre in
+#: the race, and the plan for a 57-lap Grand Prix came back as five laps on the
+#: MEDIUM followed by fifty-two on the SOFT. The five laps existed only to make
+#: the plan legal.
+#:
+#: Same discipline as the sign filter in `strategy.optimise` and the age-spread
+#: filter for race cells: an optimiser exploits a non-physical input with total
+#: confidence, so the input is refused rather than the output dressed up. A
+#: refused cell is not lost -- it falls to a stand-in, which is clamped against
+#: the compounds either side of it and cannot invert the order.
+MIN_RATE_SE_RATIO = 1.0
+
 #: And wider again when there was nothing measured here to scale it by. An
 #: unscaled calendar rate at an unseen circuit is the weakest thing we will
 #: put a number on, and the band has to say so.
@@ -364,6 +385,18 @@ def circuit_severity(measured: pd.DataFrame, pooled: pd.Series) -> float | None:
     return float(np.median(ratios)) if ratios else None
 
 
+def identified(rate: pd.Series, se: pd.Series) -> pd.Series:
+    """Is this cell far enough from zero to be a measurement of anything?
+
+    ``|rate| >= MIN_RATE_SE_RATIO * se``. A missing standard error counts as
+    identified: a single-run cell has no between-run variance to estimate one
+    from, and `forecast` already widens those by THIN_INTERVAL_MULTIPLE rather
+    than discarding them.
+    """
+    se = pd.to_numeric(se, errors="coerce")
+    return (se.isna()) | (se <= 0) | (rate.abs() >= MIN_RATE_SE_RATIO * se)
+
+
 def stand_in_rates(
     practice: pd.DataFrame,
     factor: float,
@@ -411,7 +444,7 @@ def stand_in_rates(
     """
     here = cell_rates(practice[practice["event"] == event], FORECAST_MIN_RUNS)
     if not here.empty:
-        here = here[here["rate"] > 0]
+        here = here[(here["rate"] > 0) & identified(here["rate"], here["se"])]
     measured = set(here["C"]) if not here.empty else set()
     missing = [c for c in wanted if c not in measured]
     if not missing:
