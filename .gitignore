@@ -105,3 +105,10 @@ tmp/
 .env
 .env.*
 !.env.example
+
+# ---- Private keys. Never, under any name. ----
+*.pem
+*.key
+*.ppk
+id_rsa*
+id_ed25519*

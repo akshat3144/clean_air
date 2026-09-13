@@ -63,6 +63,11 @@ jobs:
           # A deploy that changed model code refits every artifact before the
           # restart, which is a few minutes, not seconds.
           command_timeout: 30m
-          script_stop: true
+          # No `script_stop`. It was a valid input when this was written and a
+          # newer v1.x of the action dropped it, which fails the job outright:
+          # "Invalid action input 'script_stop'". Nothing is lost -- it made a
+          # multi-line script stop at the first failing line, and this script is
+          # one line whose exit code propagates on its own. deploy.sh opens with
+          # `set -euo pipefail`, so the stopping happens there where it belongs.
           script: |
             bash /opt/cleanair/deploy/deploy.sh ${{ github.sha }}
