@@ -136,10 +136,12 @@ def cell_rates(
         # Weighted least squares, by scaling both sides by sqrt(w).
         #
         # This is how practice sessions stop counting equally. FP1's measured
-        # degradation correlates 0.05 with the race where FP2's correlates
-        # 0.84, so pooling them one-for-one let the least informative session
-        # pull the slope. Race frames carry no `w` and fall through unweighted,
-        # which is the same arithmetic as before.
+        # degradation correlates 0.29 with the race where FP2's and the
+        # sprint's correlate 0.65, so pooling them one-for-one let the least
+        # informative session pull the slope. The weights themselves are not
+        # chosen from those correlations -- see `session_weight` -- but this is
+        # the machinery that applies them. Race frames carry no `w` and fall
+        # through unweighted, which is the same arithmetic as before.
         #
         # Scaling rather than a weight argument keeps the clustered sandwich
         # below correct without a second code path: the residuals it squares

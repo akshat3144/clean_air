@@ -274,11 +274,11 @@ def practice_design(
     df["tl"] = df["TyreLife"] - run["TyreLife"].transform("mean")
     df["tl2"] = df["tyre_life_sq"] - run["tyre_life_sq"].transform("mean")
 
-    # How much this lap counts. FP1, FP2 and FP3 were pooled equally until
-    # now, which quietly let FP1 -- whose measured degradation correlates 0.05
-    # with the race, against FP2's 0.84 -- pull the forecast around. The
-    # centring above is untouched: a weight changes how much a run informs the
-    # slope, not what the slope is measured against.
+    # How much this lap counts. Every session was pooled equally until now,
+    # which quietly let FP1 -- the weakest predictor of the race of the four --
+    # pull the forecast around as hard as FP2 or the sprint. The centring above
+    # is untouched: a weight changes how much a run informs the slope, not what
+    # the slope is measured against.
     df["w"] = df["session"].map(weight_for).astype(float)
     return df
 
