@@ -134,7 +134,7 @@ Run once, as `ubuntu`, on the fresh box:
 
 ```bash
 scp -i key.pem deploy/bootstrap.sh ubuntu@<elastic-ip>:
-ssh -i key.pem ubuntu@<elastic-ip> bash bootstrap.sh cleanair-api.duckdns.org https://cleanair.vercel.app
+ssh -i key.pem ubuntu@<elastic-ip> bash bootstrap.sh trackshift-api.duckdns.org https://clean-air-murex.vercel.app
 ```
 
 It installs Python and Caddy, adds 2 GB of swap, generates a deploy key and
@@ -180,9 +180,17 @@ To change `CORS_ORIGINS` later: edit `/etc/cleanair.env`, `sudo systemctl restar
 ### Frontend — Vercel
 
 Import the repo, Root Directory `web`, framework Vite. One environment
-variable: `VITE_API_BASE=https://cleanair-api.duckdns.org`. Vercel rebuilds on
-every push; under Settings → Git → Ignored Build Step, `git diff --quiet HEAD^ HEAD -- .`
-skips the rebuild when nothing under `web/` moved.
+variable: `VITE_API_BASE=https://trackshift-api.duckdns.org`. Vercel rebuilds on
+every push.
+
+`npm run build` starts with `scripts/sync-data.mjs`, which copies
+`data/artifacts/*.json` into `public/data/` — the same copy
+`02_publish_artifacts.py` does locally, but in Node, because the Vercel build
+has the repo and no Python. It reads outside `web/`, so Settings → General →
+Root Directory → *Include source files outside of the Root Directory* must
+stay on (the default). Under Settings → Git → Ignored Build Step,
+`git diff --quiet HEAD^ HEAD -- . ../data/artifacts` skips the rebuild when
+neither the app nor the artifacts moved.
 
 ---
 
@@ -340,7 +348,7 @@ pulling sessions.
 
 **Deploy job failed at `/health never came up` (Path A).** The job prints the last 60 journal lines. Usually `laps.parquet` is missing (bootstrap never ran) or a bad `pip install`. On the box: `sudo journalctl -u cleanair -f`.
 
-**Site shows stale numbers after a race (Path A).** `curl https://<host>/poller` — `enabled` must be `true` and `last_error` empty. If `enabled` is false, `CLEANAIR_POLL` is missing from `/etc/cleanair.env`.
+**Site shows stale numbers after a race (Path A).** `curl https://trackshift-api.duckdns.org/poller` — `enabled` must be `true` and `last_error` empty. If `enabled` is false, `CLEANAIR_POLL` is missing from `/etc/cleanair.env`.
 
 **Out of memory during a fit.** Reduce chains, or move the fit to GitHub Actions where there is 16 GB.
 

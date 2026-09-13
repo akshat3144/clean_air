@@ -5,7 +5,7 @@
 #   repo), so copy this file over and run it:
 #
 #   scp -i key.pem deploy/bootstrap.sh ubuntu@<ip>:
-#   ssh -i key.pem ubuntu@<ip> bash bootstrap.sh cleanair-api.duckdns.org https://cleanair.vercel.app
+#   ssh -i key.pem ubuntu@<ip> bash bootstrap.sh trackshift-api.duckdns.org https://clean-air-murex.vercel.app
 #
 # It stops half way, once, to have you add the box's deploy key to GitHub.
 # Run it again and it continues. Every step is idempotent.
@@ -50,7 +50,9 @@ if [[ ! -f $KEY ]]; then
 fi
 ssh-keyscan -t ed25519 github.com 2>/dev/null >> "$HOME/.ssh/known_hosts"
 sort -u -o "$HOME/.ssh/known_hosts" "$HOME/.ssh/known_hosts"
-if ! ssh -T -o BatchMode=yes git@github.com 2>&1 | grep -q "successfully authenticated"; then
+# ssh -T exits 1 even on success (GitHub gives no shell), so under pipefail
+# the pipeline would too; read the message instead of the status.
+if ! [[ $(ssh -T -o BatchMode=yes git@github.com 2>&1 || true) == *"successfully authenticated"* ]]; then
     cat <<MSG
 
 ------------------------------------------------------------------------
