@@ -154,7 +154,16 @@ export function ConsoleView({ playbook }: { playbook: PlaybookArtifact }) {
               <p className="text-base text-signal-bad">{error}</p>
             </Panel>
           ) : result ? (
-            <>
+            // The whole column fades while the next answer computes. The
+            // stale plan stays legible -- blanking on every slider tick is
+            // unreadable -- but it visibly steps back, so nobody mistakes the
+            // previous answer for the new one.
+            <div
+              className={`space-y-5 transition-opacity duration-200 ease-instrument ${
+                pending ? "opacity-60" : "opacity-100"
+              }`}
+              aria-busy={pending}
+            >
               <TheCall r={result} pending={pending} approximate={approximate} dirty={dirty} />
               {/* What staying out costs, in seconds rather than as a slope.
                   This is the question the brief asks in these words -- how
@@ -186,7 +195,7 @@ export function ConsoleView({ playbook }: { playbook: PlaybookArtifact }) {
                   forecast leans on. It is informational: this tab optimises on
                   the MEASURED race rate, not on practice. */}
               <PracticeSessionsPanel event={result.event} />
-            </>
+            </div>
           ) : (
             // Named, not a grey rectangle. Switching circuit clears the plan
             // -- the previous one described a different race -- and a bare
@@ -308,6 +317,7 @@ function TheCall({
       initial={false}
       animate={{ boxShadow: undefined }}
     >
+      {pending && <div className="progress-bar" aria-hidden />}
       <div className="flex items-start justify-between gap-4">
         <div>
           <h3 className="title">the call</h3>
@@ -319,9 +329,9 @@ function TheCall({
         <div className="flex shrink-0 items-center gap-2">
           {dirty ? <Pill tone="warn">your inputs</Pill> : <Pill tone="neutral">as measured</Pill>}
           {pending && (
-            <Pill tone="neutral">
+            <Pill tone="warn">
               <Dot tone="warn" />
-              refining
+              computing
             </Pill>
           )}
         </div>

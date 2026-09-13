@@ -116,6 +116,19 @@
     background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.07), transparent);
   }
 
+  /* A 2px bar across the top edge of a panel whose contents are being
+     recomputed. Louder than the skeleton sweep on purpose: the numbers under
+     it are still the LAST answer, and a viewer who sees a crisp panel with
+     nothing moving assumes the slider did nothing. */
+  .progress-bar {
+    @apply pointer-events-none absolute inset-x-0 top-0 h-0.5 overflow-hidden bg-brand/20;
+  }
+  .progress-bar::after {
+    @apply absolute inset-y-0 left-0 w-1/2 animate-sweep;
+    content: "";
+    background: linear-gradient(90deg, transparent, theme("colors.brand"), transparent);
+  }
+
   /* Tabs */
   .tab {
     @apply relative -mb-px border-b-2 border-transparent px-3.5 py-2.5 text-tiny font-medium
