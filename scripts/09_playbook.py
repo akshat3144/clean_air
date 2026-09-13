@@ -47,8 +47,9 @@ from cleanair.artifacts.schema import (
     PlaybookPlan,
     UnplannedEvent,
 )
-from cleanair.config import ARTIFACTS, PROCESSED
+from cleanair.config import ARTIFACTS, PROCESSED, SEASON
 from cleanair.data.allocation import compounds_for
+from cleanair.data.cache import load_session
 from cleanair.models.design import prepare
 from cleanair.models.mixed import fit_degradation
 from cleanair.strategy.optimise import (
@@ -61,6 +62,7 @@ from cleanair.strategy.pitloss import estimate_all
 
 warnings.filterwarnings("ignore")
 logging.getLogger("fastf1").setLevel(logging.ERROR)
+log = logging.getLogger(__name__)
 
 #: Same assumed fresh-tyre pace gap 06_strategy uses. Imported rather than
 #: redefined would be better, but it is a module-level constant in a script
@@ -102,6 +104,33 @@ def actual_stops(race: pd.DataFrame, event: str) -> tuple[dict[str, int], int | 
     )
 
 
+def classification(event: str) -> dict[str, tuple[int | None, str | None]]:
+    """Where each car was classified, and why it stopped racing.
+
+    From the session results rather than the laps. The laps carry a Position
+    column, but it is the RUNNING order on that lap: a car that retires from
+    third is third on its final lap and twentieth in the classification, so
+    ordering a race chart by it would put retirements at the front.
+
+    Read from the local cache, and a failure is not fatal -- the chart falls
+    back to the order it had before, which is worse but still draws.
+    """
+    try:
+        res = load_session(event, "R", SEASON).results
+    except Exception as exc:  # noqa: BLE001 -- a missing session must not stop the artifact
+        log.warning("no classification for %s: %s", event, exc)
+        return {}
+    out: dict[str, tuple[int | None, str | None]] = {}
+    for r in res.itertuples():
+        pos = getattr(r, "Position", None)
+        status = getattr(r, "Status", None)
+        out[str(r.Abbreviation)] = (
+            int(pos) if pd.notna(pos) else None,
+            str(status) if pd.notna(status) else None,
+        )
+    return out
+
+
 def driver_stints(raw: pd.DataFrame, event: str) -> list[DriverStint]:
     """Every car's stints as they actually ran, for the race-shape chart.
 
@@ -109,10 +138,14 @@ def driver_stints(raw: pd.DataFrame, event: str) -> list[DriverStint]:
     and end are its true lap numbers and not the long-run portion of it. The
     stop counts this implies were checked against ``actual_stops`` and agree at
     every event, so the chart cannot contradict the number printed beside it.
+
+    Carries the finishing position so the chart can be ordered on it. See
+    ``DriverStint.position`` for what the ordering used to be.
     """
     ev = raw[(raw["event"] == event) & raw["Stint"].notna()]
     if ev.empty:
         return []
+    classif = classification(event)
     g = (
         ev.groupby(["Driver", "Stint"])
         .agg(
@@ -130,6 +163,8 @@ def driver_stints(raw: pd.DataFrame, event: str) -> list[DriverStint]:
             compound=str(r.compound),
             start_lap=int(r.start_lap),
             end_lap=int(r.end_lap),
+            position=classif.get(str(r.Driver), (None, None))[0],
+            status=classif.get(str(r.Driver), (None, None))[1],
         )
         for r in g.itertuples()
         if pd.notna(r.compound)

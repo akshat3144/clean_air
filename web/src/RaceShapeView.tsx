@@ -4,6 +4,18 @@ import type { DriverStint, PlaybookArtifact } from "./types/artifacts";
 import { Panel } from "./ui";
 
 /**
+ * Did this car stop racing before the end?
+ *
+ * "Retired" is what the timing feed calls it; anything else -- Finished,
+ * Lapped, +1 Lap -- saw the flag. A bar that ends on lap 12 looks identical
+ * either way, and "retired" and "ran a very short last stint" are not the
+ * same race.
+ */
+function retired(status: string | null): boolean {
+  return status === "Retired";
+}
+
+/**
  * What every car actually did, against what we said.
  *
  * This is the only claim in the project a viewer can check against a race they
@@ -95,8 +107,16 @@ export function RaceShapeView({ playbook }: { playbook: PlaybookArtifact }) {
     );
   }
 
-  // Group stints by driver, ordered by who finished the most laps -- a rough
-  // finishing order without pretending we have classification data.
+  // Group stints by driver, in CLASSIFIED FINISHING ORDER.
+  //
+  // This used to sort on whoever reached the highest lap number. Every car
+  // that goes the full distance ties on that, so the alphabetical tie-break
+  // decided the order of everyone who finished: the Austrian Grand Prix listed
+  // its eight finishers as ANT HAD HAM LEC NOR PIA RUS VER, with the winner
+  // seventh. Four of twenty-one rows were in the right place.
+  //
+  // Cars with no classification sort last rather than first, so a missing
+  // result degrades to the bottom of the chart instead of the top of it.
   const byDriver = new Map<string, typeof ev.stints>();
   for (const s of ev.stints) {
     if (!byDriver.has(s.driver)) byDriver.set(s.driver, []);
@@ -108,8 +128,15 @@ export function RaceShapeView({ playbook }: { playbook: PlaybookArtifact }) {
       stints: [...stints].sort((a, b) => a.start_lap - b.start_lap),
       last: Math.max(...stints.map((s) => s.end_lap)),
       stops: stints.length - 1,
+      position: stints[0].position ?? null,
+      status: stints[0].status ?? null,
     }))
-    .sort((a, b) => b.last - a.last || a.driver.localeCompare(b.driver));
+    .sort(
+      (a, b) =>
+        (a.position ?? Infinity) - (b.position ?? Infinity) ||
+        b.last - a.last ||
+        a.driver.localeCompare(b.driver),
+    );
 
   const laps = ev.race_laps ?? Math.max(...ev.stints.map((s) => s.end_lap), 1);
   const agrees =
@@ -133,7 +160,7 @@ export function RaceShapeView({ playbook }: { playbook: PlaybookArtifact }) {
 
       <Panel
         title="race shape"
-        meta={`${drivers.length} cars · ${laps} laps`}
+        meta={`${drivers.length} cars · ${laps} laps · finishing order`}
       >
         {/* our call, as a reference row */}
         {ev.recommended_stops !== null ? (
@@ -178,7 +205,17 @@ export function RaceShapeView({ playbook }: { playbook: PlaybookArtifact }) {
             // opacity 0 when the event was switched. Every row is data; data is
             // visible or it is a bug.
             <div key={d.driver} className="flex items-center gap-2">
-              <span className="num w-10 shrink-0 text-tiny text-fg-dim">{d.driver}</span>
+              <span className="num w-6 shrink-0 text-right text-tiny text-fg-faint">
+                {d.position ?? "—"}
+              </span>
+              <span
+                className={`num w-10 shrink-0 text-tiny ${
+                  retired(d.status) ? "text-fg-faint line-through" : "text-fg-dim"
+                }`}
+                title={d.status ?? undefined}
+              >
+                {d.driver}
+              </span>
               <div className="relative h-4 flex-1 overflow-hidden rounded-sm bg-ink-800">
                 {d.stints.map((s, i) => {
                   const left = ((s.start_lap - 1) / laps) * 100;
