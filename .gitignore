@@ -100,3 +100,8 @@ tmp/
 # carries. Committed so a clone starts with the values we cited; the app writes
 # to it, and anything edited is marked source=user.
 !data/allocation.json
+
+# ---- Env files: examples are committed, real ones are not ----
+.env
+.env.*
+!.env.example

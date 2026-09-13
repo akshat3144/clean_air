@@ -1,0 +1,65 @@
+# Backend deploy: push to main -> tests -> SSH to the EC2 box -> deploy/deploy.sh.
+#
+# The front end is not here. Vercel watches the repo itself and rebuilds web/
+# on every push; the only thing it needs from us is VITE_API_BASE in its
+# project settings.
+#
+# Secrets (repo Settings -> Secrets and variables -> Actions):
+#   EC2_HOST      the Elastic IP or DuckDNS hostname
+#   EC2_USER      ubuntu
+#   EC2_SSH_KEY   the private key that can log in as that user
+
+name: deploy
+
+on:
+  push:
+    branches: [main]
+    # Nothing under these changes what runs on the box.
+    paths-ignore:
+      - "web/**"
+      - "docs/**"
+      - "notes/**"
+      - "deck/**"
+      - "README.md"
+      - "LICENSE"
+  workflow_dispatch:
+
+# Two pushes in quick succession deploy one after the other, never on top of
+# each other. Not cancelling the in-flight one: a half-finished refit is worse
+# than a slightly late second deploy.
+concurrency:
+  group: deploy-api
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e ".[dev]"
+      - run: ruff check .
+      # Network and Stan tests are skipped by marker; the rest need no data on
+      # disk, so this is the fast, hermetic subset.
+      - run: pytest -q
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          # A deploy that changed model code refits every artifact before the
+          # restart, which is a few minutes, not seconds.
+          command_timeout: 30m
+          script_stop: true
+          script: |
+            bash /opt/cleanair/deploy/deploy.sh ${{ github.sha }}

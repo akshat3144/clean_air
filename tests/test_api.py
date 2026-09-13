@@ -15,6 +15,14 @@ pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient  # noqa: E402
 
 from cleanair.api import NEUTRALISED_PIT_LOSS_FRACTION, app  # noqa: E402
+from cleanair.config import PROCESSED  # noqa: E402
+
+# Every test here drives the real app over the real dataset, which is not in
+# git. Skipped rather than failed where it is absent (CI, a fresh clone), the
+# same way the other data-backed tests are.
+pytestmark = pytest.mark.skipif(
+    not (PROCESSED / "laps.parquet").exists(), reason="needs the cached season"
+)
 
 EVENT = "Hungarian Grand Prix"
 

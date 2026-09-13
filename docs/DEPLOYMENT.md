@@ -74,6 +74,7 @@ The console mitigates this itself — it requests the coarse grid while a slider
 | CPU for model fitting | 1–2 cores on the box | **4 cores, 16 GB** on a GitHub runner |
 | **CPU for serving the optimiser** | **1–2 dedicated cores** | **0.1 CPU** |
 | Persistent cache | yes, a disk | yes, GitHub Actions cache |
+| Database | none needed | Neon |
 | Cost | free 12 months, then ~₹1,100/mo | **₹0, permanently** |
 | Setup time | a few hours | under an hour |
 | Cold starts | none | ~1 min on the API unless kept warm |
@@ -88,100 +89,100 @@ Both paths still push the heavy fitting to GitHub Actions — a free 4-core, 16 
 
 ---
 
-# Path A — AWS EC2 (one box)  ← recommended
+# Path A — AWS EC2 (one box)  ← recommended, and what `deploy/` implements
 
 ```
-┌─ EC2, docker compose ───────────────────────────┐
-│  caddy      HTTPS, certs auto-renew              │
-│  fastapi    playbook reads + live optimiser      │
-│  postgres   results as JSONB                     │
-│  worker     timer: pull, fit, write              │
+GitHub push to main
+  └─ .github/workflows/deploy.yml
+       ├─ ruff + pytest                (4-core runner, ~2 min)
+       └─ appleboy/ssh-action ──▶ EC2: deploy/deploy.sh
+                                      git reset → pip install → refit → restart → /health
+
+┌─ EC2 t4g.small ─────────────────────────────────┐
+│  caddy     :443  HTTPS, cert auto-renewed        │
+│    └─▶ uvicorn  127.0.0.1:8000  (systemd unit)   │
+│          FastAPI + in-process poller             │
+│          data/ on the local disk                 │
 └──────────────────────────────────────────────────┘
                        ▲ https
               React app on Vercel
 ```
+
+No Docker, no registry, no database. The API reads `data/artifacts/*.json` and
+`data/processed/laps.parquet` from disk and the poller rewrites them in place,
+so a disk is the whole persistence story. An earlier draft of this page had a
+Postgres service in a compose file; nothing in the code ever read
+`DATABASE_URL`, so it is gone.
 
 ### Instance
 
 | Setting | Value |
 |---|---|
 | Region | `ap-south-1` (Mumbai) |
-| AMI | Ubuntu 24.04 LTS, **ARM64** |
-| Type | `t4g.small` (2 GB) — free tier only covers `t3.micro` (1 GB) |
+| AMI | Ubuntu Server 24.04 LTS, **64-bit (Arm)** |
+| Type | `t4g.small` (2 vCPU, 2 GB) — `t3.micro`'s 1 GB OOMs during a refit |
 | Storage | 20 GB gp3 |
+| Security group inbound | 22 from your IP, 80 and 443 from anywhere |
 
-Security group inbound: 22 from your IP, 80 and 443 from anywhere. **Never open 5432** — Postgres stays inside the Docker network.
+Attach an **Elastic IP**, or the address changes on restart and the certificate
+breaks. Point a free [duckdns.org](https://www.duckdns.org) subdomain at it;
+judges only ever see the Vercel URL, so the API hostname can be anything.
 
-Attach an **Elastic IP**, or the address changes on restart and the certificate breaks.
+### First time: `deploy/bootstrap.sh`
 
-### Hostname without buying a domain
+Run once, as `ubuntu`, on the fresh box:
 
-Judges only ever see the Vercel URL, so the API hostname can be anything. Create a free subdomain at [duckdns.org], point it at the Elastic IP, and Caddy gets a real Let's Encrypt certificate automatically.
-
-### Compose
-
-`deploy/docker-compose.yml`:
-
-```yaml
-services:
-  postgres:
-    image: postgres:17-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: cleanair
-      POSTGRES_USER: cleanair
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    volumes: [pgdata:/var/lib/postgresql/data]
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U cleanair"]
-      interval: 10s
-      retries: 5
-    # No ports section on purpose: only other containers can reach it.
-
-  api:
-    image: ghcr.io/${GH_OWNER}/cleanair-api:latest
-    restart: unless-stopped
-    depends_on: { postgres: { condition: service_healthy } }
-    environment:
-      DATABASE_URL: postgresql://cleanair:${POSTGRES_PASSWORD}@postgres:5432/cleanair
-      CORS_ORIGINS: https://cleanair.vercel.app
-      # Without this the poller never starts and the site freezes on whatever
-      # was published at build time, while looking perfectly healthy.
-      CLEANAIR_POLL: "1"
-    volumes: [fastf1cache:/cache]
-
-  # No separate worker service. The poller runs inside the API process: the
-  # recurring job is a network wait plus about ninety seconds of arithmetic,
-  # so it does not need its own container, and one process is one thing to
-  # deploy and one thing to explain.
-
-  caddy:
-    image: caddy:2-alpine
-    restart: unless-stopped
-    ports: ["80:80", "443:443"]
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddydata:/data
-    depends_on: [api]
-
-volumes: { pgdata: , caddydata: , fastf1cache: }
+```bash
+scp -i key.pem deploy/bootstrap.sh ubuntu@<elastic-ip>:
+ssh -i key.pem ubuntu@<elastic-ip> bash bootstrap.sh cleanair-api.duckdns.org https://cleanair.vercel.app
 ```
 
-`deploy/Caddyfile`:
+It installs Python and Caddy, adds 2 GB of swap, generates a deploy key and
+**stops to have you add it to the repo** (Settings → Deploy keys, read-only),
+then on the second run clones to `/opt/cleanair`, builds the venv, installs
+the systemd unit and Caddyfile, pulls the 2026 season from the F1 API, refits,
+and starts the service. Every step is idempotent.
 
-```
-cleanair-api.duckdns.org {
-    reverse_proxy api:8000
-}
-```
+The dataset pull is the slow part and the one that can hit the 500-calls-an-hour
+cap. Faster: `rsync -a data/fastf1_cache data/processed ubuntu@<ip>:/opt/cleanair/data/`
+from a laptop that already has them, before running bootstrap — it skips the
+pull when `laps.parquet` is already there.
 
-That is the entire HTTPS setup. No certbot, no renewal cron to forget.
+### Every push: `deploy/deploy.sh`
 
-### Auto-deploy
+`.github/workflows/deploy.yml` runs on every push to `main` that touches
+anything outside `web/`, `docs/`, `notes/`, `deck/`. Tests first; if they pass,
+`appleboy/ssh-action` runs `deploy/deploy.sh <sha>` on the box, which:
 
-GitHub Actions: run tests → build ARM images → push to `ghcr.io` → SSH to the box → `docker compose pull && up -d`.
+1. takes the poller's lock, so a pull in flight finishes and no new one starts
+2. `git reset --hard <sha>`, then re-execs itself so the rest runs from the new commit
+3. `pip install -e .`
+4. **refits every artifact** if `src/`, `scripts/`, `pyproject.toml` or
+   `data/artifacts/` changed, or if the poller had written artifacts the commit
+   just overwrote — a few minutes; skipped otherwise
+5. `systemctl restart cleanair`
+6. polls `/health` for a minute and fails the job with the journal if it
+   never says `ok: true`
 
-**Build with `platforms: linux/arm64`.** Runners are x86, the box is ARM. Miss this and the container fails to start with a confusing `exec format error`.
+Three repo secrets: `EC2_HOST`, `EC2_USER` (`ubuntu`), `EC2_SSH_KEY` (the
+`.pem`). `concurrency: deploy-api` queues a second push behind the first.
+
+### Files
+
+| file | lives on the box at |
+|---|---|
+| `deploy/cleanair.service` | `/etc/systemd/system/cleanair.service` |
+| `deploy/Caddyfile` | `/etc/caddy/Caddyfile` (hostname filled in by bootstrap) |
+| written by bootstrap | `/etc/cleanair.env` — `CLEANAIR_POLL=1`, `CORS_ORIGINS=…` |
+
+To change `CORS_ORIGINS` later: edit `/etc/cleanair.env`, `sudo systemctl restart cleanair`.
+
+### Frontend — Vercel
+
+Import the repo, Root Directory `web`, framework Vite. One environment
+variable: `VITE_API_BASE=https://cleanair-api.duckdns.org`. Vercel rebuilds on
+every push; under Settings → Git → Ignored Build Step, `git diff --quiet HEAD^ HEAD -- .`
+skips the rebuild when nothing under `web/` moved.
 
 ---
 
@@ -284,13 +285,13 @@ Import the repo, Root Directory `web`, framework Vite.
 
 | Env var | Value |
 |---|---|
-| `VITE_API_URL` | your Render URL |
+| `VITE_API_BASE` | your Render URL |
 
 Never hardcode the API address. Local development uses `web/.env.local` with `http://localhost:8000`; localhost is exempt from mixed-content blocking, so plain HTTP is fine there.
 
 ---
 
-## Database schema (both paths)
+## Database schema (Path B only)
 
 One table does most of the work. `JSONB` suits us because artifacts are nested and their shape will evolve.
 
@@ -317,18 +318,19 @@ That gives history for free — you can show how an estimate changed as more of 
 ## Local development
 
 ```bash
-docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=dev postgres:17-alpine
 uvicorn cleanair.api:app --reload      # :8000
 cd web && npm run dev                  # :5173
 ```
 
-Set `VITE_API_URL=http://localhost:8000` in `web/.env.local`.
+No env vars: Vite proxies `/api` to port 8000, and `VITE_API_BASE` is only set
+on Vercel. `CLEANAIR_POLL` is off by default so a local API never starts
+pulling sessions.
 
 ---
 
 ## Troubleshooting
 
-**Browser blocked the request.** Mixed content — an HTTPS page cannot call an HTTP API. Check `VITE_API_URL` starts with `https://`.
+**Browser blocked the request.** Mixed content — an HTTPS page cannot call an HTTP API. Check `VITE_API_BASE` starts with `https://`.
 
 **CORS error.** `CORS_ORIGINS` must match the frontend origin exactly, scheme included. Vercel preview deployments get different URLs, so allow a pattern if you want previews working.
 
@@ -336,7 +338,9 @@ Set `VITE_API_URL=http://localhost:8000` in `web/.env.local`.
 
 **First request takes a minute.** Render cold start. The pinger is not running, or it is pointed at the wrong path.
 
-**`exec format error` (Path A).** An x86 image on an ARM box. Rebuild with `platforms: linux/arm64`.
+**Deploy job failed at `/health never came up` (Path A).** The job prints the last 60 journal lines. Usually `laps.parquet` is missing (bootstrap never ran) or a bad `pip install`. On the box: `sudo journalctl -u cleanair -f`.
+
+**Site shows stale numbers after a race (Path A).** `curl https://<host>/poller` — `enabled` must be `true` and `last_error` empty. If `enabled` is false, `CLEANAIR_POLL` is missing from `/etc/cleanair.env`.
 
 **Out of memory during a fit.** Reduce chains, or move the fit to GitHub Actions where there is 16 GB.
 

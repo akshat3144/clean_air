@@ -25,7 +25,7 @@ import json
 import pytest
 
 from cleanair.artifacts.schema import Interval
-from cleanair.config import ARTIFACTS
+from cleanair.config import ARTIFACTS, PROCESSED
 from cleanair.models.mixed import Fit
 
 PLAYBOOK = ARTIFACTS / "playbook.json"
@@ -120,7 +120,10 @@ def test_a_harsh_circuit_shortens_the_best_stint():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.skipif(not PLAYBOOK.exists(), reason="needs the published playbook")
+@pytest.mark.skipif(
+    not PLAYBOOK.exists() or not (PROCESSED / "laps.parquet").exists(),
+    reason="needs the published playbook and the cached season",
+)
 def test_api_and_playbook_agree_on_every_event():
     """The end-to-end guard.
 

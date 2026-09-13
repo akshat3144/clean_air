@@ -49,7 +49,6 @@ from __future__ import annotations
 
 import warnings
 
-import numpy as np
 import pandas as pd
 
 from cleanair.config import PROCESSED
@@ -60,13 +59,12 @@ from cleanair.models.design import (
     drop_non_representative_laps,
     drop_stint_outliers,
     practice_design,
+    prepare,
 )
 from cleanair.validation.transfer import (
-    MIN_AGE_SPREAD_LAPS,
     cell_rates,
     leave_one_event_out,
 )
-from cleanair.models.design import prepare
 
 warnings.filterwarnings("ignore")
 

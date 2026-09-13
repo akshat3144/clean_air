@@ -160,7 +160,6 @@ def main() -> None:
     print(tbl.to_string())
 
     print("\nWEIGHTS IN USE:", SESSION_WEIGHTS)
-    ranked = tbl["correlation"].dropna()
     print()
     print("=" * 72)
     print("DOES THE WEIGHTING EARN ITS PLACE")

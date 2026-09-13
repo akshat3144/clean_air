@@ -1,0 +1,5 @@
+# Installed to /etc/caddy/Caddyfile by bootstrap.sh, with API_HOST filled in.
+# Caddy fetches and renews the Let's Encrypt certificate on its own.
+API_HOST {
+    reverse_proxy 127.0.0.1:8000
+}

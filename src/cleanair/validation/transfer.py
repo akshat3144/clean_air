@@ -27,7 +27,6 @@ asked to predict, so a better score cannot come from fitting the answer.
 from __future__ import annotations
 
 from collections.abc import Iterable
-
 from dataclasses import dataclass
 
 import numpy as np

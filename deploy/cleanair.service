@@ -1,0 +1,24 @@
+# systemd unit for the API. Installed to /etc/systemd/system by bootstrap.sh.
+#
+# One uvicorn worker, deliberately. The poller runs inside the API process and
+# takes a file lock before pulling, but two workers would each start a poller
+# and each fit the model at startup for nothing. Uvicorn's single process is
+# async, and the optimiser is the only CPU-bound endpoint.
+[Unit]
+Description=Clean Air API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/opt/cleanair
+# CLEANAIR_POLL=1 and CORS_ORIGINS live here; written by bootstrap.sh.
+EnvironmentFile=/etc/cleanair.env
+ExecStart=/opt/cleanair/.venv/bin/uvicorn cleanair.api:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=3
+# A refit subprocess can take a couple of minutes; let it finish on stop.
+TimeoutStopSec=180
+
+[Install]
+WantedBy=multi-user.target
