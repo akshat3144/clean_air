@@ -558,3 +558,42 @@ def test_forecast_marks_borrowed_compounds_as_stand_ins(client):
     assert by_c["C2"]["n_runs"] == 0
     assert by_c["C3"]["source"] == "measured"
     assert by_c["C3"]["n_runs"] > 0
+
+
+REFUSED_BY_RACE_FIT = "Japanese Grand Prix"
+
+
+def test_a_race_the_race_fit_refuses_is_planned_from_practice(client):
+    """Suzuka's race laps fit flat -- fuel burn and track evolution outweigh
+    wear over a 30-lap stint -- so the race fit puts a positive rate on one
+    nominated tyre and has no legal plan. The weekend still ran three practice
+    sessions, and the forecast built from them is a real answer, labelled."""
+    rows = client.get("/events").json()
+    ev = next(r for r in rows if r["event"] == REFUSED_BY_RACE_FIT)
+    assert ev["ready"] is True
+    assert ev["pit_loss_source"] == "circuit history"
+
+    r = client.post("/strategy", json={"event": REFUSED_BY_RACE_FIT, "step": 3}).json()
+    assert r["rates_source"] == "practice"
+    assert r["rates_note"]
+    assert r["pit_loss_source"] == "circuit history"
+    assert r["recommended_stops"] >= 1
+    assert sum(not c["excluded"] for c in r["compounds"]) >= 2
+    assert all(c["source"] != "race" for c in r["compounds"])
+
+
+def test_a_race_the_race_fit_can_plan_stays_on_the_race_fit(client):
+    r = client.post("/strategy", json={"event": EVENT, "step": 3}).json()
+    assert r["rates_source"] == "race"
+    assert r["rates_note"] is None
+    assert all(c["source"] == "race" for c in r["compounds"])
+
+
+def test_overrides_apply_on_top_of_the_practice_base(client):
+    r = client.post(
+        "/strategy",
+        json={"event": REFUSED_BY_RACE_FIT, "rates": {"C1": -0.01}, "step": 3},
+    ).json()
+    assert r["rates_source"] == "practice"
+    c1 = next(c for c in r["compounds"] if c["compound"] == "C1")
+    assert c1["excluded"] is True and c1["overridden"] is True
