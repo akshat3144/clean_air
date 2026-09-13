@@ -280,6 +280,21 @@ held-out event-compound cells. Calibrating by the measured practice→race facto
 — **0.349**, a race degrading at about **35%** of its practice rate — cuts that
 to **0.056 s/lap**, a **35.6% reduction**, leave-one-event-out throughout.
 
+That figure is quoted against the cell set it scores, because a headline MAE is
+only comparable within one. The five sprint weekends were the last to be wired
+in, and they are the honest test of whether adding evidence costs accuracy:
+
+| | cells scored | MAE on all of them | MAE on the 13 shared |
+| --- | --- | --- | --- |
+| before | 13 | 0.0627 | **0.0627** |
+| after | **21** | **0.0561** | **0.0627** |
+
+**Not one existing cell moved.** Eight were added and none lost. The percentage
+reduction fell from 38.0% to 35.6% purely because the eight new cells are easier
+— they drag the *naive* baseline down from 0.101 to 0.087, and a smaller gap to
+close reads as a smaller percentage closed. It is a ratio to a moving
+denominator, which is why the MAE is the number we lead with.
+
 **The three practice sessions are not worth the same, and we measured by how
 much — but not the way you would expect, and the first attempt was wrong.**
 
