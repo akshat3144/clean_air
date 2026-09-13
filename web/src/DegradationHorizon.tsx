@@ -4,16 +4,40 @@ import { COMPOUND_COLOR, type Compound } from "./types/artifacts";
  * What staying out actually costs, in seconds.
  *
  * A degradation rate of 0.087 s/lap is the right number and the wrong unit for
- * a pit wall. Nobody makes a call on a slope. They make it on "another ten laps
- * on this set costs you nine tenths", which is the same number multiplied by
- * the only thing anyone is deciding.
+ * a pit wall. Nobody makes a call on a slope. They make it by weighing what the
+ * next stretch of laps gives away against the ~22s a stop costs.
  *
- * Nothing new is computed. The model fits a straight line in tyre age, so the
- * loss after N laps IS rate x N -- this is the fitted answer stated in the
- * units the question was asked in, interval included.
+ * THE NUMBER THIS USED TO SHOW WAS THE WRONG ONE.
+ *
+ * It displayed rate x N and called it "seconds lost". That is the PACE DEFICIT
+ * -- how much slower one lap is by the time the tyre is N laps old -- not what
+ * staying out costs. The cost is the whole triangle underneath: every lap of
+ * the stint is slower than the last, and you pay all of them.
+ *
+ *     rate x N            0.087 x 10  =  0.87s     what it showed
+ *     rate x N(N+1)/2     0.087 x 55  =  4.79s     what it costs
+ *
+ * Understated 3x at five laps, 5.5x at ten, 8x at fifteen -- and it sat next to
+ * a 24s pit loss, which is exactly the comparison it invites. At fifteen laps
+ * the real figure is 10.4s against a 24s stop, a live decision; the old one
+ * read 1.3s, which says never pit.
+ *
+ * The formula here is `stint_time` from strategy/optimise.py with no pace
+ * offset, so this panel and the plan beneath it now price a stint the same way.
+ * The pace-deficit reading still has a home: the Tyre Curves tab answers "how
+ * will the tyre perform after N laps" in exactly those terms, and labels it as
+ * such.
  */
 
 const HORIZONS = [5, 10, 15] as const;
+
+/**
+ * Seconds given away over the first N laps of a stint, against a tyre that
+ * never wore. Matches `stint_time(n, rate)` in the optimiser.
+ */
+function cost(rate: number, n: number): number {
+  return (rate * n * (n + 1)) / 2;
+}
 
 export interface HorizonRow {
   compound: string;
@@ -49,7 +73,7 @@ export function DegradationHorizon({
         <thead>
           <tr className="border-b border-ink-600/60 text-left">
             <th className="py-1.5 pr-2 font-normal text-fg-dim">tyre</th>
-            <th className="py-1.5 pr-3 font-normal text-fg-dim">per lap</th>
+            <th className="py-1.5 pr-3 font-normal text-fg-dim">s/lap</th>
             {HORIZONS.map((h) => (
               <th key={h} className="py-1.5 pl-3 text-right font-normal text-fg-dim">
                 +{h} laps
@@ -92,11 +116,11 @@ export function DegradationHorizon({
               </td>
               <td className="num py-2 pr-3 text-fg-dim">{r.rate.toFixed(3)}</td>
               {HORIZONS.map((h) => {
-                const lo = r.rate_lo !== undefined ? r.rate_lo * h : null;
-                const hi = r.rate_hi !== undefined ? r.rate_hi * h : null;
+                const lo = r.rate_lo !== undefined ? cost(r.rate_lo, h) : null;
+                const hi = r.rate_hi !== undefined ? cost(r.rate_hi, h) : null;
                 return (
                   <td key={h} className="py-2 pl-3 text-right">
-                    <span className="num block text-sm text-fg">{secs(r.rate * h)}</span>
+                    <span className="num block text-sm text-fg">{secs(cost(r.rate, h))}</span>
                     {lo !== null && hi !== null && (
                       <span className="num block text-micro text-fg-faint">
                         {lo.toFixed(1)} to {hi.toFixed(1)}

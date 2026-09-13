@@ -856,14 +856,14 @@ function Forecast({ rnd }: { rnd: UpcomingRound }) {
         </p>
       </Panel>
 
-      <Panel title="what the tyre costs you" meta="seconds lost">
+      <Panel title="what the tyre costs you" meta="seconds given away">
         {/* A rate of 0.087 s/lap is the right number in the wrong unit. Nobody
-            calls a stop off a slope; they call it off "ten more laps on this
-            set costs you nine tenths". Same fitted number, stated in what is
-            actually being decided. */}
+            calls a stop off a slope; they call it off what the next stretch of
+            laps costs against a stop. Priced the way the optimiser prices a
+            stint -- see DegradationHorizon for the number this used to show. */}
         <DegradationHorizon
           rows={res.compounds}
-          note="Seconds slower than the same tyre fresh, 95% band beneath. A compound that never wears is left out — an optimiser would run it to the flag."
+          note="Total time a stint of this length gives away against a tyre that never wore, 95% band beneath. Compare it with the pit loss: that is the whole stop decision. A compound that never wears is left out — an optimiser would run it to the flag."
         />
 
         <dl className="mt-4 grid gap-x-6 gap-y-1.5 border-t border-ink-600/40 pt-3 sm:grid-cols-2">

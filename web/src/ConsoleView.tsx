@@ -165,14 +165,14 @@ export function ConsoleView({ playbook }: { playbook: PlaybookArtifact }) {
               aria-busy={pending}
             >
               <TheCall r={result} pending={pending} approximate={approximate} dirty={dirty} />
-              {/* What staying out costs, in seconds rather than as a slope.
-                  This is the question the brief asks in these words -- how
-                  does the tyre perform after 5, 10, 15 laps -- and the console
-                  previously answered it only as a rate. */}
-              <Panel title="what the tyre costs you" meta="seconds lost">
+              {/* What staying out costs, in seconds rather than as a slope,
+                  and on the same arithmetic the optimiser below uses. It used
+                  to show rate x N, which is the pace deficit and understates
+                  the cost of a stint several-fold. See DegradationHorizon. */}
+              <Panel title="what the tyre costs you" meta="seconds given away">
                 <DegradationHorizon
                   rows={result.compounds}
-                  note="Seconds slower than the same tyre fresh, at this circuit's fitted rate, with the 95% band beneath."
+                  note="Total time a stint of this length gives away against a tyre that never wore, at this circuit's fitted rate, 95% band beneath. Compare it with the pit loss above: that is the whole stop decision."
                 />
               </Panel>
               <div className="grid gap-5 lg:grid-cols-2">
