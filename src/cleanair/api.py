@@ -85,18 +85,21 @@ SESSION_SKILL = {
     "criterion": "practice-to-race MAE of the blend, leave-one-event-out",
     "shipped": "FP2 heavy",
     "schemes": [
-        {"scheme": "FP2 heavy (shipped)", "mae": 0.0627, "n_cells": 13},
-        {"scheme": "FP3 down only", "mae": 0.0630, "n_cells": 13},
-        {"scheme": "FP1+FP2 equal", "mae": 0.0646, "n_cells": 13},
-        {"scheme": "equal", "mae": 0.0661, "n_cells": 13},
-        {"scheme": "FP1 heavy", "mae": 0.0667, "n_cells": 13},
+        {"scheme": "FP2 heavy (shipped)", "mae": 0.0561, "n_cells": 21},
+        {"scheme": "sprint down", "mae": 0.0561, "n_cells": 21},
+        {"scheme": "FP3 down only", "mae": 0.0566, "n_cells": 21},
+        {"scheme": "FP1+FP2 equal", "mae": 0.0575, "n_cells": 21},
+        {"scheme": "equal", "mae": 0.0585, "n_cells": 21},
+        {"scheme": "FP1 heavy", "mae": 0.0590, "n_cells": 21},
+        {"scheme": "sprint only", "mae": 0.0602, "n_cells": 21},
     ],
     #: Kept as a diagnostic only, and labelled as one on screen. Cell counts
     #: differ, so these are NOT comparable to each other.
     "per_session": {
-        "FP1": {"n_cells": 6, "correlation": 0.78, "median_laps": 21},
+        "FP1": {"n_cells": 11, "correlation": 0.29, "median_laps": 28},
         "FP2": {"n_cells": 10, "correlation": 0.65, "median_laps": 41},
         "FP3": {"n_cells": 2, "correlation": None, "median_laps": 20},
+        "S": {"n_cells": 9, "correlation": 0.65, "median_laps": 58},
     },
 }
 
@@ -988,14 +991,17 @@ def practice_sessions(event: str) -> dict:
 
     ran = rnd.long_run_sessions_run() if rnd else []
     sessions = []
-    for code in ("FP1", "FP2", "FP3"):
+    for code in sched.LONG_RUN_SESSIONS:
         cells = [r for r in rows if r["session"] == code]
         # Three different nothings, and a screen that calls them all "no data"
         # is lying about two of them. A sprint weekend HAS no FP2 or FP3 --
         # Silverstone 2026 runs one practice session and that is the format,
         # not a gap in our pull. Saying "not run yet" about a session that will
-        # never exist sends someone looking for it.
+        # never exist sends someone looking for it. The Sprint is the mirror
+        # case: a conventional weekend never has one.
         exists = rnd is None or rnd.session(code) is not None
+        if not exists and code == sched.SPRINT_SESSION:
+            continue  # a card for a session most weekends never have is noise
         sessions.append(
             {
                 "session": code,
@@ -1127,8 +1133,7 @@ def forecast(req: ForecastRequest) -> dict:
     # of the three sessions, which left one usable compound, which is not a
     # legal plan -- so the screen refused to answer on the very race we demo.
     # A borrowed rate, scaled by how harsh this circuit is and labelled as
-    # borrowed, beats silence. Off by default so /forecast keeps its old
-    # meaning for callers that want measured-only.
+    # borrowed, beats silence.
     standins = pd.DataFrame()
     if req.allow_stand_ins:
         try:
@@ -1136,6 +1141,11 @@ def forecast(req: ForecastRequest) -> dict:
         except Exception as exc:  # noqa: BLE001 - a stand-in is a bonus, never a blocker
             log.warning("stand-in rates failed for %s: %s", req.event, exc)
     if not standins.empty:
+        # A stand-in is only issued for a compound with no positive measured
+        # rate here, so where one exists it replaces the measured row -- which
+        # is a single noisy run that came out negative -- rather than sitting
+        # beside it as a second entry for the same tyre.
+        rows = rows[~rows["C"].isin(standins["C"])]
         rows = pd.concat([rows, standins], ignore_index=True)
 
     usable: dict[str, float] = {}

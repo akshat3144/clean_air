@@ -141,31 +141,31 @@ function RoundHeader({ rnd }: { rnd: UpcomingRound }) {
       <div className="mt-5 flex flex-wrap gap-2">
         {rnd.sessions.map((s) => {
           const when = new Date(s.starts_utc);
-          const isLongRun = ["FP1", "FP2", "FP3"].includes(s.code);
+          const isLongRun = ["FP1", "FP2", "FP3", "S"].includes(s.code);
           return (
             <div
               key={s.code}
               className={`flex-1 rounded-md border px-3 py-2 ${
                 s.has_run
-                  ? isLongRun
-                    ? "border-signal-good/40 bg-signal-good/5"
-                    : "border-ink-500 bg-ink-700/50"
+                  ? "border-signal-good/40 bg-signal-good/5"
                   : "border-ink-600"
               }`}
               title={when.toUTCString()}
             >
               <div
                 className={`num text-tiny font-semibold ${
-                  s.has_run && isLongRun ? "text-signal-good" : "text-fg"
+                  s.has_run ? "text-signal-good" : "text-fg"
                 }`}
               >
                 {s.code}
               </div>
               <div className="mt-0.5 text-micro text-fg-faint">
                 {s.has_run
-                  ? isLongRun
-                    ? "long runs in"
-                    : "done"
+                  ? s.code === "S"
+                    ? "race pace in"
+                    : isLongRun
+                      ? "long runs in"
+                      : "done"
                   : when.toLocaleDateString(undefined, { weekday: "short", hour: "2-digit" })}
               </div>
             </div>
@@ -842,11 +842,25 @@ function Forecast({ rnd }: { rnd: UpcomingRound }) {
                 note={
                   c.source === "stand-in"
                     ? `estimated · ${c.practice_rate.toFixed(3)} in practice`
-                    : `${c.n_runs} runs · ${c.practice_rate.toFixed(3)} in practice`
+                    : `${c.n_runs} ${c.n_runs === 1 ? "run" : "runs"} · ${c.practice_rate.toFixed(3)} in practice`
                 }
               />
             ))}
         </dl>
+
+        {res.compounds.some((c) => c.source === "thin" && !c.excluded) && (
+          // One or two runs is an observation of this tyre at this circuit,
+          // and the plan uses it. Say how little it rests on rather than
+          // either hiding it or throwing it away.
+          <p className="mt-3 text-tiny text-fg-dim">
+            {res.compounds
+              .filter((c) => c.source === "thin" && !c.excluded)
+              .map((c) => c.label ?? c.compound)
+              .join(" and ")}{" "}
+            rest on fewer than three race-simulation runs here — measured, thinly, with the
+            band widened to match.
+          </p>
+        )}
 
         {res.compounds.some((c) => c.source === "stand-in") && (
           // Never let a borrowed number sit in the same column as a measured
@@ -858,8 +872,10 @@ function Forecast({ rnd }: { rnd: UpcomingRound }) {
               .filter((c) => c.source === "stand-in")
               .map((c) => c.label ?? c.compound)
               .join(" and ")}{" "}
-            never ran a race simulation here — borrowed from other circuits and rescaled,
-            with a wider band to match.
+            never ran a race simulation here —{" "}
+            {res.compounds.some((c) => c.source === "stand-in" && c.severity != null)
+              ? "borrowed from other circuits and rescaled, with a wider band to match."
+              : "borrowed from other circuits, unscaled, because nothing ran here to scale it by. The band is as wide as that deserves."}
           </p>
         )}
       </Panel>

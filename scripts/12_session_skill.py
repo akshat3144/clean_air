@@ -44,7 +44,7 @@ def paired_cells(laps: pd.DataFrame) -> pd.DataFrame:
     truth = cell_rates(race, min_age_spread=MIN_AGE_SPREAD_LAPS).set_index(["event", "C"])["rate"]
 
     rows = []
-    for ses in ("FP1", "FP2", "FP3"):
+    for ses in ("FP1", "FP2", "FP3", "S"):
         sub = laps[laps["session"].isin([ses, "R"])]
         p = prepare(sub, "practice", min_runs_per_compound=SESSION_MIN_RUNS_PER_COMPOUND)
         if p.empty:
@@ -96,11 +96,15 @@ def score(d: pd.DataFrame) -> pd.DataFrame:
 #: Weighting schemes worth comparing. Not a search space -- each is a position
 #: someone could reasonably argue for, and the sweep says which is right.
 SCHEMES: dict[str, dict[str, float]] = {
-    "FP2 heavy (shipped)": {"FP1": 0.5, "FP2": 1.0, "FP3": 0.5},
-    "equal": {"FP1": 1.0, "FP2": 1.0, "FP3": 1.0},
-    "FP1+FP2 equal": {"FP1": 1.0, "FP2": 1.0, "FP3": 0.5},
-    "FP1 heavy": {"FP1": 1.0, "FP2": 0.65, "FP3": 0.5},
-    "FP3 down only": {"FP1": 1.0, "FP2": 1.0, "FP3": 0.25},
+    "FP2 heavy (shipped)": {"FP1": 0.5, "FP2": 1.0, "FP3": 0.5, "S": 1.0},
+    "equal": {"FP1": 1.0, "FP2": 1.0, "FP3": 1.0, "S": 1.0},
+    "FP1+FP2 equal": {"FP1": 1.0, "FP2": 1.0, "FP3": 0.5, "S": 1.0},
+    "FP1 heavy": {"FP1": 1.0, "FP2": 0.65, "FP3": 0.5, "S": 1.0},
+    "FP3 down only": {"FP1": 1.0, "FP2": 1.0, "FP3": 0.25, "S": 1.0},
+    # The Sprint only ever shares a weekend with FP1, so on a sprint weekend
+    # its weight against FP1's is the whole question.
+    "sprint down": {"FP1": 0.5, "FP2": 1.0, "FP3": 0.5, "S": 0.5},
+    "sprint only": {"FP1": 0.05, "FP2": 1.0, "FP3": 0.5, "S": 1.0},
 }
 
 
@@ -130,12 +134,15 @@ def weight_sweep(laps: pd.DataFrame) -> pd.DataFrame:
                     "improvement_%": round(loo.improvement * 100, 1),
                     "factor": round(loo.factor, 4),
                     "n_cells": len(loo.table),
+                    "_mae": loo.mae_calibrated,
                 }
             )
     finally:
         session_weight.SESSION_WEIGHTS.clear()
         session_weight.SESSION_WEIGHTS.update(original)
-    return pd.DataFrame(rows).sort_values("mae")
+    # Rank on the unrounded error, so two schemes that print the same four
+    # decimals still sort by which one actually did better.
+    return pd.DataFrame(rows).sort_values("_mae", kind="stable").drop(columns="_mae")
 
 
 def best_scheme(laps: pd.DataFrame) -> str:

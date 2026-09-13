@@ -149,26 +149,44 @@ def test_it_asks_only_for_the_sessions_it_is_missing(monkeypatch):
     ]
 
 
-def test_a_sprint_weekend_is_pulled_for_its_race_only(monkeypatch):
-    """The bug this pins.
-
-    A sprint weekend is FP1 + Sprint Qualifying, then Sprint + Qualifying, then
-    a FULL GRAND PRIX on Sunday. We used to skip the whole weekend because it
-    has no FP2, which silently cost us five 2026 races -- about 361 long runs,
-    nearly as many as the seven conventional weekends put together.
-
-    Its FP1 is sprint prep (median 6 laps) and the practice filters reject it
-    anyway, so the race is the only thing worth taking -- but it IS worth
-    taking.
+def test_a_sprint_weekend_is_pulled_for_its_one_practice_and_its_race(monkeypatch):
+    """A sprint weekend is FP1 + Sprint Qualifying, then Sprint + Qualifying,
+    then a FULL GRAND PRIX on Sunday. We used to skip the whole weekend, then
+    take only its race on the grounds that its FP1 is sprint prep the filters
+    mostly reject. Mostly is not entirely, and that hour is the only look at
+    the circuit we get before Sunday -- so it is pulled as soon as it has run,
+    and the race follows when it has.
     """
-    _patch_calendar(monkeypatch, [_round("Sprinty Grand Prix", fmt="sprint_qualifying")])
+    sprint = _round(
+        "Sprinty Grand Prix",
+        fmt="sprint_qualifying",
+        sessions=[
+            _session("FP1", 0),
+            _session("SQ", 4),
+            _session("S", 24),
+            _session("Q", 28),
+            _session("R", 51),
+        ],
+    )
+    _patch_calendar(monkeypatch, [sprint])
     monkeypatch.setattr(poller, "_cached_sessions", lambda s: set())
 
-    missing = poller.find_missing(2026, now=BASE + timedelta(hours=100))
-    assert missing == [("Sprinty Grand Prix", ["R"])], missing
-
-    # ...and nothing at all before its race has run.
-    assert poller.find_missing(2026, now=BASE + timedelta(hours=10)) == []
+    # Friday night: FP1 has run, nothing else worth pulling has.
+    assert poller.find_missing(2026, now=BASE + timedelta(hours=10)) == [
+        ("Sprinty Grand Prix", ["FP1"])
+    ]
+    # Saturday night: the Sprint is in -- eighteen laps of race running,
+    # the best look at Sunday we get. Sprint Qualifying and Qualifying are
+    # never asked for; they say nothing about degradation.
+    assert poller.find_missing(2026, now=BASE + timedelta(hours=30)) == [
+        ("Sprinty Grand Prix", ["FP1", "S"])
+    ]
+    # Sunday night: the race follows.
+    assert poller.find_missing(2026, now=BASE + timedelta(hours=100)) == [
+        ("Sprinty Grand Prix", ["FP1", "S", "R"])
+    ]
+    # ...and nothing at all before FP1 has finished.
+    assert poller.find_missing(2026, now=BASE + timedelta(hours=1)) == []
 
 
 def test_one_event_at_a_time(monkeypatch):

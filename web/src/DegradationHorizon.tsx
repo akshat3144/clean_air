@@ -23,8 +23,10 @@ export interface HorizonRow {
   rate_lo?: number;
   rate_hi?: number;
   excluded?: boolean;
-  /** "stand-in" where the rate was borrowed from other circuits. */
+  /** "thin" under three runs here; "stand-in" where the rate was borrowed. */
   source?: string;
+  /** Null on a stand-in that nothing here could scale. */
+  severity?: number | null;
 }
 
 function secs(v: number): string {
@@ -69,9 +71,21 @@ export function DegradationHorizon({
                   {r.source === "stand-in" && (
                     <span
                       className="text-micro uppercase tracking-wide text-signal-warn"
-                      title="Nobody ran this compound on a race simulation here. Borrowed from other circuits and rescaled."
+                      title={
+                        r.severity == null
+                          ? "Nobody ran this compound on a race simulation here, and nothing else ran to scale it by. The calendar average, unscaled."
+                          : "Nobody ran this compound on a race simulation here. Borrowed from other circuits and rescaled."
+                      }
                     >
                       est
+                    </span>
+                  )}
+                  {r.source === "thin" && (
+                    <span
+                      className="text-micro uppercase tracking-wide text-fg-dim"
+                      title="Fewer than three race-simulation runs on this compound here. Measured, but from very little; the band is widened to match."
+                    >
+                      thin
                     </span>
                   )}
                 </span>

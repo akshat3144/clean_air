@@ -61,6 +61,78 @@
       "abs_error": 0.19444
     },
     {
+      "event": "Canadian Grand Prix",
+      "compound": "C4",
+      "label": null,
+      "predicted": {
+        "mean": 0.00818,
+        "lo": 0.00096,
+        "hi": 0.01539
+      },
+      "actual": -0.05164,
+      "abs_error": 0.05981
+    },
+    {
+      "event": "Canadian Grand Prix",
+      "compound": "C5",
+      "label": null,
+      "predicted": {
+        "mean": 0.00465,
+        "lo": -0.01525,
+        "hi": 0.02455
+      },
+      "actual": -0.06487,
+      "abs_error": 0.06953
+    },
+    {
+      "event": "Chinese Grand Prix",
+      "compound": "C2",
+      "label": null,
+      "predicted": {
+        "mean": 0.02508,
+        "lo": -0.00456,
+        "hi": 0.05471
+      },
+      "actual": 0.03195,
+      "abs_error": 0.00687
+    },
+    {
+      "event": "Chinese Grand Prix",
+      "compound": "C3",
+      "label": null,
+      "predicted": {
+        "mean": 0.05234,
+        "lo": 0.03705,
+        "hi": 0.06763
+      },
+      "actual": 0.01252,
+      "abs_error": 0.03982
+    },
+    {
+      "event": "Dutch Grand Prix",
+      "compound": "C2",
+      "label": null,
+      "predicted": {
+        "mean": 0.01465,
+        "lo": -0.07947,
+        "hi": 0.10876
+      },
+      "actual": 0.07594,
+      "abs_error": 0.06129
+    },
+    {
+      "event": "Dutch Grand Prix",
+      "compound": "C3",
+      "label": null,
+      "predicted": {
+        "mean": 0.0409,
+        "lo": 0.0378,
+        "hi": 0.044
+      },
+      "actual": 0.07472,
+      "abs_error": 0.03382
+    },
+    {
       "event": "Hungarian Grand Prix",
       "compound": "C3",
       "label": null,
@@ -133,6 +205,30 @@
       "abs_error": 0.06067
     },
     {
+      "event": "Miami Grand Prix",
+      "compound": "C3",
+      "label": null,
+      "predicted": {
+        "mean": 0.03286,
+        "lo": 0.02342,
+        "hi": 0.04231
+      },
+      "actual": 0.00565,
+      "abs_error": 0.02722
+    },
+    {
+      "event": "Miami Grand Prix",
+      "compound": "C4",
+      "label": null,
+      "predicted": {
+        "mean": 0.02254,
+        "lo": 0.01706,
+        "hi": 0.02803
+      },
+      "actual": 0.08617,
+      "abs_error": 0.06363
+    },
+    {
       "event": "Monaco Grand Prix",
       "compound": "C3",
       "label": null,
@@ -157,6 +253,6 @@
       "abs_error": 0.03011
     }
   ],
-  "mae": 0.06273,
+  "mae": 0.05607,
   "is_forecast": false
 }

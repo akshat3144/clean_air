@@ -80,10 +80,71 @@ def test_practice_that_has_run_is_reported_before_the_race():
 
 
 def test_sprint_weekends_are_excluded_from_the_conventional_list():
-    """Sprint weekends have no FP2 and therefore no race-simulation long runs,
-    which is why they are absent from the degradation dataset."""
+    """`is_conventional` still tells the two formats apart; what changed is
+    that nothing on the forecasting path filters on it any more."""
     rounds = [_round("A"), _round("B", fmt="sprint_qualifying")]
     assert [r.event for r in rounds if r.is_conventional] == ["A"]
+
+
+def test_a_sprint_weekend_offers_its_practice_its_sprint_and_its_race():
+    """One hour of practice is thin. Then Saturday runs a Sprint -- twenty
+    cars on one set for eighteen laps at race pace -- and between them that
+    is what we get to see of this circuit before Sunday. The job is to say
+    what they tell us, not to leave the round off because there is no FP2.
+    """
+    base = datetime(2026, 7, 3, 11, 30, tzinfo=UTC)
+    sprint = _round(
+        "Sprinty Grand Prix",
+        when=datetime(2026, 7, 5, tzinfo=UTC),
+        fmt="sprint_qualifying",
+        sessions=[
+            _session("FP1", 0, base),
+            _session("SQ", 4, base),
+            _session("S", 24, base),
+            _session("Q", 28, base),
+            _session("R", 51, base),
+        ],
+    )
+    assert sprint.cacheable_sessions == ("FP1", "S", "R")
+    assert sprint.sessions_to_pull(base + timedelta(hours=10)) == ["FP1"]
+    assert sprint.long_run_sessions_run(base + timedelta(hours=10)) == ["FP1"]
+    assert sprint.sessions_to_pull(base + timedelta(hours=30)) == ["FP1", "S"]
+    assert sprint.long_run_sessions_run(base + timedelta(hours=30)) == ["FP1", "S"]
+
+    conventional = _round(
+        sessions=[_session("FP1", 0, base), _session("FP2", 4, base), _session("R", 51, base)]
+    )
+    assert conventional.cacheable_sessions == ("FP1", "FP2", "R")
+
+
+def test_the_next_race_is_the_next_race_whatever_its_format(monkeypatch):
+    """A sprint round used to vanish from the front page, which left the
+    following conventional round labelled "next up" with a countdown to the
+    wrong Sunday. The next race is the next race."""
+    base = datetime(2026, 6, 1, tzinfo=UTC)
+    conventional = _round(
+        "Conventional Grand Prix",
+        when=base,
+        sessions=[_session("R", 0, base)],
+    )
+    sprint = _round(
+        "Sprinty Grand Prix",
+        when=base + timedelta(days=7),
+        fmt="sprint_qualifying",
+        sessions=[_session("R", 24 * 7, base)],
+    )
+    later = _round(
+        "Later Grand Prix",
+        when=base + timedelta(days=14),
+        sessions=[_session("R", 24 * 14, base)],
+    )
+    monkeypatch.setattr(sched, "rounds", lambda season=2026: [later, sprint, conventional])
+
+    now = base + timedelta(days=1)
+    assert [r.event for r in sched.next_rounds(2026, now=now, limit=3)] == [
+        "Sprinty Grand Prix",
+        "Later Grand Prix",
+    ]
 
 
 # ---------------------------------------------------------------------------
