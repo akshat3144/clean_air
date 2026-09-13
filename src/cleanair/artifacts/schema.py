@@ -380,6 +380,18 @@ class DriverStint:
     compound: str
     start_lap: int
     end_lap: int
+    #: Where the car was classified, 1 for the winner. None when the session's
+    #: results could not be read. The chart is ordered on this: it used to sort
+    #: on whoever reached the highest lap number, which ties every car that
+    #: went the full distance and left the ALPHABETICAL tie-break deciding the
+    #: order. At the Austrian Grand Prix that printed the eight finishers as
+    #: ANT HAD HAM LEC NOR PIA RUS VER, with the race winner seventh.
+    position: int | None = None
+    #: "Finished", "Lapped", "Retired", or a +N Lap(s) variant, straight from
+    #: the timing feed. A car whose bar stops on lap 12 because it retired is a
+    #: different story from one that pitted, and the chart could not tell them
+    #: apart.
+    status: str | None = None
 
 
 @dataclass

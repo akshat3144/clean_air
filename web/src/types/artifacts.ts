@@ -312,6 +312,12 @@ export interface DriverStint {
   compound: string;
   start_lap: number;
   end_lap: number;
+  /** Classified finishing position, 1 for the winner. Null when the session's
+   *  results could not be read. */
+  position: number | null;
+  /** "Finished", "Lapped", "Retired". A bar that stops early because the car
+   *  retired is a different story from one that pitted. */
+  status: string | null;
 }
 
 export interface PlaybookEvent {
