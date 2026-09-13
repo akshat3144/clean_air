@@ -44,6 +44,7 @@ import pandas as pd
 
 from ..config import MASS_SENSITIVITY_S_PER_KG, MIN_LONG_RUN_LAPS
 from ..data.fuel import practice_fuel_correction_s
+from ..data.schedule import SPRINT_SESSION
 from ..data.session_weight import weight_for
 from ..data.traffic import add_gap_ahead
 
@@ -364,6 +365,13 @@ def prepare(
             return df
         df = drop_stint_outliers(df)
         df = classify_runs(df)
+        # The classifier tells a race simulation from a qualifying one by its
+        # gap to the session's fastest lap. A Sprint has no qualifying runs
+        # to tell apart: every lap of it is race running, and the leader's
+        # stint sits within a few tenths of the session best precisely
+        # because it is the leader. So the whole session is race work, and
+        # the pace test must not be allowed to throw away the front of it.
+        df.loc[df["session"] == SPRINT_SESSION, "is_race_sim"] = True
         if race_sims_only:
             df = df[df["is_race_sim"]]
         df = practice_design(df, **kw)

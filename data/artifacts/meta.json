@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-12T14:55:01+00:00",
+  "generated_at": "2026-09-12T21:49:03+00:00",
   "schema_version": "1.0.0",
   "model_version": "mixedlm-v2-circuit",
   "season": 2026,
@@ -18,7 +18,7 @@
     "Miami Grand Prix",
     "Monaco Grand Prix"
   ],
-  "n_laps_clean": 20041,
+  "n_laps_clean": 23856,
   "n_long_run_laps": 11039,
   "n_runs": 820,
   "n_drivers": 23,

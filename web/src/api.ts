@@ -240,16 +240,17 @@ export interface ForecastCompound {
   optimal_stint: number;
   excluded: boolean;
   overridden: boolean;
-  /** "measured" means this weekend put that tyre on a race simulation.
-   *  "stand-in" means nobody did, and the rate was borrowed from other
-   *  circuits and rescaled by this one's severity. The screen MUST NOT draw
-   *  the two the same way. */
-  source?: "measured" | "stand-in";
+  /** "measured" means this weekend put that tyre on three or more race
+   *  simulations. "thin" means one or two -- still this circuit, still this
+   *  rubber, wider band. "stand-in" means nobody ran it, and the rate was
+   *  borrowed from other circuits. The screen MUST NOT draw them the same. */
+  source?: "measured" | "thin" | "stand-in";
   /** Race-simulation runs and laps behind a measured rate. Zero on stand-ins. */
   n_runs?: number;
   n_laps?: number;
   /** How harsh this circuit is against the rest of the calendar, on the
-   *  compounds it did run. Only set on stand-ins, which are scaled by it. */
+   *  compounds it did run. Only set on stand-ins, which are scaled by it;
+   *  null on a stand-in when nothing here could set it, so it is unscaled. */
   severity?: number | null;
 }
 

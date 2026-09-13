@@ -169,7 +169,11 @@ export function PracticeSessionsPanel({ event }: { event: string }) {
     );
   }
 
-  const heaviest = Object.entries(data.weights).sort((a, b) => b[1] - a[1])[0]?.[0];
+  // Heaviest among the sessions this weekend actually has. FP2 and the
+  // Sprint carry the same weight and never share a weekend.
+  const heaviest = Object.entries(data.weights)
+    .filter(([code]) => data.sessions.some((s) => s.session === code && s.exists))
+    .sort((a, b) => b[1] - a[1])[0]?.[0];
   const ev = data.weight_evidence;
   // The shipped scheme and the nearest alternative. Showing the gap between
   // them is the honest version of "FP2 matters": it says how much the choice
@@ -195,7 +199,11 @@ export function PracticeSessionsPanel({ event }: { event: string }) {
         </span>
       }
     >
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div
+        className={`grid gap-3 ${
+          data.sessions.length > 3 ? "sm:grid-cols-2 xl:grid-cols-4" : "sm:grid-cols-3"
+        }`}
+      >
         {data.sessions.map((s) => (
           <SessionCard key={s.session} s={s} heaviest={s.session === heaviest} />
         ))}
@@ -203,9 +211,10 @@ export function PracticeSessionsPanel({ event }: { event: string }) {
 
       {data.sprint_weekend && (
         <p className="mt-3 border-t border-ink-600/40 pt-3 text-micro text-fg-dim">
-          <span className="text-fg">Sprint weekend.</span> One hour of practice, no FP2 —
-          which is where race-simulation long runs normally come from. That is the format,
-          not a gap in the data.
+          <span className="text-fg">Sprint weekend.</span> One hour of practice and no FP2 —
+          but the Sprint itself is twenty cars running one set for eighteen laps at race
+          pace, and once it has run it carries the forecast. Until then, FP1 is what there
+          is.
         </p>
       )}
 
@@ -239,8 +248,8 @@ export function PracticeSessionsPanel({ event }: { event: string }) {
           s/lap of practice-to-race error
           {equal && (
             <>
-              , against <span className="tabular-nums">{equal.mae.toFixed(4)}</span> if all
-              three counted equally
+              , against <span className="tabular-nums">{equal.mae.toFixed(4)}</span> if every
+              session counted equally
             </>
           )}
           . Nothing is weighted to zero.

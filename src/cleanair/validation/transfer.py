@@ -32,10 +32,18 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-#: Minimum runs in an (event, compound) cell before we will estimate a rate.
-#: Practice is thin -- some cells have two runs -- and a slope from two runs is
-#: not worth predicting from.
+#: Runs in an (event, compound) cell before its rate counts as MEASURED. Below
+#: this the cell is still fitted and still forecast from -- one run of a tyre
+#: at this circuit is an observation, and refusing to read it is a blank, not
+#: caution -- but it comes back marked thin with a wider band. The calibration
+#: in ``leave_one_event_out`` keeps this floor as a hard one: a factor learned
+#: from two-run cells would lurch, and it is applied to every forecast.
 MIN_RUNS = 3
+
+#: The floor a forecast fits at. Anything that survived the practice filters
+#: is a race-simulation run of at least five laps on the tyre in question, and
+#: a sprint weekend's one hour of practice may produce exactly one of them.
+FORECAST_MIN_RUNS = 1
 
 #: Minimum tyre-age spread, in laps, among cars on the same compound at the same
 #: lap of the same race.
@@ -169,14 +177,22 @@ def cell_rates(
         try:
             bread = np.linalg.pinv(X.T @ X)
             clusters = g["run_id"].to_numpy()
-            meat = np.zeros((X.shape[1], X.shape[1]))
-            for c in np.unique(clusters):
-                m = clusters == c
-                sc = X[m].T @ resid[m]
-                meat += np.outer(sc, sc)
             n_c = len(np.unique(clusters))
-            corr = n_c / max(1, n_c - 1)
-            se = float(np.sqrt(corr * (bread @ meat @ bread)[0, 0])) if n_c > 1 else np.nan
+            if n_c > 1:
+                meat = np.zeros((X.shape[1], X.shape[1]))
+                for c in np.unique(clusters):
+                    m = clusters == c
+                    sc = X[m].T @ resid[m]
+                    meat += np.outer(sc, sc)
+                corr = n_c / max(1, n_c - 1)
+                se = float(np.sqrt(corr * (bread @ meat @ bread)[0, 0]))
+            else:
+                # One run has no between-run variance to cluster on. The
+                # ordinary within-run error is what there is; it understates
+                # the truth, and the forecast widens it for that reason.
+                dof = max(1, len(y) - X.shape[1])
+                sigma2 = float(resid @ resid) / dof
+                se = float(np.sqrt(sigma2 * bread[0, 0]))
         except np.linalg.LinAlgError:
             se = np.nan
         rows.append(
@@ -265,11 +281,30 @@ def leave_one_event_out(
     )
 
 
+#: How much wider a thin cell's interval is than a measured one's. Under
+#: MIN_RUNS the clustered error has one or two runs to learn run-to-run
+#: variance from, or none at all, so the band it reports is too narrow to
+#: trust. Doubling is a shrink toward what three-run cells typically show,
+#: not a measurement of anything.
+THIN_INTERVAL_MULTIPLE = 2.0
+
+#: How much wider a stand-in rate's interval is than a measured one's. A rate
+#: borrowed from other circuits and rescaled is a weaker claim than a rate
+#: measured here, and the interval is the only place that can show it. Set so
+#: a typical stand-in spans roughly the compound's spread across the calendar.
+STANDIN_INTERVAL_MULTIPLE = 3.0
+
+#: And wider again when there was nothing measured here to scale it by. An
+#: unscaled calendar rate at an unseen circuit is the weakest thing we will
+#: put a number on, and the band has to say so.
+POOLED_INTERVAL_MULTIPLE = 5.0
+
+
 def forecast(
     practice: pd.DataFrame,
     factor: float,
     event: str,
-    min_runs: int = MIN_RUNS,
+    min_runs: int = FORECAST_MIN_RUNS,
 ) -> pd.DataFrame:
     """Predict a race that has not happened yet.
 
@@ -277,24 +312,33 @@ def forecast(
     the factor learned from completed events, and produce race predictions with
     no actuals to compare against. ``TransferArtifact.is_forecast`` marks these
     so the app never presents a forecast as a validated result.
+
+    Fits at ``FORECAST_MIN_RUNS``, so one race-simulation run of a tyre is
+    enough to put a number on it. Cells under ``MIN_RUNS`` come back with
+    ``source="thin"`` and a band widened by ``THIN_INTERVAL_MULTIPLE``; the
+    screen draws them differently and the plan still uses them, because a
+    plan built on one observed run of this tyre at this circuit is a better
+    plan than one that pretends the run did not happen.
     """
     p = cell_rates(practice[practice["event"] == event], min_runs)
     if p.empty:
         raise ValueError(f"no usable practice cells for {event!r}")
+    thin = p["n_runs"] < MIN_RUNS
+    # A single-run cell can have no finite error at all if its laps were
+    # collinear; carry the widest thing we know rather than a NaN band.
+    se = p["se"].where(p["se"].notna(), p["rate"].abs())
+    half = 1.96 * se * np.where(thin, THIN_INTERVAL_MULTIPLE, 1.0)
+    # Two runs that happen to agree give a clustered error near zero, and a
+    # thin cell then claims a band no three-run cell could. Floor it at half
+    # the rate itself: the same floor a stand-in gets, for the same reason.
+    half = np.where(thin, np.maximum(half, 0.5 * p["rate"].abs()), half)
     p["predicted_race_rate"] = p["rate"] * factor
     # Practice is thin, so carry its uncertainty through rather than hiding it.
-    p["lo"] = (p["rate"] - 1.96 * p["se"]) * factor
-    p["hi"] = (p["rate"] + 1.96 * p["se"]) * factor
-    p["source"] = "measured"
+    p["lo"] = (p["rate"] - half) * factor
+    p["hi"] = (p["rate"] + half) * factor
+    p["source"] = np.where(thin, "thin", "measured")
     p["severity"] = np.nan
     return p
-
-
-#: How much wider a stand-in rate's interval is than a measured one's. A rate
-#: borrowed from other circuits and rescaled is a weaker claim than a rate
-#: measured here, and the interval is the only place that can show it. Set so
-#: a typical stand-in spans roughly the compound's spread across the calendar.
-STANDIN_INTERVAL_MULTIPLE = 3.0
 
 
 def circuit_severity(measured: pd.DataFrame, pooled: pd.Series) -> float | None:
@@ -347,8 +391,25 @@ def stand_in_rates(
         and the caller is expected to label them on screen. A stand-in rate is
         the difference between a planner that says "probably two stops, and
         here is which number we borrowed" and one that says nothing at all.
+
+    WHAT COUNTS AS MEASURED HERE
+        Any cell with a positive slope, at ``FORECAST_MIN_RUNS``. A thin cell
+        is an observation of this circuit and sets the severity like any
+        other. A cell with a NEGATIVE slope is noise -- a tyre does not get
+        faster as it wears -- and is treated as not measured, so the stand-in
+        fills it rather than the plan losing the compound to one bad run.
+
+    WHEN NOTHING HERE CAN SET THE SEVERITY
+        The bare calendar rate is handed back unscaled, with ``severity=None``
+        and a band wide enough to say so. It used to return nothing on the
+        argument that an unscaled rate at an unseen circuit is a guess wearing
+        the clothes of an estimate. It is; and the strategist has a race on
+        Sunday either way, and a labelled guess with a five-fold band is what
+        they can act on where a refusal is not.
     """
-    here = cell_rates(practice[practice["event"] == event], min_runs)
+    here = cell_rates(practice[practice["event"] == event], FORECAST_MIN_RUNS)
+    if not here.empty:
+        here = here[here["rate"] > 0]
     measured = set(here["C"]) if not here.empty else set()
     missing = [c for c in wanted if c not in measured]
     if not missing:
@@ -360,11 +421,9 @@ def stand_in_rates(
     pooled = elsewhere.groupby("C")["rate"].median()
 
     sev = circuit_severity(here, pooled) if not here.empty else None
-    if sev is None:
-        # No overlap to calibrate against. We could still hand back the bare
-        # pooled rate, and we do not: an unscaled rate at an unseen circuit is
-        # a guess wearing the clothes of an estimate.
-        return pd.DataFrame()
+    scaled = sev is not None
+    if not scaled:
+        sev = 1.0
 
     # Keep the stand-ins in physical order against what we measured.
     #
@@ -393,6 +452,7 @@ def stand_in_rates(
             rate = min(rate, min(softer))
         return rate
 
+    multiple = STANDIN_INTERVAL_MULTIPLE if scaled else POOLED_INTERVAL_MULTIPLE
     rows = []
     for c in missing:
         if c not in pooled.index:
@@ -400,7 +460,7 @@ def stand_in_rates(
         base = float(pooled[c])
         spread = float(elsewhere.loc[elsewhere["C"] == c, "rate"].std(ddof=0) or 0.0)
         rate = clamp(c, base * sev)
-        half = STANDIN_INTERVAL_MULTIPLE * max(spread, abs(base) * 0.5) * sev
+        half = multiple * max(spread, abs(base) * 0.5) * sev
         rows.append(
             {
                 "event": event,
@@ -414,7 +474,7 @@ def stand_in_rates(
                 "lo": (rate - half) * factor,
                 "hi": (rate + half) * factor,
                 "source": "stand-in",
-                "severity": round(sev, 3),
+                "severity": round(sev, 3) if scaled else np.nan,
             }
         )
     return pd.DataFrame(rows)

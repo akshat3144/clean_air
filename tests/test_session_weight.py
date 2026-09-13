@@ -214,11 +214,90 @@ def test_stand_in_returns_nothing_when_everything_was_measured():
     assert stand_in_rates(df, 1.0, "Madrid", ["C3"]).empty
 
 
-def test_stand_in_needs_something_measured_here_to_scale_from():
-    """With no overlap there is no severity, and a bare pooled rate at an
-    unseen circuit must not be dressed up as an estimate of it."""
-    df = practice_frame([("Madrid", "FP2", "C5", 0.30), ("Other", "FP2", "C2", 0.05)])
-    assert stand_in_rates(df, 1.0, "Madrid", ["C2"]).empty
+def test_stand_in_falls_back_to_the_unscaled_pool_when_nothing_here_overlaps():
+    """With no overlap there is no severity. It used to return nothing; now
+    it hands back the bare calendar rate, says it is unscaled, and widens
+    the band well past a scaled stand-in's. The strategist has a race on
+    Sunday either way, and a labelled guess is what they can act on."""
+    df = practice_frame(
+        [
+            ("Madrid", "FP2", "C5", 0.30),
+            ("Other", "FP2", "C2", 0.05),
+            ("Third", "FP2", "C2", 0.07),
+        ]
+    )
+    out = stand_in_rates(df, 1.0, "Madrid", ["C2"])
+    assert list(out["C"]) == ["C2"]
+    assert (out["source"] == "stand-in").all()
+    assert pd.isna(out["severity"].iloc[0]), "unscaled must not claim a severity"
+    assert out["rate"].iloc[0] == pytest.approx(0.06, abs=1e-6)
+
+    scaled = stand_in_rates(
+        practice_frame(
+            [
+                ("Madrid", "FP2", "C3", 0.30),
+                ("Other", "FP2", "C3", 0.15),
+                ("Other", "FP2", "C2", 0.05),
+                ("Third", "FP2", "C3", 0.15),
+                ("Third", "FP2", "C2", 0.07),
+            ]
+        ),
+        1.0,
+        "Madrid",
+        ["C2", "C3"],
+    )
+    unscaled_width = float(out["hi"].iloc[0] - out["lo"].iloc[0])
+    scaled_width = float(scaled["hi"].iloc[0] - scaled["lo"].iloc[0]) / float(
+        scaled["severity"].iloc[0]
+    )
+    assert unscaled_width > scaled_width
+
+
+def test_a_negative_measured_cell_is_stood_in_for_not_kept():
+    """One noisy run that came out negative is not a measurement of the tyre
+    getting faster as it wears. It must not block the stand-in, or a sprint
+    weekend's single FP1 run of a compound costs the plan that compound."""
+    df = practice_frame(
+        [
+            ("Madrid", "FP1", "C3", 0.30),
+            ("Madrid", "FP1", "C2", -0.05),
+            ("Other", "FP2", "C3", 0.15),
+            ("Other", "FP2", "C2", 0.05),
+            ("Third", "FP2", "C3", 0.15),
+            ("Third", "FP2", "C2", 0.05),
+        ]
+    )
+    out = stand_in_rates(df, 1.0, "Madrid", ["C2", "C3"])
+    assert list(out["C"]) == ["C2"]
+    assert out["rate"].iloc[0] > 0
+
+
+def test_a_thin_cell_is_forecast_from_and_labelled_thin():
+    """One race-simulation run of a tyre at this circuit is an observation.
+    The forecast fits it, labels it thin, and widens its band; it does not
+    throw it away and then say it has nothing."""
+    from cleanair.validation.transfer import THIN_INTERVAL_MULTIPLE, forecast
+
+    thick = practice_frame([("Madrid", "FP2", "C3", 0.30)])
+    thin = thick[thick["run_id"].str.endswith("-0-0")]
+    assert thin["run_id"].nunique() == 1
+
+    out = forecast(thin, 1.0, "Madrid")
+    assert list(out["source"]) == ["thin"]
+    assert out["rate"].iloc[0] == pytest.approx(0.30, abs=1e-6)
+    assert out["predicted_race_rate"].iloc[0] == pytest.approx(0.30, abs=1e-6)
+    assert np.isfinite(out["lo"].iloc[0]) and np.isfinite(out["hi"].iloc[0])
+
+    ref = forecast(thick, 1.0, "Madrid")
+    assert list(ref["source"]) == ["measured"]
+    # The thin band is the wider of: its own error times the multiple, and
+    # half the rate. The fixture's laps are exactly linear so its own error
+    # is zero, which is precisely the case the floor exists for -- a thin
+    # cell must never claim a tighter band than a three-run cell could.
+    own = float(cell_rates(thin, 1)["se"].iloc[0])
+    width = float(out["hi"].iloc[0] - out["lo"].iloc[0])
+    assert width >= 2 * 1.96 * own * THIN_INTERVAL_MULTIPLE - 1e-9
+    assert width == pytest.approx(2 * 0.5 * 0.30, rel=1e-6)
 
 
 def test_stand_in_never_undercuts_a_measured_harder_compound():

@@ -173,6 +173,49 @@ def test_a_steady_run_is_accepted_as_a_race_sim():
     assert out[out["run_id"] == "r1"]["is_race_sim"].all()
 
 
+def _sprint(n_drivers=6, n_laps=18, base=90.0, rate=0.06):
+    """A Sprint: every car runs one set from lights to flag, at race pace.
+
+    Cars are spread by skill so the leader's laps sit within the race-sim
+    classifier's pace threshold of the session best -- because the leader
+    IS the session best -- and would be thrown away as qualifying running.
+    """
+    rows = []
+    for d in range(n_drivers):
+        skill = 0.4 * d  # 0.0s, 0.4s, 0.8s ... off the leader
+        for lap in range(1, n_laps + 1):
+            rows.append(
+                {
+                    "event": "Monaco Grand Prix",  # has a nomination on file
+                    "session": "S",
+                    "Driver": f"D{d:02d}",
+                    "LapNumber": float(lap),
+                    "Stint": 1.0,
+                    "Compound": "MEDIUM",
+                    "TyreLife": float(lap),
+                    "TrackStatus": "1",
+                    "LapTimeSeconds": base + skill + rate * lap,
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+def test_every_sprint_lap_is_race_running():
+    """The classifier tells a race simulation from a qualifying one by its gap
+    to the session's fastest lap. A Sprint has no qualifying runs to tell
+    apart, and its leader sits on the session best precisely because it is
+    the leader. The front of the field must not be thrown away for winning.
+    """
+    from cleanair.models.design import prepare
+
+    df = prepare(_sprint(), "practice", min_runs_per_compound=1)
+    assert set(df["Driver"]) == {f"D{d:02d}" for d in range(6)}, (
+        "every car's sprint stint survives, the leader's included"
+    )
+    assert (df["session"] == "S").all()
+    assert (df["w"] == 1.0).all(), "the Sprint carries FP2's weight"
+
+
 # --- practice design --------------------------------------------------------
 
 

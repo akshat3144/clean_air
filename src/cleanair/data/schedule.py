@@ -44,8 +44,13 @@ log = logging.getLogger(__name__)
 
 SCHEDULE_CACHE = DATA / "schedule"
 
-#: Sessions we care about. Qualifying tells us nothing about degradation.
-LONG_RUN_SESSIONS = ("FP1", "FP2", "FP3")
+#: Sessions the forecast is built from: everything before Sunday in which a
+#: car runs a tyre for laps on end. The three practice sessions, and on a
+#: sprint weekend the Sprint itself -- a hundred kilometres of race running
+#: on one set, which is more of exactly the thing we want than the one hour
+#: of practice that precedes it. Qualifying tells us nothing about degradation.
+LONG_RUN_SESSIONS = ("FP1", "FP2", "FP3", "S")
+SPRINT_SESSION = "S"
 RACE_SESSION = "R"
 
 #: FastF1 spells sessions out; we key on the short codes everywhere else.
@@ -92,9 +97,8 @@ class Round:
     country: str
     location: str
     date_utc: datetime
-    #: "conventional" or "sprint_qualifying". Sprint weekends have no FP2 and
-    #: therefore no race-simulation long runs, which is why they are excluded
-    #: from the degradation dataset rather than merely absent from it.
+    #: "conventional" or "sprint_qualifying". A sprint weekend has FP1 and
+    #: nothing else before Sunday; its forecast is built from that one hour.
     format: str
     sessions: list[Session] = field(default_factory=list)
 
@@ -121,17 +125,16 @@ class Round:
     def cacheable_sessions(self) -> tuple[str, ...]:
         """Sessions worth pulling for this weekend's format.
 
-        A sprint weekend is FP1 + Sprint Qualifying on Friday, Sprint +
-        Qualifying on Saturday, and a FULL GRAND PRIX on Sunday. It has no FP2
-        or FP3, and its FP1 is sprint preparation rather than race simulation
-        -- measured across the cached 2025 sprint weekends, FP1 yields 34 runs
-        at a median of 6 laps, which the practice filters reject anyway.
-
-        But its RACE is a race like any other: 198 long runs at a median of 20
-        laps across those same four weekends, against 17 for conventional
-        races. Excluding it was costing us five 2026 events.
+        Every long-run session the calendar lists, plus the race. A sprint
+        weekend offers FP1 on Friday and the Sprint on Saturday; both are
+        what we get to see before Sunday. FP1 used to be skipped on the
+        grounds that the practice filters would reject most of it -- they
+        reject most of it, not all of it, and "most" was never a reason to
+        not look. The Sprint was never asked for at all, and it is twenty
+        cars running a tyre for eighteen laps at race pace.
         """
-        return (*LONG_RUN_SESSIONS, RACE_SESSION) if self.is_conventional else (RACE_SESSION,)
+        practice = tuple(s.code for s in self.sessions if s.code in LONG_RUN_SESSIONS)
+        return (*practice, RACE_SESSION)
 
     def sessions_to_pull(self, now: datetime | None = None) -> list[str]:
         """The subset of ``cacheable_sessions`` that has actually finished.
@@ -342,15 +345,19 @@ def next_rounds(
     preparing for. Note a round counts as upcoming while its practice sessions
     have already happened -- which is the whole point, because that practice is
     the input to the forecast.
+
+    Every format. A sprint weekend is a Grand Prix with one practice session,
+    and the job is to say what that one session tells us about Sunday, not to
+    leave the round off the calendar because it told us less than three would.
     """
     now = now or datetime.now(timezone.utc)
-    future = [r for r in rounds(season) if r.is_conventional and not r.race_has_run(now)]
+    future = [r for r in rounds(season) if not r.race_has_run(now)]
     return sorted(future, key=lambda r: r.date_utc)[:limit]
 
 
 def completed(season: int = SEASON, now: datetime | None = None) -> list[Round]:
     now = now or datetime.now(timezone.utc)
-    return [r for r in rounds(season) if r.is_conventional and r.race_has_run(now)]
+    return [r for r in rounds(season) if r.race_has_run(now)]
 
 
 def pending_sessions(

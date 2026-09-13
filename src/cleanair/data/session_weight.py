@@ -38,6 +38,20 @@ WHY FP1 AND FP3 ARE NOT ZERO
     Halving is a deliberate shrink toward equal weighting: it respects the
     measured gap without betting the forecast on a small sample.
 
+THE SPRINT
+    A sprint weekend has no FP2. What it has instead is the Sprint: twenty
+    cars running one set of tyres for eighteen laps at race pace, with
+    nothing to hide and nowhere to stop. Scored the same way as the practice
+    sessions, over the five sprint weekends that have raced this season:
+
+        S     9 cells   correlation 0.65   median 58 laps per cell
+
+    Level with FP2 on correlation, on thicker cells, and on a weekend where
+    FP1 (0.29) is the only alternative it is not a close call. It carries
+    FP2's weight. The sweep in ``scripts/12_session_skill.py`` also says
+    FP1 should NOT be zeroed beside it: "sprint only" scores worse than the
+    shipped blend, so the hour of practice still earns its half.
+
 The weights are constants rather than a live fit, because fitting them from
 nine cells would make the forecast lurch race to race. ``tests`` re-measures
 the skill table and fails if FP2 ever stops being the best predictor, so the
@@ -54,7 +68,7 @@ log = logging.getLogger(__name__)
 
 #: Weight per session, normalised so the best-transferring session is 1.0.
 #: See the module docstring for the measurement behind these.
-SESSION_WEIGHTS: dict[str, float] = {"FP1": 0.5, "FP2": 1.0, "FP3": 0.5}
+SESSION_WEIGHTS: dict[str, float] = {"FP1": 0.5, "FP2": 1.0, "FP3": 0.5, "S": 1.0}
 
 #: Used for any session not named above, and for whole datasets that predate
 #: the split. Equal weighting is what the model did before this module, so an
