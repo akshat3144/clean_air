@@ -26,8 +26,9 @@ export function HorizonTable({ curves }: { curves: CompoundCurve[] }) {
     <div className="panel p-4">
       <h3 className="label mb-1">Lap time lost, by the time the tyre is this old</h3>
       <p className="mb-3 text-xs text-fg-dim">
-        Seconds slower than the same tyre when fresh, with the 95% interval beneath. Read
-        across: this is what staying out costs you.
+        Seconds slower than the same tyre when fresh, with the 95% interval beneath. This
+        is the pace deficit at that age, not the cost of the stint — every lap on the way
+        there was slower too, and the Strategy tab adds them up.
       </p>
 
       <div className="overflow-x-auto">
