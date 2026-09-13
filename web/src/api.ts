@@ -385,8 +385,13 @@ export interface PollerState {
   next_tick_seconds: number;
 }
 
-export const getUpcoming = (limit = 3, signal?: AbortSignal) =>
-  get<UpcomingRound[]>(`/upcoming?limit=${limit}`, "upcoming", signal);
+/** The whole rest of the season by default. Pass a limit only to shorten it. */
+export const getUpcoming = (limit?: number, signal?: AbortSignal) =>
+  get<UpcomingRound[]>(
+    limit === undefined ? "/upcoming" : `/upcoming?limit=${limit}`,
+    "upcoming",
+    signal,
+  );
 
 export const getPracticeSessions = (event: string, signal?: AbortSignal) =>
   get<PracticeSessions>(

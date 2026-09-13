@@ -945,7 +945,7 @@ def delete_allocation(event: str) -> dict:
 
 
 @app.get("/upcoming")
-def upcoming(limit: int = 3) -> list[dict]:
+def upcoming(limit: int | None = None) -> list[dict]:
     """Races that have not run yet, and how much we can already say.
 
     The point of the product. A race becomes answerable in stages:

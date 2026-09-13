@@ -39,7 +39,7 @@ export function NextRaceView() {
 
   const reload = () => {
     const ac = new AbortController();
-    getUpcoming(3, ac.signal)
+    getUpcoming(undefined, ac.signal)
       .then(setRounds)
       .catch((e) => {
         if (e?.name === "AbortError") return;
@@ -81,18 +81,41 @@ export function NextRaceView() {
 
   const rnd = rounds[Math.min(idx, rounds.length - 1)];
 
+  const nReady = rounds.filter((r) => r.ready_to_forecast).length;
+  const nUnnominated = rounds.filter((r) => !r.allocation).length;
+
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap gap-2">
-        {rounds.map((r, i) => (
-          <button
-            key={r.event}
-            onClick={() => setIdx(i)}
-            className={`chip ${i === idx ? "chip-active" : ""}`}
-          >
-            R{r.round_number} {r.event.replace(" Grand Prix", "")}
-          </button>
-        ))}
+      <div className="space-y-2">
+        <div className="flex flex-wrap gap-2">
+          {rounds.map((r, i) => (
+            <button
+              key={r.event}
+              onClick={() => setIdx(i)}
+              className={`chip flex items-center gap-2 ${i === idx ? "chip-active" : ""}`}
+              title={
+                r.ready_to_forecast
+                  ? "ready to forecast"
+                  : r.blocked_by[0] ?? "waiting on the weekend"
+              }
+            >
+              <span className={`h-1.5 w-1.5 rounded-full ${readinessDot(r)}`} />
+              R{r.round_number} {r.event.replace(" Grand Prix", "")}
+            </button>
+          ))}
+        </div>
+        <p className="text-tiny text-fg-dim">
+          {rounds.length} {rounds.length === 1 ? "race" : "races"} left this season
+          {nReady > 0 && <> — <span className="text-signal-good">{nReady} ready to forecast</span></>}
+          {nUnnominated > 0 && (
+            <>
+              {" "}
+              — {nUnnominated} waiting on a compound nomination, which is three dropdowns
+              below rather than a code change
+            </>
+          )}
+          .
+        </p>
       </div>
 
       <RoundHeader rnd={rnd} />
@@ -106,6 +129,20 @@ export function NextRaceView() {
       </div>
     </div>
   );
+}
+
+/**
+ * How far along a round is, as one dot.
+ *
+ * The calendar used to stop at three races. It now runs to the end of the
+ * season, which is only readable if a chip says at a glance whether it is
+ * worth clicking: green can be forecast now, amber has its compounds and is
+ * waiting for the cars to run, grey needs the nomination entered.
+ */
+function readinessDot(r: UpcomingRound): string {
+  if (r.ready_to_forecast) return "bg-signal-good";
+  if (r.allocation) return "bg-signal-warn";
+  return "bg-fg-faint";
 }
 
 function RoundHeader({ rnd }: { rnd: UpcomingRound }) {
