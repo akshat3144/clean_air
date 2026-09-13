@@ -34,7 +34,12 @@ export function RacePlanView({ playbook }: { playbook: PlaybookArtifact }) {
 
   return (
     <div className="space-y-4">
-      <EventPicker events={playbook.events} idx={idx} onPick={setIdx} />
+      <EventPicker
+        events={playbook.events}
+        unavailable={playbook.unavailable ?? []}
+        idx={idx}
+        onPick={setIdx}
+      />
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
         <div className="space-y-4">
           <TheCall e={e} />
@@ -52,15 +57,29 @@ export function RacePlanView({ playbook }: { playbook: PlaybookArtifact }) {
 
 function EventPicker({
   events,
+  unavailable,
   idx,
   onPick,
 }: {
   events: PlaybookEvent[];
+  unavailable: { event: string; reason: string }[];
   idx: number;
   onPick: (i: number) => void;
 }) {
   return (
     <div className="flex flex-wrap gap-1.5">
+      {/* Races the offline playbook declined stay on the bar with the reason,
+          rather than vanishing. The live console answers them from practice. */}
+      {unavailable.map((u) => (
+        <button
+          key={u.event}
+          disabled
+          title={u.reason}
+          className="rounded border border-ink-700 px-2.5 py-1 text-xs text-fg-faint"
+        >
+          {u.event.replace(" Grand Prix", "")}
+        </button>
+      ))}
       {events.map((e, i) => {
         const agrees = e.actual_median_stops === e.recommended_stops;
         return (

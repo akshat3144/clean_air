@@ -19,6 +19,7 @@ export interface ApiEvent {
   event: string;
   race_laps: number;
   pit_loss_s: number | null;
+  pit_loss_source: "measured" | "circuit history" | null;
   n_green_stops: number | null;
   allocation: Record<string, string>;
   ready: boolean;
@@ -33,6 +34,8 @@ export interface ApiCompound {
   optimal_stint: number;
   excluded: boolean;
   overridden: boolean;
+  /** "race" fits this race's laps; the rest come from the weekend's practice. */
+  source: "race" | "practice" | "thin" | "stand-in";
 }
 
 export interface ApiPlan {
@@ -48,7 +51,10 @@ export interface StrategyResult {
   race_laps: number;
   pit_loss_s: number;
   pit_loss_measured_s: number | null;
+  pit_loss_source: "measured" | "circuit history" | null;
   n_green_stops: number | null;
+  rates_source: "race" | "practice";
+  rates_note: string | null;
   safety_car: boolean;
   safety_car_fraction: number | null;
   pit_loss_by_status: Record<string, { median_s: number; n_stops: number; ratio: number; usable?: boolean }> | null;

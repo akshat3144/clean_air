@@ -163,6 +163,8 @@ class State:
     fit: object
     #: Measured green-flag pit loss per event, from the worker's artifact.
     pit_loss: dict[str, float]
+    #: "measured" from this race's green stops, or "circuit history".
+    pit_loss_source: dict[str, str]
     n_green_stops: dict[str, int]
     race_laps: dict[str, int]
     #: Every event in the dataset, from ANY session. Distinct from race_laps,
@@ -214,11 +216,13 @@ def _load() -> State:
         practice = None
 
     pit_loss: dict[str, float] = {}
+    pit_loss_source: dict[str, str] = {}
     n_stops: dict[str, int] = {}
     pb = ARTIFACTS / "playbook.json"
     if pb.exists():
         for e in json.loads(pb.read_text(encoding="utf-8"))["events"]:
             pit_loss[e["event"]] = float(e["pit_loss_s"])
+            pit_loss_source[e["event"]] = "measured"
             n_stops[e["event"]] = int(e["n_green_stops"])
     else:
         log.warning("playbook.json missing; pit loss must be supplied per request")
@@ -226,10 +230,20 @@ def _load() -> State:
     race_laps = {
         str(ev): int(g["LapNumber"].max()) for ev, g in race.groupby("event", sort=True)
     }
+
+    # A race the playbook declined still has a pit lane. Previous seasons at
+    # the circuit are the same evidence Next Race already leans on, and they
+    # keep the console answerable for a race whose own race-lap fit refused.
+    for ev, hist in _circuits().items():
+        if ev in race_laps and ev not in pit_loss and hist.get("pit_loss_s") is not None:
+            pit_loss[ev] = float(hist["pit_loss_s"])
+            pit_loss_source[ev] = "circuit history"
+
     return State(
         race=race,
         fit=fit,
         pit_loss=pit_loss,
+        pit_loss_source=pit_loss_source,
         n_green_stops=n_stops,
         race_laps=race_laps,
         events_in_dataset=all_events,
@@ -342,6 +356,10 @@ class CompoundOut(BaseModel):
     #: True when the caller supplied this rate instead of the fitted one, so the
     #: UI can mark that the answer is no longer the model's own view.
     overridden: bool = False
+    #: Where the rate came from. "race" is the fit on this race's own laps.
+    #: "practice" and "thin" are forecast from the weekend's long runs with the
+    #: practice-to-race factor; "stand-in" is borrowed from other circuits.
+    source: str = "race"
 
 
 class StrategyResponse(BaseModel):
@@ -349,7 +367,13 @@ class StrategyResponse(BaseModel):
     race_laps: int
     pit_loss_s: float
     pit_loss_measured_s: float | None
+    pit_loss_source: str | None = None
     n_green_stops: int | None
+    #: "race" when the plan is built on the race-lap fit, "practice" when that
+    #: fit could not supply two wearing tyres and the plan is the same forecast
+    #: Next Race would have made from the weekend's sessions.
+    rates_source: str = "race"
+    rates_note: str | None = None
     safety_car: bool
     #: The fraction applied when safety_car is set. Measured, not assumed.
     safety_car_fraction: float | None
@@ -442,27 +466,87 @@ class WhatIfResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+def _practice_rates(st: State, event: str, nominated: set[str]) -> pd.DataFrame | None:
+    """The forecast Next Race makes from this weekend's long runs, or None.
+
+    Race rate per nominated compound from practice, corrected by the factor
+    learned from other events, with stand-ins for tyres nobody put on a race
+    simulation. None when the weekend has no usable practice at all.
+    """
+    from .validation.transfer import forecast as forecast_rates
+    from .validation.transfer import leave_one_event_out, stand_in_rates
+
+    if st.practice is None or st.practice.empty or event not in st.events_in_dataset:
+        return None
+    try:
+        factor = float(leave_one_event_out(st.practice, st.race).factor)
+        rows = forecast_rates(st.practice, factor, event)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("practice forecast unavailable for %s: %s", event, exc)
+        return None
+    try:
+        standins = stand_in_rates(st.practice, factor, event, sorted(nominated))
+    except Exception as exc:  # noqa: BLE001
+        log.warning("stand-in rates failed for %s: %s", event, exc)
+        standins = pd.DataFrame()
+    if not standins.empty:
+        rows = rows[~rows["C"].isin(standins["C"])]
+        rows = pd.concat([rows, standins], ignore_index=True)
+    return rows[rows["C"].isin(nominated)]
+
+
 def _rates_for(st: State, event: str, overrides: dict[str, float] | None):
-    """Fitted degradation for this weekend's nominated tyres, with overrides."""
+    """Degradation for this weekend's nominated tyres, with overrides.
+
+    Returns ``(usable, compounds, source)``. The race-lap fit is the base when
+    it can put a positive rate on two nominated tyres. When it cannot -- a flat
+    one-stop race like Suzuka, where fuel burn and track evolution outweigh
+    wear across a 30-lap stint -- the base is the practice forecast instead,
+    which is the call that could have been made on Saturday night anyway.
+    Overrides apply on top of whichever base was chosen, so a caller knocking
+    a tyre out is still knocking it out of the model's own view.
+    """
     allocation = alloc.compounds_for(event)
     if not allocation:
         raise HTTPException(404, f"no compound allocation known for {event!r}")
     label_of = {c: lab for lab, c in allocation.items()}
     nominated = set(allocation.values())
+    ordered = [x for x in C_ORDER if x in nominated]
+
+    # PER-CIRCUIT, not the season average. Fitted circuit slopes run from
+    # -0.081 s/lap at Suzuka to +0.082 at Barcelona, a spread wider than the
+    # one separating C1 from C5. Optimising on the global rate understates wear
+    # everywhere it matters and recommends the same stop count at every track,
+    # which is exactly what it did.
+    base: dict[str, tuple[float, float, float, str]] = {}
+    for c in ordered:
+        if c in st.fit.rates:
+            iv = st.fit.interval_for(c, event)
+            base[c] = (float(iv.mean), float(iv.lo), float(iv.hi), "race")
+    source = "race"
+
+    if sum(v[0] > 0 for v in base.values()) < 2:
+        rows = _practice_rates(st, event, nominated)
+        if rows is not None and not rows.empty:
+            base = {}
+            for _, r in rows.iterrows():
+                src = str(r.get("source", "measured"))
+                base[str(r["C"])] = (
+                    float(r["predicted_race_rate"]),
+                    float(r["lo"]),
+                    float(r["hi"]),
+                    "practice" if src == "measured" else src,
+                )
+            source = "practice"
 
     usable: dict[str, float] = {}
     out: list[CompoundOut] = []
-    for c in [x for x in C_ORDER if x in nominated]:
-        if c not in st.fit.rates:
+    for c in ordered:
+        if c not in base:
             continue
-        # PER-CIRCUIT, not the season average. Fitted circuit slopes run from
-        # -0.081 s/lap at Suzuka to +0.082 at Barcelona, a spread wider than
-        # the one separating C1 from C5. Optimising on the global rate
-        # understates wear everywhere it matters and recommends the same stop
-        # count at every track, which is exactly what it did.
-        iv = st.fit.interval_for(c, event)
+        mean, lo, hi, src = base[c]
         overridden = bool(overrides and c in overrides)
-        rate = float(overrides[c]) if overridden else float(iv.mean)
+        rate = float(overrides[c]) if overridden else mean
         # A tyre that does not wear will be run to the flag by any optimiser,
         # so a non-positive rate is excluded rather than optimised on.
         excluded = rate <= 0
@@ -473,14 +557,23 @@ def _rates_for(st: State, event: str, overrides: dict[str, float] | None):
                 compound=c,
                 label=label_of.get(c),
                 rate=round(rate, 5),
-                rate_lo=round(float(iv.lo), 5),
-                rate_hi=round(float(iv.hi), 5),
+                rate_lo=round(lo, 5),
+                rate_hi=round(hi, 5),
                 optimal_stint=0,
                 excluded=excluded,
                 overridden=overridden,
+                source=src,
             )
         )
-    return usable, out
+    return usable, out, source
+
+
+PRACTICE_FALLBACK_NOTE = (
+    "The race-lap fit put a positive wear rate on fewer than two nominated tyres "
+    "here, so this plan is built from the weekend's practice long runs with the "
+    "practice-to-race correction -- the same forecast Next Race would have made "
+    "before Sunday."
+)
 
 
 def _plan_out(p, top: float) -> PlanOut:
@@ -541,6 +634,7 @@ def events() -> list[dict]:
                 "event": ev,
                 "race_laps": st.race_laps[ev],
                 "pit_loss_s": st.pit_loss.get(ev),
+                "pit_loss_source": st.pit_loss_source.get(ev),
                 "n_green_stops": st.n_green_stops.get(ev),
                 "allocation": allocation,
                 "ready": bool(allocation) and ev in st.pit_loss,
@@ -574,7 +668,7 @@ def strategy(req: StrategyRequest) -> StrategyResponse:
     pit = base_pit * req.neutralised_fraction if req.safety_car else base_pit
 
     race_laps = req.race_laps or st.race_laps[req.event]
-    usable, compounds = _rates_for(st, req.event, req.rates)
+    usable, compounds, rates_source = _rates_for(st, req.event, req.rates)
     if len(usable) < 2:
         raise HTTPException(
             422,
@@ -611,7 +705,10 @@ def strategy(req: StrategyRequest) -> StrategyResponse:
         race_laps=race_laps,
         pit_loss_s=round(pit, 2),
         pit_loss_measured_s=round(measured, 2) if measured is not None else None,
+        pit_loss_source=st.pit_loss_source.get(req.event),
         n_green_stops=st.n_green_stops.get(req.event),
+        rates_source=rates_source,
+        rates_note=PRACTICE_FALLBACK_NOTE if rates_source == "practice" else None,
         safety_car=req.safety_car,
         safety_car_fraction=req.neutralised_fraction if req.safety_car else None,
         pit_loss_by_status=PIT_LOSS_BY_STATUS if req.safety_car else None,
@@ -663,7 +760,7 @@ def whatif(req: WhatIfRequest) -> WhatIfResponse:
         return base_pit
 
     race_laps = req.race_laps or st.race_laps[req.event]
-    usable, _ = _rates_for(st, req.event, req.rates)
+    usable, _, _ = _rates_for(st, req.event, req.rates)
     if req.compound not in usable:
         raise HTTPException(
             422,

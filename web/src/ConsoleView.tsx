@@ -192,8 +192,9 @@ export function ConsoleView({ playbook }: { playbook: PlaybookArtifact }) {
                   also shows what Friday's sessions said against what Sunday
                   did -- which is the post-race validation the brief asks for,
                   and the evidence behind the practice-to-race factor the
-                  forecast leans on. It is informational: this tab optimises on
-                  the MEASURED race rate, not on practice. */}
+                  forecast leans on. Informational when the plan is on the
+                  race-lap fit; when that fit could not price two tyres, the
+                  plan above IS this forecast, and the hero says so. */}
               <PracticeSessionsPanel event={result.event} />
             </div>
           ) : (
@@ -271,7 +272,13 @@ function EventBar({
           onClick={() => onPick(e.event)}
           disabled={!e.ready}
           className={`chip ${e.event === active ? "chip-active" : ""} ${!e.ready ? "chip-disabled" : ""}`}
-          title={e.ready ? undefined : "no measured pit loss for this event"}
+          title={
+            e.ready
+              ? undefined
+              : !e.allocation
+                ? "no compound nomination recorded for this weekend"
+                : "no pit loss for this circuit: none measured in the race and no previous season here"
+          }
         >
           {e.event.replace(" Grand Prix", "")}
         </button>
@@ -327,7 +334,13 @@ function TheCall({
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {dirty ? <Pill tone="warn">your inputs</Pill> : <Pill tone="neutral">as measured</Pill>}
+          {dirty ? (
+            <Pill tone="warn">your inputs</Pill>
+          ) : r.rates_source === "practice" ? (
+            <Pill tone="warn">from practice</Pill>
+          ) : (
+            <Pill tone="neutral">as measured</Pill>
+          )}
           {pending && (
             <Pill tone="warn">
               <Dot tone="warn" />
@@ -377,6 +390,11 @@ function TheCall({
         <p className="mt-4 rounded-md border border-signal-warn/30 bg-signal-warn/5 px-3 py-2 text-tiny leading-relaxed text-signal-warn">
           Over {r.race_laps} laps, {r.margin_s.toFixed(1)}s is a coin flip leaning one way — not a
           decision.
+        </p>
+      )}
+      {r.rates_note && (
+        <p className="mt-4 rounded-md border border-signal-warn/30 bg-signal-warn/5 px-3 py-2 text-tiny leading-relaxed text-fg-dim">
+          {r.rates_note}
         </p>
       )}
     </motion.section>
@@ -442,11 +460,20 @@ function Headroom({ r }: { r: StrategyResult }) {
           label="pit loss now"
           value={`${r.pit_loss_s.toFixed(1)}s`}
           note={
-            r.pit_loss_measured_s !== null && r.n_green_stops !== null
-              ? `measured ${r.pit_loss_measured_s.toFixed(1)}s · ${r.n_green_stops} stops`
+            r.pit_loss_measured_s === null
+              ? undefined
+              : r.pit_loss_source === "circuit history"
+                ? `${r.pit_loss_measured_s.toFixed(1)}s from previous seasons here`
+                : r.n_green_stops !== null
+                  ? `measured ${r.pit_loss_measured_s.toFixed(1)}s · ${r.n_green_stops} stops`
+                  : undefined
+          }
+          tone={
+            r.pit_loss_source === "circuit history" ||
+            (r.n_green_stops !== null && r.n_green_stops < 4)
+              ? "warn"
               : undefined
           }
-          tone={r.n_green_stops !== null && r.n_green_stops < 4 ? "warn" : undefined}
         />
         {x === null ? (
           <Row label="flips at" value="never in 15–35s" tone="good" />
@@ -497,6 +524,11 @@ function Tyres({
                   {c.compound}
                 </span>
                 <span className="label w-14">{c.label}</span>
+                {c.source !== "race" && (
+                  <span className="rounded border border-signal-warn/40 px-1 text-micro text-signal-warn">
+                    {c.source}
+                  </span>
+                )}
                 <span className={`num text-lg font-medium ${outside ? "text-signal-warn" : "text-fg"}`}>
                   <Animated value={value.toFixed(4)} direction="none" />
                 </span>
@@ -618,7 +650,8 @@ function Controls({
                 onClick={() => setPitLoss(measured)}
                 className="text-micro underline decoration-dotted hover:text-fg"
               >
-                measured {measured.toFixed(1)}s
+                {event.pit_loss_source === "circuit history" ? "previous seasons" : "measured"}{" "}
+                {measured.toFixed(1)}s
               </button>
             )}
             <span className="num">35</span>
