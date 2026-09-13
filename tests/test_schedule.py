@@ -396,6 +396,18 @@ def test_the_calendar_is_not_truncated_to_the_next_three():
     season. Passing a limit still shortens the list.
     """
     from cleanair.config import SEASON
+    from cleanair.data.schedule import SCHEDULE_CACHE
+
+    # HERMETIC OR NOT AT ALL.
+    #
+    # `next_rounds` goes through `load`, which falls back to a FastF1 fetch
+    # when the schedule cache is missing. Every other test in this file builds
+    # its rounds by hand or monkeypatches the fetch, for that reason. This one
+    # wants the real calendar, and data/schedule/2026.json is committed so it
+    # normally has it -- but a checkout without that file would otherwise turn
+    # a unit test into a network call with no timeout.
+    if not (SCHEDULE_CACHE / f"{SEASON}.json").exists():
+        pytest.skip("needs the cached schedule; would otherwise hit the network")
 
     # Pinned to a clock rather than today's, or this test retires itself in
     # December when fewer than three races are left to find.
