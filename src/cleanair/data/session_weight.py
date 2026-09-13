@@ -16,27 +16,31 @@ THE REAL REASON, WHICH WE MEASURED
     Against the races that have actually run this season, we scored each
     session's measured degradation against the race's:
 
-        FP2   11 cells   correlation 0.84   transfer factor 0.44
-        FP1    9 cells   correlation 0.05   transfer factor -0.02
-        FP3    1 cell    not enough to score
-
-    FP1 carries almost no signal about race degradation. Part of that is
-    thinness -- FP1 cells run 2 runs and 10-15 laps, against 4-7 runs and
-    25-57 laps in FP2 -- and part of it is what the session is for. Teams
-    change the car between FP1 runs, so a slope fitted across them is
-    measuring setup work as much as tyre wear. Monaco's FP1 C3 cell reads
-    -0.807 s/lap against a race value of 0.056.
+        FP2   10 cells   correlation 0.646   median 41 laps per cell
+        FP1   11 cells   correlation 0.293   median 28 laps per cell
+        FP3    2 cells   not enough to score
 
     FP2 is where the setup is frozen and the heavy-fuel race simulations are
     run. That is why it transfers, and it is why its weight is highest here.
+    FP1 carries some signal and much less of it: teams change the car between
+    FP1 runs, so a slope fitted across them is measuring setup work as much as
+    tyre wear.
+
+    TREAT THESE CORRELATIONS AS A DIAGNOSTIC, NOT AS THE CRITERION.
+    The same FP1 number has read 0.05, then 0.78 after the warm-up fix, then
+    0.293 once five more weekends of data arrived. Each was an honest
+    measurement of a different cell set, which is exactly why the weights are
+    not chosen from this table. They are chosen by the end-to-end error of the
+    blend, over cells every scheme can answer -- see ``best_scheme`` in
+    ``scripts/12_session_skill.py``, which the tests re-run.
 
 WHY FP1 AND FP3 ARE NOT ZERO
     The skill gap above would justify weights near zero, and we do not use
-    them. Nine cells is not enough to retire a session on, and a weekend like
-    Madrid -- a new circuit, one usable compound, 124 long-run laps in FP1 --
-    cannot afford to discard evidence about the very track it is asked about.
-    Halving is a deliberate shrink toward equal weighting: it respects the
-    measured gap without betting the forecast on a small sample.
+    them. Ten cells is not enough to retire a session on, and a weekend like
+    Madrid -- a new circuit, no race history at all -- cannot afford to discard
+    evidence about the very track it is asked about. Halving is a deliberate
+    shrink toward equal weighting: it respects the measured gap without betting
+    the forecast on a small sample.
 
 THE SPRINT
     A sprint weekend has no FP2. What it has instead is the Sprint: twenty

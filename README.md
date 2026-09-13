@@ -12,7 +12,7 @@ Problem statement: *Tyre Degradation Intelligence*.
 | | | | |
 | --- | --- | --- | --- |
 | **4.4×** tighter intervals than the published model, race for race | **820** driver-stints vs their 3 | **10 of 11** strategy calls match what teams ran | **80.6%** empirical coverage at nominal 80% |
-| **138,839** clean laps, 5 seasons | **131,053** strategies enumerated per race | **0** code pushes to add a race | **293** tests |
+| **142,737** clean laps, 5 seasons | **131,053** strategies enumerated per race | **0** code pushes to add a race | **293** tests |
 
 ---
 
@@ -29,8 +29,8 @@ that rate implies. Across the 2026 season, measured in races:
 
 That ordering is backwards from the textbook, and it is not a bug — it is one of
 our findings. In a *race*, drivers nurse a soft tyre and lean on a hard one, so
-the hardest compound wears fastest. We test it over five seasons and 98 cells:
-**ρ = −0.308, p = 0.0020.** [Full result below.](#why-softer-compounds-do-not-degrade-faster-in-races)
+the hardest compound wears fastest. We test it over five seasons and 101 cells:
+**ρ = −0.288, p = 0.0035.** [Full result below.](#why-softer-compounds-do-not-degrade-faster-in-races)
 
 The pit lap itself comes from the optimiser, which enumerates every legal plan
 for the race rather than guessing: **131,053** of them at Monaco, in 362 ms.
@@ -58,7 +58,7 @@ We answer this four ways rather than asserting it once:
 | | |
 | --- | --- |
 | **Are the intervals honest?** | **80.6%** of actual values land inside the nominal **80%** band |
-| **Does Friday predict Sunday?** | **0.063 s/lap** mean absolute error, leave-one-event-out — the event being predicted never contributes to its own correction |
+| **Does Friday predict Sunday?** | **0.056 s/lap** mean absolute error, leave-one-event-out — the event being predicted never contributes to its own correction |
 | **Does the call match reality?** | the stop count agrees with what real teams ran at **10 of 11** races |
 | **Does it know when to shut up?** | at **2** races the evidence was too thin, and it refuses to call them rather than guessing |
 
@@ -151,7 +151,7 @@ their own paper leaves standing.
 
 **5. We tested a mechanism their paper proposed and left untested.**
 Their section 4.3 suggests drivers *manage* softer tyres harder. We tested it
-across **five seasons, 20 events, 98 event-compound cells** — and it holds
+across **five seasons, 22 events, 101 event-compound cells** — and it holds
 (below). The direction was fixed by their text before we touched the data.
 
 **6. Physical compounds, not relative labels.**
@@ -178,9 +178,9 @@ compound nomination — is one click in the UI.
 | **Interval precision**        | ✅ **4.4× tighter** median, up to **9.1×**, race for race                             |
 | **Statistical power**         | ✅ **820 driver-stints** vs the 512 needed and the 3 they had                         |
 | **Uncertainty is honest**     | ✅ 80% intervals cover **80.6%** empirically                                          |
-| **Practice → race**          | ✅ MAE **0.063 s/lap**, a **38.0% error reduction** over assuming Sunday = Friday |
+| **Practice → race**          | ✅ MAE **0.056 s/lap**, a **35.6% error reduction** over assuming Sunday = Friday |
 | **Benchmark reproduced**      | ✅ their Table 3 recovered by running their own code                                       |
-| **Driver management effect**  | ✅ **p = 0.0020** across 5 seasons, 98 cells                                          |
+| **Driver management effect**  | ✅ **p = 0.0035** across 5 seasons, 101 cells                                         |
 | **Strategy call vs reality**  | ✅ **10 of 11 races** match the stop count teams actually ran                         |
 | **Forecasts an unraced race** | ✅ Madrid predicted from FP1, FP2 and FP3, before lights out                                                    |
 | **Test suite**                | ✅ **293 tests**                                                                      |
@@ -262,12 +262,12 @@ tyre softens**:
 
 | Label  | Race ÷ practice rate | Cells |
 | ------ | --------------------- | ----- |
-| HARD   | **0.506**       | 16    |
-| MEDIUM | **0.394**       | 50    |
+| HARD   | **0.490**       | 17    |
+| MEDIUM | **0.394**       | 52    |
 | SOFT   | **0.170**       | 32    |
 
-Spearman **ρ = −0.308**, one-sided **p = 0.0010**, two-sided **p = 0.0020**,
-Kruskal–Wallis **p = 0.0100**. Across **98 cells, 20 events, 5 seasons (2022–2026)**.
+Spearman **ρ = −0.288**, one-sided **p = 0.0018**, two-sided **p = 0.0035**,
+Kruskal–Wallis **p = 0.0154**. Across **101 cells, 22 events, 5 seasons (2022–2026)**.
 Significant on every convention, ordering intact.
 
 **Drivers nurse the fragile tyre, and they nurse it hardest when it is softest.**
@@ -275,36 +275,67 @@ The mechanism was predicted in the benchmark paper and never tested. We tested i
 
 ### Practice → race, the deliverable the brief names
 
-Friday is not Sunday. Assuming it is costs **0.101 s/lap** of error across 13
+Friday is not Sunday. Assuming it is costs **0.087 s/lap** of error across 21
 held-out event-compound cells. Calibrating by the measured practice→race factor
 — **0.349**, a race degrading at about **35%** of its practice rate — cuts that
-to **0.063 s/lap**, a **38.0% reduction**, leave-one-event-out throughout.
+to **0.056 s/lap**, a **35.6% reduction**, leave-one-event-out throughout.
 
 **The three practice sessions are not worth the same, and we measured by how
 much — but not the way you would expect, and the first attempt was wrong.**
 
 The obvious test is to score each session's degradation against the race that
 followed and rank the correlations. We did, FP2 won by a mile, and we weighted
-it accordingly. Then the design changed and **FP1 went from 0.05 to 0.78** — it
-had never been uninformative, it had been full of warm-up laps.
+it accordingly. Then the design changed and FP1 jumped to 0.78. Then more data
+arrived and it settled at 0.29. **The same session has read 0.05, 0.78 and 0.29
+under three honest measurements** — which is the whole argument against using it
+as the criterion.
 
-That comparison is unsound and the reversal exposed it: each session scores a
-different set of cells (FP1 six, FP2 ten), so ranking their correlations rewards
-whichever one skipped the hard ones. What decides the weighting is the error of
-the **blend**, which every scheme computes over the same cells, through the
-pipeline that ships:
+The comparison is unsound because each session scores a different set of cells,
+so ranking their correlations rewards whichever one skipped the hard ones. What
+decides the weighting is the error of the **blend**, which every scheme computes
+over the same cells, through the pipeline that ships:
 
 | Weighting | Practice → race MAE | Cells |
 | --- | --- | --- |
-| **FP2 heavy — what we use** | **0.0627** | 13 |
-| FP3 down only | 0.0630 | 13 |
-| FP1 + FP2 equal | 0.0646 | 13 |
-| all three equal | 0.0661 | 13 |
-| FP1 heavy | 0.0667 | 13 |
+| **FP2 heavy — what we use** | **0.0561** | 21 |
+| sprint down | 0.0561 | 21 |
+| FP3 down only | 0.0566 | 21 |
+| FP1 + FP2 equal | 0.0575 | 21 |
+| all three equal | 0.0585 | 21 |
+| FP1 heavy | 0.0590 | 21 |
+| sprint only | 0.0602 | 21 |
 
 FP2 still wins, so the weights stand — now for a reason that survives the next
 design change. Nothing is weighted to zero: this weekend's worst session still
 beats another circuit's best.
+
+### A sprint weekend has no FP2, so we use the sprint
+
+Six 2026 rounds run the sprint format: one hour of FP1, then parc fermé. There
+is no FP2 and no FP3 to lean on, and the race fit at a low-wear circuit can fail
+to put a positive rate on two compounds. Montreal did exactly that, and the
+console had nothing to say about it.
+
+A sprint is 100 km of racing on Saturday, and it turns out to be as good a
+predictor of Sunday as FP2 is:
+
+| Session | Cells | Median laps per cell | Correlation with the race |
+| --- | --- | --- | --- |
+| **Sprint** | 9 | **58** | **0.647** |
+| FP2 | 10 | 41 | 0.646 |
+| FP1 | 11 | 28 | 0.293 |
+| FP3 | 2 | 20 | too few to score |
+
+Adding it took the forecast from 17 scored cells to **21**, and the error from
+**0.0593 to 0.0561 s/lap** — more questions answered, and answered better.
+Montreal went from **no practice evidence at all to 406 long-run laps** across
+all three nominated compounds.
+
+It is kept out of one place on purpose. The compound-management result above
+contrasts how a driver treats a tyre *when racing* against how they treat it in
+practice; a sprint sits on the racing side of that line. Counted as practice it
+moved ρ from −0.288 to −0.314 — a better-looking answer to a question we had
+stopped asking.
 [`scripts/12_session_skill.py`](scripts/12_session_skill.py) regenerates the
 table and a test fails if any scheme ever beats the one we ship.
 

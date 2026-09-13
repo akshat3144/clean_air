@@ -73,10 +73,11 @@ log = logging.getLogger(__name__)
 #:
 #: NOT the per-session correlation, which is what this used to hold. That
 #: comparison is unsound: each session scores a different set of cells -- FP1
-#: answers six where FP2 answers ten -- so ranking their correlations rewards
-#: whichever one skipped the hard ones. It also moved sharply when the design
-#: changed, because dropping the warm-up lap repaired FP1 (0.05 -> 0.78) and
-#: would have argued for reversing the weights on six cells of evidence.
+#: answers eleven where FP2 answers ten -- so ranking their correlations
+#: rewards whichever one skipped the hard ones. It also moves sharply when the
+#: design or the data changes: FP1 has read 0.05, then 0.78 after the warm-up
+#: fix, then 0.293 once five more weekends arrived. Three honest measurements,
+#: three different weightings, had this been the criterion.
 #:
 #: What decides it is the error of the BLEND, which every scheme computes over
 #: the same cells through the pipeline that ships. Regenerate with
@@ -1043,12 +1044,12 @@ def practice_sessions(event: str) -> dict:
     trusting? The pooled forecast answers none of that -- it hands over one
     number with the disagreement already averaged away.
 
-    Sessions are NOT weighted equally. Scored against the races that have run,
-    FP2's measured degradation correlates 0.84 with the race and FP1's
-    correlates 0.05, so FP2 carries twice the weight of the other two. The
-    weights and the evidence behind them ship in the response rather than
-    living in a docstring, because a number a pit wall cannot interrogate is a
-    number it will not use.
+    Sessions are NOT weighted equally. FP2 and the sprint carry twice the
+    weight of FP1 and FP3, chosen by the end-to-end error of the blend rather
+    than by the per-session correlations -- see SESSION_SKILL. The weights and
+    the evidence behind them ship in the response rather than living in a
+    docstring, because a number a pit wall cannot interrogate is a number it
+    will not use.
     """
     from .data import session_weight
     from .validation.transfer import per_session_rates
