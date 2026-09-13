@@ -25,7 +25,7 @@ that rate implies. Across the 2026 season, measured in races:
 
 | | C1 | C2 | C3 | C4 | C5 |
 | --- | --- | --- | --- | --- | --- |
-| **s/lap lost** | 0.115 | 0.072 | 0.057 | 0.029 | 0.003 |
+| **s/lap lost** | 0.084 | 0.050 | 0.044 | 0.029 | 0.011 |
 
 That ordering is backwards from the textbook, and it is not a bug — it is one of
 our findings. In a *race*, drivers nurse a soft tyre and lean on a hard one, so
@@ -42,14 +42,16 @@ same tyre when fresh:
 
 | compound | after 5 laps | after 10 laps | after 15 laps |
 | --- | --- | --- | --- |
-| **C1** | +0.55 | +1.05 | +1.50 |
-| **C2** | +0.35 | +0.66 | +0.94 |
-| **C3** | +0.28 | +0.54 | +0.78 |
-| **C4** | +0.15 | +0.29 | +0.44 |
-| **C5** | +0.02 | +0.05 | +0.09 |
+| **C1** | +0.42 | +0.84 | +1.26 |
+| **C2** | +0.25 | +0.50 | +0.75 |
+| **C3** | +0.22 | +0.44 | +0.66 |
+| **C4** | +0.14 | +0.29 | +0.43 |
+| **C5** | +0.05 | +0.11 | +0.16 |
 
 This table is on the **Tyre Curves** tab of the console, with the 95% interval
-under every number.
+under every number. It is the *pace deficit* — how much slower one lap is by
+then. What a stint of that length **costs** is the whole triangle underneath it,
+which is larger and is the number the Strategy tab prices a stop against.
 
 **3. Is the prediction trustworthy?**
 
@@ -174,7 +176,7 @@ compound nomination — is one click in the UI.
 |                                     |                                                                                            |
 | ----------------------------------- | ------------------------------------------------------------------------------------------ |
 | **The track effect**          | ✅ circuit spread **0.146 s/lap** beats compound spread **0.112** — **p = 4 × 10⁻⁸⁶** |
-| **Compound separation**       | ✅ **10 of 23 adjacent pairs** separated race by race — where the benchmark separates none |
+| **Compound separation**       | ✅ **11 of 25 adjacent pairs** separated race by race — where the benchmark separates none |
 | **Interval precision**        | ✅ **4.4× tighter** median, up to **9.1×**, race for race                             |
 | **Statistical power**         | ✅ **820 driver-stints** vs the 512 needed and the 3 they had                         |
 | **Uncertainty is honest**     | ✅ 80% intervals cover **80.6%** empirically                                          |
@@ -215,18 +217,18 @@ spread, which is why they are honest rather than narrow:
 
 | Compound     | Rate (s/lap)      | 95% interval                | Long runs |
 | ------------ | ----------------- | --------------------------- | --------- |
-| C1 | +0.115 | [+0.047, +0.183] | 55 |
-| C2 | +0.072 | [+0.014, +0.130] | 191 |
-| C3 | +0.057 | [+0.002, +0.113] | 242 |
-| C4 | +0.029 | [−0.027, +0.085] | 223 |
-| C5 | +0.003 | [−0.054, +0.061] | 109 |
+| C1 | +0.084 | [+0.027, +0.141] | 55 |
+| C2 | +0.050 | [−0.004, +0.105] | 191 |
+| C3 | +0.044 | [−0.010, +0.098] | 242 |
+| C4 | +0.029 | [−0.026, +0.083] | 223 |
+| C5 | +0.011 | [−0.044, +0.066] | 109 |
 
 **Five compounds, five distinct rates, in strict order, no crossings.** The
 published model cannot order its two — Hard 0.054 [0.004, 0.133] against Medium
 0.060 [0.009, 0.120], overlapping almost completely.
 
 Race by race — the like-for-like comparison, since the benchmark fits a single
-race — **10 of 23 adjacent compound pairs separate cleanly**, at **9 of the 13
+race — **11 of 25 adjacent compound pairs separate cleanly**, at **9 of the 13
 races**. The benchmark separates **none**, from the one race it fits.
 
 And the intervals are tighter where it counts. Against their published width of

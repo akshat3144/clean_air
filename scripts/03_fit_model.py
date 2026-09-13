@@ -70,9 +70,29 @@ def main() -> None:
         # because 11,000 laps from 13 circuits are not 11,000 independent
         # observations. The intervals below are wider than they used to be and
         # that is a correction, not a regression.
+        # NO QUADRATIC, in either context.
+        #
+        # This script used to fit one for the race, and it was the only place
+        # in the project that did. api.py, 06_strategy.py, 09_playbook.py and
+        # 04_validate.py all pass quadratic=False, so the curve published here
+        # -- the Tyre Curves tab, and the headline table in the README -- was
+        # the one number nobody planned on and nobody had validated.
+        #
+        # They disagree by a lot. C1 read 0.115 s/lap in the artifact against
+        # 0.084 in every fit that makes a decision; C5 read 0.003 against
+        # 0.011. Two models of the same tyre, shipped side by side.
+        #
+        # The linear one wins on three counts. Its rate is the average slope
+        # over the ages we observed, which is what "s/lap lost" means to a
+        # reader; a quadratic's rate is the tangent at age zero, which is not.
+        # It is the fit the 80.6% coverage result was measured on. And the
+        # fitted curvature is NEGATIVE -- degradation decelerating, which is
+        # the opposite of a cliff and is more plausibly the warm-up and
+        # management effects than tyre physics. Significant for C2 and C3
+        # only; C1, C4 and C5 straddle zero.
         fit = fit_degradation(
             df,
-            quadratic=(ctx == "race"),
+            quadratic=False,
             context=ctx,
             with_offsets=(ctx == "race"),
             circuit_effects=(ctx == "race"),
