@@ -337,7 +337,7 @@ def find(event: str, season: int = SEASON) -> Round | None:
 
 
 def next_rounds(
-    season: int = SEASON, now: datetime | None = None, limit: int = 3
+    season: int = SEASON, now: datetime | None = None, limit: int | None = None
 ) -> list[Round]:
     """Rounds whose race has not yet run, soonest first.
 
@@ -349,10 +349,19 @@ def next_rounds(
     Every format. A sprint weekend is a Grand Prix with one practice session,
     and the job is to say what that one session tells us about Sunday, not to
     leave the round off the calendar because it told us less than three would.
+
+    ``limit=None`` means the rest of the season, and it is the default because
+    the cut-off used to be three and there was never a reason for it. Every
+    remaining round already carries its circuit history -- pit loss measured
+    over three or four previous seasons, and a race distance -- so the rounds
+    past the third are not blank rows. What they are missing is the compound
+    nomination, which is three dropdowns in the UI rather than a data problem,
+    and a screen that hides them cannot show anyone that.
     """
     now = now or datetime.now(timezone.utc)
     future = [r for r in rounds(season) if not r.race_has_run(now)]
-    return sorted(future, key=lambda r: r.date_utc)[:limit]
+    ordered = sorted(future, key=lambda r: r.date_utc)
+    return ordered if limit is None else ordered[:limit]
 
 
 def completed(season: int = SEASON, now: datetime | None = None) -> list[Round]:

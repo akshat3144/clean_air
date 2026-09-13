@@ -383,3 +383,28 @@ def test_saving_the_store_is_atomic(tmp_path, monkeypatch):
 
     assert store.read_text(encoding="utf-8") == before, "a failed save corrupted the store"
     assert json.loads(store.read_text(encoding="utf-8")), "store is not valid JSON"
+
+
+def test_the_calendar_is_not_truncated_to_the_next_three():
+    """Every remaining round, not an arbitrary window of them.
+
+    ``next_rounds`` capped at three, and nothing chose that number. It hid
+    seven races that already carry a measured pit loss and race distance from
+    previous seasons at the same circuit, each one blocked on a compound
+    nomination that is three dropdowns in the UI. A console that cannot show
+    them cannot show anyone how little stands between here and the rest of the
+    season. Passing a limit still shortens the list.
+    """
+    from cleanair.config import SEASON
+
+    # Pinned to a clock rather than today's, or this test retires itself in
+    # December when fewer than three races are left to find.
+    now = datetime(2026, 9, 13, 12, 0, tzinfo=UTC)
+
+    all_left = sched.next_rounds(SEASON, now=now)
+    assert len(all_left) > 3, "the default must not be a window"
+    assert sched.next_rounds(SEASON, now=now, limit=3) == all_left[:3]
+
+    # Soonest first, and every one of them genuinely unraced.
+    assert all_left == sorted(all_left, key=lambda r: r.date_utc)
+    assert not any(r.race_has_run(now) for r in all_left)
