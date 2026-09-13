@@ -20,14 +20,14 @@ import { Panel, Pill, Skeleton } from "./ui";
  * already averaged away. That is the number a pit wall is least likely to
  * trust, because nothing on screen says where it came from.
  *
- * The sessions are NOT equal, and this panel shows why rather than asserting
- * it. Scored against the races that have already run, FP2's measured
- * degradation correlates 0.84 with the race and FP1's correlates 0.05, so FP2
- * carries twice the weight. Both figures are in the response.
+ * The sessions are NOT equal, and the panel shows why rather than asserting it:
+ * the response carries the error of every weighting scheme, scored over the
+ * same cells. Per-session correlations are deliberately NOT the argument --
+ * each session answers a different number of cells, so ranking them rewards
+ * whichever skipped the hard ones.
  *
- * Thin cells are shown, not hidden. Two runs of a soft at Madrid carry a
- * standard error of 0.39 s/lap -- wider than any rate on the calendar -- and
- * a strategist needs to see that the number exists AND that it is unusable.
+ * Thin cells are shown, not hidden. One run of a soft at Madrid is worth
+ * seeing AND worth distrusting, and only the counts say which.
  */
 
 /** Hours as the strategist reads them: "1.5h before", "2h after". */
@@ -176,7 +176,6 @@ export function PracticeSessionsPanel({ event }: { event: string }) {
   // is worth, rather than asserting that it is right.
   const schemes: WeightScheme[] = ev?.schemes ?? [];
   const shipped = schemes.find((x) => x.scheme.includes("shipped"));
-  const nextBest = schemes.find((x) => !x.scheme.includes("shipped"));
   const equal = schemes.find((x) => x.scheme === "equal");
 
   // "2 of 3 run" is wrong on a sprint weekend, which only HAS one practice
@@ -203,12 +202,10 @@ export function PracticeSessionsPanel({ event }: { event: string }) {
       </div>
 
       {data.sprint_weekend && (
-        <p className="mt-3 border-t border-ink-600/40 pt-3 text-micro leading-relaxed text-fg-dim">
-          <span className="text-fg">This is a sprint weekend.</span> One hour of
-          practice, run on low fuel before a qualifying session, and no FP2 — which
-          is the session race-simulation long runs normally come from. There is
-          very little here to read a race degradation rate out of, and that is the
-          format rather than a gap in the data.
+        <p className="mt-3 border-t border-ink-600/40 pt-3 text-micro text-fg-dim">
+          <span className="text-fg">Sprint weekend.</span> One hour of practice, no FP2 —
+          which is where race-simulation long runs normally come from. That is the format,
+          not a gap in the data.
         </p>
       )}
 
@@ -229,28 +226,24 @@ export function PracticeSessionsPanel({ event }: { event: string }) {
           about FP2's weight underneath three cards that say "not part of a
           sprint weekend" reads as a screen that has not noticed where it is. */}
       {heaviest && shipped && data.sessions.some((s) => s.session === heaviest && s.exists) && (
-        <p className="mt-3 border-t border-ink-600/40 pt-3 text-micro leading-relaxed text-fg-dim">
-          <span className="text-fg">{heaviest} carries the most weight</span>, and
-          it is weighted that way because it predicts best. Across the races
-          already run, blending the sessions this way lands at{" "}
-          <span className="tabular-nums text-fg">{shipped.mae.toFixed(4)} s/lap</span>{" "}
-          of practice-to-race error over {shipped.n_cells} cells
+        <p
+          className="mt-3 border-t border-ink-600/40 pt-3 text-micro text-fg-dim"
+          title={
+            "Every scheme is scored over the same cells, through the pipeline that " +
+            "ships. Per-session correlations are not comparable -- each session " +
+            "answers a different number of cells."
+          }
+        >
+          <span className="text-fg">{heaviest}</span> is weighted heaviest because it
+          predicts best: <span className="tabular-nums text-fg">{shipped.mae.toFixed(4)}</span>{" "}
+          s/lap of practice-to-race error
           {equal && (
             <>
-              , against{" "}
-              <span className="tabular-nums text-fg">{equal.mae.toFixed(4)}</span> if
-              all three counted equally
+              , against <span className="tabular-nums">{equal.mae.toFixed(4)}</span> if all
+              three counted equally
             </>
           )}
-          {nextBest && nextBest !== equal && (
-            <>
-              {" "}
-              and {nextBest.mae.toFixed(4)} for the next-best scheme
-            </>
-          )}
-          . Every scheme is scored over the same cells, so the comparison is
-          like for like. No session is weighted to zero — this weekend&rsquo;s
-          worst session still beats another circuit&rsquo;s best.
+          . Nothing is weighted to zero.
         </p>
       )}
 
@@ -311,11 +304,9 @@ function RaceComparison({ data }: { data: PracticeSessions }) {
           );
         })}
       </div>
-      <p className="mt-2 text-micro leading-relaxed text-fg-faint">
-        Left is what practice measured, right is what the race did. They are not
-        meant to match: a race degrades at roughly 38% of its practice rate,
-        because a driver nurses a tyre on Sunday and pushes it on Friday. That
-        factor is learned from other events and never from this one.
+      <p className="mt-2 text-micro text-fg-faint">
+        Not meant to match — a race runs at roughly a third of its practice rate, because
+        a driver nurses a tyre on Sunday and pushes it on Friday.
       </p>
     </div>
   );
