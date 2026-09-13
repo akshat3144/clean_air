@@ -2,49 +2,103 @@
   "rows": [
     {
       "label": "HARD",
-      "n_cells": 5,
-      "ratio": 0.5335,
-      "median_race": 0.03273,
-      "median_practice": 0.08829
+      "n_cells": 17,
+      "ratio": 0.4898,
+      "median_race": 0.05451,
+      "median_practice": 0.12654
     },
     {
       "label": "MEDIUM",
-      "n_cells": 10,
-      "ratio": 0.5392,
-      "median_race": 0.06605,
-      "median_practice": 0.10549
+      "n_cells": 52,
+      "ratio": 0.3939,
+      "median_race": 0.03711,
+      "median_practice": 0.13988
     },
     {
       "label": "SOFT",
-      "n_cells": 6,
-      "ratio": -0.4409,
-      "median_race": -0.04148,
-      "median_practice": 0.11349
+      "n_cells": 32,
+      "ratio": 0.1697,
+      "median_race": 0.03355,
+      "median_practice": 0.18056
     }
   ],
-  "n_cells": 21,
-  "n_events": 12,
-  "n_seasons": 1,
+  "n_cells": 101,
+  "n_events": 22,
+  "n_seasons": 5,
   "seasons": [
+    2022,
+    2023,
+    2024,
+    2025,
     2026
   ],
-  "rho": -0.4342,
-  "p_one_sided": 0.0246,
-  "p_two_sided": 0.0492,
-  "p_kruskal": 0.0258,
-  "ordered": false,
+  "rho": -0.2876,
+  "p_one_sided": 0.0018,
+  "p_two_sided": 0.0035,
+  "p_kruskal": 0.0154,
+  "ordered": true,
   "significant": true,
-  "verdict": "not supported: the ordering does not hold",
+  "verdict": "supported: ratio falls with softness, significant either way",
   "stability": [
     {
       "seasons": [
         2026
       ],
-      "n_cells": 21,
-      "rho": -0.4342,
-      "p_one_sided": 0.0246,
-      "p_two_sided": 0.0492,
+      "n_cells": 17,
+      "rho": -0.3581,
+      "p_one_sided": 0.0791,
+      "p_two_sided": 0.1582,
       "ordered": false
+    },
+    {
+      "seasons": [
+        2025,
+        2026
+      ],
+      "n_cells": 33,
+      "rho": -0.4098,
+      "p_one_sided": 0.0089,
+      "p_two_sided": 0.0179,
+      "ordered": false
+    },
+    {
+      "seasons": [
+        2024,
+        2025,
+        2026
+      ],
+      "n_cells": 58,
+      "rho": -0.286,
+      "p_one_sided": 0.0148,
+      "p_two_sided": 0.0295,
+      "ordered": true
+    },
+    {
+      "seasons": [
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "n_cells": 76,
+      "rho": -0.3163,
+      "p_one_sided": 0.0027,
+      "p_two_sided": 0.0054,
+      "ordered": true
+    },
+    {
+      "seasons": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "n_cells": 101,
+      "rho": -0.2876,
+      "p_one_sided": 0.0018,
+      "p_two_sided": 0.0035,
+      "ordered": true
     }
   ]
 }

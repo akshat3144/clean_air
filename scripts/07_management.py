@@ -30,6 +30,7 @@ from cleanair.artifacts.schema import ManagementArtifact, ManagementRow
 from cleanair.config import PROCESSED
 from cleanair.data.cache import season_completeness
 from cleanair.data.laps import tag_long_runs
+from cleanair.data.schedule import SPRINT_SESSION
 from cleanair.models.design import (
     classify_runs,
     drop_non_representative_laps,
@@ -47,7 +48,18 @@ def build(path: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
     laps = pd.read_parquet(path)
     laps = laps[laps["Compound"].isin(LABELS)].dropna(subset=["TyreLife", "LapTimeSeconds"])
 
-    prac = drop_non_representative_laps(laps[laps["session"] != "R"])
+    # A sprint is a race, not practice.
+    #
+    # It arrived in the dataset for the forecast, where Saturday running is a
+    # legitimate predictor of Sunday and measurably helps. Here it is poison:
+    # this test contrasts how a driver treats a tyre when racing against how
+    # they treat it in practice, and a sprint sits on the racing side of that
+    # line. Left in the practice bucket it moved rho from -0.308 to -0.314 on
+    # 105 cells instead of 98 -- a better-looking answer to a question we had
+    # stopped asking.
+    prac = drop_non_representative_laps(
+        laps[~laps["session"].isin(["R", SPRINT_SESSION])]
+    )
     prac = tag_long_runs(prac)
     prac = classify_runs(drop_stint_outliers(prac[prac["is_long_run"]]))
     prac = practice_design(prac[prac["is_race_sim"]])
